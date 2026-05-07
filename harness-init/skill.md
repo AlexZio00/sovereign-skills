@@ -361,7 +361,7 @@ Rows marked with a condition (Standard+, review gates) are only generated if the
 **ai-constitution.md** — always generated, content from preset + Q5:
 
 ```markdown
-# AI Constitution — [Project Name]
+# AI Rules — [Project Name]
 
 ## I. Core Identity
 [Domain-specific identity statement from preset]
@@ -694,7 +694,7 @@ When both exist, project-level rules extend (never weaken) global rules.
 
 ---
 
-## Safety Layers (L0 XIV 상속)
+## Safety Layers
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
@@ -707,7 +707,7 @@ When both exist, project-level rules extend (never weaken) global rules.
 - **L3 (User Approval)**: Phase 3 File Generation 각 파일별 확인. `settings.json`은 절대 전체 replace 금지 (merge만).
 - **금지**: `settings.json`의 기존 hooks 삭제, 기존 rules 덮어쓰기 (Update 명시 없이).
 
-## Truthful Reporting (L0 II.7 상속)
+## Truthful Reporting
 
 파일 생성 후:
 1. **no mock deception**: Write 후 Bash `ls ~/.claude/rules/` 로 파일 존재 재확인. violation testing 통과까지 완료 표기 금지.

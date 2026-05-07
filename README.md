@@ -506,6 +506,29 @@ Each file has a specific role. `/session-checkpoint` writes to all four. `/sessi
 
 ## Changelog
 
+### v4.7 — Pre-push resilience + session improvements + internal ref cleanup (2026-05-07)
+
+**`pre-push`** upgraded to v3.2.0:
+
+- **Agent failure recovery**: if a review agent times out or errors, retry once — still failing → report `⚠️ SKIPPED (agent unavailable — {agent})` in the push summary and continue. Never silently treat a failed agent as PASS.
+- **Conflict resolution**: when agents give opposing verdicts on the same file — security-reviewer Critical + any non-critical → Critical wins (weakest-link principle). Fully opposing verdicts (one PASS, one Critical FAIL) → report both to user, do not push.
+- Action tags added to Scope Boundary (`[BASH]`, `[AGENT]`).
+
+**`session-checkpoint`** improvements:
+
+- **Phase 1.5 ⑤ Snapshot Cleanup**: checks `~/.claude/.harness/snapshots/` for entries older than 90 days and notifies the user. Not auto-deleted — manual review required.
+- **Phase 3 step 5**: `~/.claude/STATE.md` update — resolved blockers → remove row, completed PENDING → remove row, major milestones → add to change log. Skip if no state change.
+- Phase 4 checklist: `□ STATE.md reviewed?` added.
+- Safety Layers and Truthful Reporting sections added.
+
+**`session-start`** improvements:
+
+- **Phase 4.1 Selective Load**: tag-based MEMORY.md filtering. `<!-- #always -->` sections → load in full. `<!-- #on-demand -->` sections → extract headers as TOC only (Grep when needed). No tags → load in full (backward compatible). Reduces context load for large MEMORY.md files.
+
+**All 10 skills**: removed internal framework references (`(L0 XIII/XIV/XV 상속)`, `(L0 II.7 상속)`, etc.) from Safety Layers and Truthful Reporting section headers. Behavior unchanged — labels removed only.
+
+---
+
 ### v4.6 — Lessons.md confidence/decay metadata (2026-04-28)
 
 Two session lifecycle skills upgraded to track lesson health over time, not just lesson content.
@@ -515,15 +538,13 @@ Two session lifecycle skills upgraded to track lesson health over time, not just
 
 **Origin:** ECC [`continuous-learning-v2`](https://github.com/affaan-m/everything-claude-code/tree/main/skills/continuous-learning-v2) (instinct + confidence scoring). Concept absorbed; the full package (homunculus directory + background Haiku agent + 6 slash commands) was not adopted — the metadata pattern transfers cleanly into existing `lessons.md` without new infrastructure dependencies.
 
-### v4.5 — AI Constitution inheritance layer (2026-04-27)
+### v4.5 — Safety Layers and Truthful Reporting (2026-04-27)
 
-Five skills now surface their connection to a tiered rule framework — Safety Layers and Truthful Reporting sections document exactly which constraints are inherited, from which layer, and why.
+Five skills now include explicit safety and reporting contracts — Safety Layers document which actions are risky and what defense layers apply; Truthful Reporting defines what counts as a complete vs. partial result.
 
-- **`pre-push`**: Python CVE scan via `pip-audit` added to Step 3 (WARN-only, never blocks). Preferred over osv-scanner for Python-native projects. Also adds Safety Layers (L0 XIII/XIV/XV) mapping each push action to its reversibility tier, and Truthful Reporting (L0 II.7) clarifying what "READY TO PUSH" actually means.
-- **`collab-audit`**, **`brief`**: Truthful Reporting (L0 II.7) — what counts as a complete audit vs. inference-padded output; what counts as a locked scope vs. a draft.
-- **`harness-init`**, **`project-init`**: Safety Layers (L0 XIV) + Truthful Reporting (L0 II.7) — maps file-creation actions to reversibility tiers and defense layers. Prohibitions explicit: no `.env` generation, no `settings.json` overwrite.
-
-**What these sections reference:** A personal AI Constitution — a layered rule framework governing how AI agents behave across projects. The public skills inherit constraints from it; the constitution itself isn't published because it's entangled with project-specific rules and session management patterns that don't transfer cleanly as standalone files.
+- **`pre-push`**: Python CVE scan via `pip-audit` added to Step 3 (WARN-only, never blocks). Preferred over osv-scanner for Python-native projects. Also adds **Safety Layers** mapping each push action to its reversibility tier, and **Truthful Reporting** clarifying what "READY TO PUSH" actually means.
+- **`collab-audit`**, **`brief`**: **Truthful Reporting** — explicit criteria for what counts as a complete audit vs. inference-padded output; and what counts as a locked scope vs. a draft.
+- **`harness-init`**, **`project-init`**: **Safety Layers** + **Truthful Reporting** — maps file-creation actions to reversibility tiers and defense layers. Prohibitions explicit: no `.env` generation, no `settings.json` overwrite.
 
 ### v4.4 — In production reference cases (2026-04-20)
 

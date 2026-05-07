@@ -69,6 +69,28 @@ Scan the session conversation for four entity types:
 - Items in `memory/context-log.md` with `[ref:N]` where N ≥ 3 → check if they belong in MEMORY.md
 - Same entity appearing 3+ times → add to MEMORY.md if not already there
 
+**⑤ Snapshot Cleanup (90-day policy)**
+
+If `~/.claude/.harness/snapshots/` exists, check for outdated snapshots:
+
+```bash
+CUTOFF=$(date -d "90 days ago" +%Y-%m-%d 2>/dev/null || date -v-90d +%Y-%m-%d)
+ls -d ~/.claude/.harness/snapshots/*/ 2>/dev/null | while read skill_dir; do
+  ls -d "${skill_dir}"*/ 2>/dev/null | while read snap; do
+    SNAP_DATE=$(basename "$snap" | cut -c1-10)
+    [ "$SNAP_DATE" \< "$CUTOFF" ] && echo "Old snapshot: $snap"
+  done
+done
+```
+
+If snapshots older than 90 days are found, notify the user:
+```
+💡 Snapshots older than 90 days found in ~/.claude/.harness/snapshots/
+To delete: rm -rf ~/.claude/.harness/snapshots/<skill-name>/<YYYY-MM-DD-*>/
+Not auto-deleted — review the list and remove manually.
+```
+If none found or directory missing: skip this step (no output).
+
 ---
 
 ## Phase 1.6: Task-to-Skill Crystallization (GenericAgent pattern)
@@ -171,6 +193,11 @@ Apply Phase 1.5 extraction results to files:
    - **Quarterly cleanup** (1st of each month or stale detection): `conf < 0.4 AND (today − seen) > 90 days` → move to `tasks/_archive/lessons-pre-YYYY-MM.md`
    - Backward compatible: lessons without v2 metadata are unchanged
 4. Remove references to old handoff filenames in MEMORY.md index; unify to LATEST.
+5. **`~/.claude/STATE.md`** (cross-project state file, if it exists) — update if a significant state change occurred this session:
+   - Resolved blockers → remove the row
+   - Completed PENDING items → remove the row
+   - Major milestones → add a one-line entry to the change log
+   - No change → skip entirely (do not touch)
 
 ---
 
@@ -183,6 +210,7 @@ Checklist before compact:
 □ Next session can start from handoff alone?
 □ In-progress code changes are described?
 □ User's last request is complete or recorded?
+□ STATE.md reviewed? (skip if no state change this session)
 ```
 Any NO → fix before proceeding.
 
@@ -199,15 +227,33 @@ After passing the checklist, tell the user:
 
 ---
 
+## Safety Layers
+
+| Risky Action | Notes |
+|---|---|
+| Overwriting `MEMORY.md` existing sections | Read current content first; overwrite section in place, never append raw |
+| Deleting `STATE.md` PENDING items | Verify the trigger condition was actually met before removing |
+| Crystallization auto-execution | Proposal only — user must explicitly approve before any skill is created |
+
+## Truthful Reporting
+
+After saving files:
+1. Report `"saved"` only after verifying the write succeeded (file size / line count).
+2. Phase 4 checklist items actually skipped → mark `⚠️ SKIPPED: reason`. No phantom passes.
+3. Final status: `WORKING` (all 5 phases complete) / `PARTIAL` (specific gaps listed) / `BROKEN` (handoff save failed).
+
+---
+
 ## Scope Boundary
 
 | Does | Does NOT |
 |------|----------|
-| Record incomplete items in handoff file | Preserve completed items (delete is correct) |
-| Update MEMORY.md with new/stale items | Write code or implement features |
-| Run Phase 1–5 preservation checklist | Call `/compact` directly (CLI only) |
-| Maintain single handoff file | Create versioned handoff files (v1, v2…) |
-| Propose Crystallization candidates (Phase 1.6) | Author a new skill automatically (only after user approval + explicit handoff) |
+| [WRITE] Record incomplete items in handoff file | Preserve completed items (delete is correct) |
+| [EDIT] Update MEMORY.md with new/stale items | Write code or implement features |
+| [READ] Run Phase 1–5 preservation checklist | Call `/compact` directly (CLI only) |
+| [WRITE] Maintain single handoff file | Create versioned handoff files (v1, v2…) |
+| [AGENT] Propose Crystallization candidates (Phase 1.6) | Author a new skill automatically (only after user approval) |
+| [EDIT] Update STATE.md when state changes | Rewrite STATE.md content entirely |
 
 ---
 

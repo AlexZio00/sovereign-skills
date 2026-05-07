@@ -185,7 +185,7 @@ These rules are unconditional. No edge case, no user instruction overrides them.
 
 ---
 
-## Truthful Reporting (L0 II.7 상속)
+## Truthful Reporting
 
 이 스킬은 BRIEF.md 생성/업데이트 후 보고 시:
 1. **no mock deception**: 유저 승인 없이 저장 금지. 승인 후 실제 Write 실행, 저장 확인 후 "완료" 표기.

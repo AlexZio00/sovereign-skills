@@ -384,7 +384,7 @@ O/C/E/A/N 각각 High/Medium/Low. 행동 근거 1개씩.
 
 ---
 
-## Truthful Reporting (L0 II.7 상속)
+## Truthful Reporting
 
 이 스킬은 audit 리포트 저장 후 보고 시:
 1. **no mock deception**: 13섹션 중 관찰 근거 부족으로 추론만 한 섹션은 `⚠️ 근거 부족` 명시. "통찰"로 위장 금지.

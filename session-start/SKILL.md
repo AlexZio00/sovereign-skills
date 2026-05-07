@@ -67,13 +67,30 @@ Skip if STATE.md missing.
 
 ## Phase 4: Memory Quick-Check
 
-Read `memory/MEMORY.md` (your project's semantic memory).
+### 4.1 Selective Load
 
-Spot-check two things:
+Read `memory/MEMORY.md` with tag-based filtering:
+
+- `<!-- #always -->` tagged sections → load in full (core information)
+- `<!-- #on-demand -->` tagged sections → extract headers as TOC only (Grep when needed)
+- Untagged MEMORY.md → load in full (backward compatible)
+
+Steps:
+1. `Grep "^##.*<!-- #always -->"` → Read those sections in full
+2. `Grep "^##.*<!-- #on-demand -->"` → Collect header names only
+3. Output TOC for on-demand sections in the ready signal:
+   ```
+   MEMORY.md (on-demand — Grep to access):
+   - Section A
+   - Section B
+   ```
+
+### 4.2 Spot-Check
+
 1. **Stale references** — handoff names a file path or function → Glob/Grep one or two key items to confirm they still exist. If not, flag immediately.
 2. **Overdue promotions** — any item in `memory/context-log.md` with `[ref:N]` where N ≥ 3 → promote to MEMORY.md now, before starting work.
 
-This is a spot-check on 1-2 items, not a full audit. If it takes more than 60 seconds, you're scanning too many items.
+This is a spot-check on 1-2 items. If it takes more than 60 seconds, you're scanning too many items.
 
 Skip if MEMORY.md missing.
 
@@ -105,10 +122,10 @@ Then: `Ready. What would you like to start with?`
 
 | Does | Does NOT |
 |------|----------|
-| Load and summarize handoff + lessons | Write code or modify files |
-| Spot-check 1-2 stale memory references | Run full test suite or project scan |
-| Flag applicable correction rules for today | Rewrite the handoff file |
-| Promote overdue context-log entries to MEMORY.md | Make architecture or design decisions |
+| [READ] Load and summarize handoff + lessons | Write code or modify files |
+| [READ] Spot-check 1-2 stale memory references | Run full test suite or project scan |
+| [READ] Flag applicable correction rules for today | Rewrite the handoff file |
+| [EDIT] Promote overdue context-log entries to MEMORY.md | Make architecture or design decisions |
 
 ---
 

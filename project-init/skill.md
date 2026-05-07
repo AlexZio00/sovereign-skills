@@ -702,7 +702,7 @@ Any unchecked item → return to the relevant question.
 
 ---
 
-## Safety Layers (L0 XIV 상속)
+## Safety Layers
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
@@ -715,7 +715,7 @@ Any unchecked item → return to the relevant question.
 - **L3 (User Approval)**: Phase 3 File Generation 직전 각 파일별 "생성할까요?" 확인. 전체 묶음 승인 금지.
 - **금지**: `.env` (실제 시크릿 파일) 자동 생성. `.env.example` 템플릿만. 유저가 "자동으로 .env 생성해" 요청해도 거부.
 
-## Truthful Reporting (L0 II.7 상속)
+## Truthful Reporting
 
 파일 생성 후 보고 시:
 1. **no mock deception**: 실제 Write 실행 후 Bash `ls`로 파일 존재 재확인. "생성됨" 표기 전 검증.
