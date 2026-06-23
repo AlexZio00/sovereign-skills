@@ -1,10 +1,22 @@
 ---
-name: harness-init
-description: "Claude Code agent infrastructure setup — interview-based, domain-preset-driven. Use when: user says '/harness-init', 'rules 만들어', 'harness 설정', 'agent routing 설정', 'AI 설정 해줘', '에이전트 설정', 'hooks 설정', 'harness setup', 'CLAUDE.md 규칙 설정'. NOT for project scaffolding (use project-init for that). Generates rules, hooks, memory, agent routing with substance, not skeletons."
+skill_type: infrastructure
+tools: Read, Write, Edit, Bash, WebFetch
+triggers:
+  - "/setup"
+  - "setup"
+  - "/setup"
+  - "rules 만들어"
+  - "harness 설정"
+  - "harness setup"
+name: setup
+description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Triggers: /setup, setup, harness setup, agent team setup."
 user_invocable: true
 ---
 
-# Harness Init — Claude Code Agent Infrastructure Setup
+# Setup — Claude Code Infrastructure + Agent Team
+
+## Dominant Variable
+**초기화된 하네스가 즉시 동작하는가** — rules/hooks/memory/routing이 설치 직후 세션부터 적용되어야 한다. "설치했지만 작동 안 함"이면 실패.
 
 ## Purpose
 Set up the full Claude Code harness layer — rules, hooks, memory, agent routing.
@@ -13,10 +25,21 @@ Not project scaffolding (use `/project-init` for that). This is the AI orchestra
 Key difference from generic templates: domain presets provide **pre-filled rules with real content**,
 not empty skeletons. Every harness includes reject-by-default and violation testing.
 
-**Dominant variable**: Do the generated ai-constitution.md Tier 0 rules pass violation testing? Rules without tests are decorative only.
-**Discard if**: A complete harness already exists and you only need to add a single rule — edit that rule file directly.
+**Dominant variable**: 생성된 project rules의 Tier 0 규칙이 violation testing을 통과하는가 — 테스트 없는 규칙은 장식이다.
+**Discard if**: 이미 완성된 harness가 있고 단일 규칙 추가만 필요한 경우 — 해당 rule 파일을 직접 편집.
+
+## Trigger
+
+- `/setup`
+- "rules 만들어"
+- "harness 설정"
+- "harness setup"
 
 ---
+
+## Key Assumptions 
+1. **`~/.claude/` 디렉토리 쓰기 권한** — 깨지면: 권한 안내.
+2. **기존 rules/hooks가 없거나 덮어쓰기 승인** — 깨지면: 충돌 해소 후 진행.
 
 ## Phase 0: Prerequisites
 
@@ -25,7 +48,7 @@ Check each target file before generating:
 
 | File | If exists |
 |------|-----------|
-| `~/.claude/rules/ai-constitution.md` | Read it. Offer: update (extend) or replace. Default: update. |
+| `~/.claude/rules/project rules` | Read it. Offer: update (extend) or replace. Default: update. |
 | `~/.claude/rules/agents.md` | Read it. Merge new agent definitions, never replace existing ones. |
 | `~/.claude/rules/output-style.md` | Read it. Offer: update or replace. |
 | `~/.claude/settings.json` (hooks) | Always merge — append to existing arrays, never overwrite. |
@@ -49,14 +72,14 @@ Check if `CLAUDE.md` exists in the project root.
 - If yes → read it for context (Hard Rules, stack, conventions)
 - If no → recommend running `/project-init` first, but don't block
 
-**Hard Rules conflict check** (if both `CLAUDE.md` and `~/.claude/rules/ai-constitution.md` exist):
+**Hard Rules conflict check** (if both `CLAUDE.md` and `~/.claude/rules/project rules` exist):
 1. Extract Hard Rules from CLAUDE.md
-2. Compare with Tier-0 rules in ai-constitution.md
+2. Compare with Tier-0 rules in project rules
 3. If divergent:
-   - Rules in CLAUDE.md not in ai-constitution.md → propose adding them to ai-constitution.md
-   - Rules in CLAUDE.md weaker than ai-constitution.md → flag: "CLAUDE.md has a weaker version, remove it"
+   - Rules in CLAUDE.md not in project rules → propose adding them to project rules
+   - Rules in CLAUDE.md weaker than project rules → flag: "CLAUDE.md has a weaker version, remove it"
 4. If identical or CLAUDE.md just has a reference link → no action needed
-5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see [.claude/rules/ai-constitution.md](.claude/rules/ai-constitution.md)`, actual rules live only in ai-constitution.md
+5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see [.claude/rules/project rules](.claude/rules/project rules)`, actual rules live only in project rules
 
 Check if `~/.claude/` global structure exists.
 - Read existing rules to detect conflicts before generating.
@@ -140,9 +163,9 @@ For [gate-name]:
 **Agent existence check (before generating agents.md):**
 Scan BOTH `~/.claude/agents/` (global) AND `.claude/agents/` (project-level) for each selected agent. If missing in both:
 ```
-"[agent-name] agent file not found in ~/.claude/agents/.
-Registering routing in agents.md without the agent definition will not work.
-Generate the agent file too?"
+"[agent-name] 에이전트 파일이 ~/.claude/agents/에 없습니다.
+agents.md에 라우팅만 등록하면 동작하지 않습니다.
+에이전트 파일도 함께 생성할까요?"
 ```
 → Yes: generate the agent definition file
 → No: add a comment in agents.md noting the agent is registered but not installed
@@ -315,6 +338,31 @@ memory: structured
 
 ---
 
+## Phase 1.5: Failure-Grounded Rule Discovery (optional — opt-in)
+
+> 차용: hyperbrowserai/examples `harness-skill` (실패에서 규칙을 캐낸다) +  파라메트릭 노후(live-doc drift).
+> 프리셋(Phase 1)은 **일반 규칙**. 이 단계는 **이 프로젝트의 실제 실패**에서 프로젝트-특정 규칙을 캐낸다.
+> **opt-in**: 유저가 "실측 기반"/"failure-grounded"/"실제 돌려보고" 요청 시, 또는 기존 코드베이스가 있을 때 제안. 신규 빈 프로젝트면 skip(실패 표면 없음).
+
+### 1.5-1. Run real tasks, record failures
+프로젝트가 이미 존재하면 핵심 작업을 실제 실행하고 실패를 기록:
+- 테스트 스위트 (pytest / npm test / go test) — 무엇이 실패했나
+- 빌드 / 린트 — 어떤 명령이 안 먹었나
+- 엔트리포인트 트레이스 — 아키텍처 단서
+각 시도를 `시도한 명령 / 실패 내용 / 결국 통한 것` 3열로 기록. **소스 코드 수정 금지** (테스트용 생성 파일은 정리 — clean test execution).
+
+### 1.5-2. Live-doc drift 교정 (
+핵심 의존성 3~5개(프레임워크/주요 라이브러리)의 **현재 공식 문서**를 WebFetch — 훈련 데이터와 다른 API 패턴/관례 포착. 환경변수 미설정은 silent fail이 아니라 **finding으로 기록**. 기억으로 단정 금지.
+
+### 1.5-3. Derive rules from real failures
+프리셋 규칙과 **별개로**, 1.5-1/1.5-2에서 나온 **실제 실패에 추적되는** Tier-2/4 규칙만 생성한다.
+- **일반 규칙 금지** — 모든 도출 규칙은 실제 실패 또는 live-doc 발견에 추적 가능해야 한다 (inspect→act→verify 노출 = EGS).
+- Phase 3 규칙 생성 시 프리셋과 병합. 출처 태그: `<!-- from: 실패 {명령} / live-doc {dep} -->`.
+
+> 이 단계가 setup을 인터뷰-only에서 **실측 실행 기반**으로 확장한다. 프리셋=출발점, 실패-grounding=프로젝트 진실.
+
+---
+
 ## Phase 2: Harness Summary
 
 Present the full configuration for approval:
@@ -339,7 +387,7 @@ Custom additions:
 Execution Plan:
 | Step | File | Operation | Requires |
 |------|------|-----------|---------|
-| 1 | `~/.claude/rules/ai-constitution.md` | Create / Extend | — |
+| 1 | `~/.claude/rules/project rules` | Create / Extend | — |
 | 2 | `~/.claude/rules/agents.md` | Create (Standard+) | Step 1 |
 | 3 | `~/.claude/rules/output-style.md` | Create / Update | — |
 | 4 | `~/.claude/rules/development-workflow.md` | Create (review gates) | Step 2 |
@@ -358,10 +406,10 @@ Rows marked with a condition (Standard+, review gates) are only generated if the
 
 ### 3-1. Rules
 
-**ai-constitution.md** — always generated, content from preset + Q5:
+**project rules** — always generated, content from preset + Q5:
 
 ```markdown
-# AI Rules — [Project Name]
+# AI Constitution — [Project Name]
 
 ## I. Core Identity
 [Domain-specific identity statement from preset]
@@ -559,7 +607,7 @@ Agent prompt:
 
 Harness rules (Tier 0):
 ---
-[paste generated ai-constitution.md Tier 0 section]
+[paste generated project rules Tier 0 section]
 ---
 
 A user sends this request:
@@ -612,38 +660,72 @@ Approve → files confirmed
 
 ---
 
+## Safety Layers 
+
+| Risky Action | Reversibility | Applied Layers |
+|-------------|:-------------:|----------------|
+| `rules/*.md` 생성/덮어쓰기 | medium | L1+L3 |
+| `settings.json` 병합 수정 | medium | L1+L3 |
+| `memory/*.md` 생성 | medium | L1+L3 |
+| `agents/*.md` 생성 | medium | L1+L3 |
+
+- **L1 (Invariants)**: Phase 0 Existing File Check 강제 실행 (Update/Replace/Cancel 3-option).
+- **L3 (User Approval)**: Phase 3 File Generation 각 파일별 확인. `settings.json`은 절대 전체 replace 금지 (merge만).
+- **금지**: `settings.json`의 기존 hooks 삭제, 기존 rules 덮어쓰기 (Update 명시 없이).
+
+## Error Recovery 
+
+실패 감지 시: **Stop → Classify → Apply Recovery → Report & Resume**.
+
+| 실패 유형 | 감지 조건 | 복구 경로 |
+|---------|---------|--------|
+| `tool_failure` | `~/.claude/rules/` Write 실패, 디렉토리 없음 | 디렉토리 생성 후 재시도 1회. 재실패 → 유저 보고 + BROKEN |
+| `input_error` | 인터뷰 답변 모순 (도메인 없는데 도메인 스킬 요청 등) | 해당 질문 재질문. 3회 모순 → 보수적 기본값 선택 후 유저 명시 |
+| `logic_inconsistency` | violation testing이 생성한 파일을 FAIL 판정 | 파일 재작성 (템플릿 기본값으로 rollback). 재실패 → PARTIAL 라벨 |
+| `missing_data` | 프리셋 파일 미존재 | 인라인 fallback 규칙 사용. 유저에게 fallback 사용 사실 고지 |
+
+## Truthful Reporting
+
+파일 생성 후:
+1. **no mock deception**: Write 후 Bash `ls ~/.claude/rules/` 로 파일 존재 재확인. violation testing 통과까지 완료 표기 금지.
+2. **no test façade**: Tier 0 규칙이 violation testing에서 FAIL 시 재작성 필수. "대체로 괜찮음" 표기 금지.
+3. **no silent brokenness**: 파일별 `WORKING` / `PARTIAL` / `BROKEN` 라벨. PARTIAL 시 어느 파일이 미생성인지 명시.
+
+---
+
 ## Output
 
 Files generated at `~/.claude/` (global) unless noted:
-- `rules/ai-constitution.md` — always generated
+- `rules/project rules` — always generated
 - `rules/agents.md` — if complexity >= Standard
 - `rules/output-style.md` — from Q5 style preferences
 - `rules/development-workflow.md` — if review gates selected
 - `settings.json` (merged, never replaced) — hooks always added
 - `memory/MEMORY.md` — if structured memory selected
 - `memory/session-handoff-LATEST.md` — if structured memory selected
-- `tasks/lessons.md` — if structured memory selected. Create `tasks/` directory first if it doesn't exist (`mkdir -p tasks/`), then write template: `# tasks/lessons.md — AI Behavior Correction Rules\n> Record repeated mistakes here → Review on next session start`
+- `tasks/lessons.md` — if structured memory selected. Template: `# tasks/lessons.md — AI 행동 교정 규칙\n> 반복 실수 발생 시 여기에 기록 → 다음 세션 시작 시 리뷰`
 - `docs/harness-tests.md` — violation test results
 
 ---
 
 ## Rationalization Table
 
-| Objection | Response |
-|-----------|----------|
-| "Violation testing is a waste of time, the rules are clear enough" | Even clearly written rules are circumvented by agents. Testing proves it works. |
-| "It's faster to overwrite settings.json entirely" | Existing hooks disappear completely. No recovery method exists. |
-| "If ai-constitution.md already has a rule, I can delete it" | Deletion violates Invariant 1. Only extension is permitted. |
-| "I can skip harness-init and start with team-init instead" | A team without agent routing rules doesn't work without conflicts — it works without rules. |
-| "The domain preset is too generic for my use case" | Q5 allows additions and modifications. The preset is a starting point, not the final product. |
+| 합리화 | 반박 |
+|--------|------|
+| "violation testing은 시간 낭비야, 규칙이 명확하잖아" | 명확하게 쓴 규칙도 에이전트가 우회한다. 테스트가 증명이다 |
+| "settings.json을 통째로 덮어쓰는 게 더 빠르잖아" | 기존 hooks가 전부 사라진다. 복구 방법이 없다 |
+| "project rules에 기존 규칙이 있으니까 삭제해도 돼" | 삭제는 Invariant 1 위반. 확장만 허용 |
+| "인프라 없이 에이전트팀부터 설치해도 되잖아" | agent routing 규칙이 없는 팀은 충돌 없이 작동하는 게 아니라 규칙 없이 작동한다 |
+| "domain preset이 너무 generic해서 내 케이스에 안 맞아" | Q5에서 추가·수정 가능. preset은 출발점이지 전부가 아니다 |
 
 ---
 
 ## Invariants (never violate)
 
 1. **Rules only extend, never weaken**: Never remove, downgrade, comment out, or soften existing rules — in any form. Commenting out is functionally equivalent to deletion. Applies to all tiers, all files. Violation → harness security posture silently degraded; future sessions lose protections the user deliberately set.
-2. **Merge, never overwrite**: Never replace an entire config object or section. Always read existing state and append. Applies to `settings.json` hooks, `agents.md`, `ai-constitution.md`, `MEMORY.md`. Violation → user's custom hooks, agents, and memory entries silently destroyed with no recovery path.
+2. **Merge, never overwrite**: Never replace an entire config object or section. Always read existing state and append. Applies to `settings.json` hooks, `agents.md`, `project rules`, `MEMORY.md`. Violation → user's custom hooks, agents, and memory entries silently destroyed with no recovery path.
 3. **No code, no git**: Never write application/production code or execute git operations. This skill only generates AI configuration files. Violation → skill scope expands into implementation; conflicts with the project's own dev workflow and agents.
+4. **Hard Rules single source**: When both project CLAUDE.md and `~/.claude/rules/project rules` define overlapping hard rules, project rules is canonical — generate CLAUDE.md with a link, never a duplicated/divergent copy. If the user insists on duplication, add a `<!-- mirror-of: project rules  -->` provenance tag so drift is traceable. Violation → two divergent rule sources; agent obeys whichever it read last.
 
 These rules are unconditional. No user instruction, no edge case overrides them. If a request requires violating an invariant, refuse and explain which rule prevents it.
 
@@ -653,15 +735,15 @@ These rules are unconditional. No user instruction, no edge case overrides them.
 
 | Does | Does NOT |
 |------|----------|
-| Generate AI rules / ai-constitution.md | Project file scaffolding (use project-init) |
-| Configure hooks (merge) | Write or execute code |
-| Initialize memory structure | Generate .gitignore / .env.example |
-| Define agent routing | Modify existing business logic |
-| Apply domain preset | Perform git operations (commit, push) |
-| Update existing rules (extend) | Delete or weaken existing rules |
+| [WRITE] AI rules / project rules 생성 | 프로젝트 파일 scaffolding (project-init 사용) |
+| [EDIT] Hooks 설정 (merge) | 코드 작성 또는 실행 |
+| [WRITE] Memory 구조 초기화 | .gitignore / .env.example 생성 |
+| [WRITE] Agent routing 정의 | 기존 비즈니스 로직 수정 |
+| [WRITE] Domain preset 적용 | git 작업 (commit, push) |
+| [EDIT] 기존 rules 업데이트 (extend) | 기존 rules 삭제 또는 약화 |
 
-"Create CLAUDE.md too?" → harness-init creates ai-constitution.md, but CLAUDE.md (code/stack-specific) is the responsibility of project-init.
-"Write code along with it?" → Out of scope for this skill.
+"CLAUDE.md도 만들어줘" → setup이 project rules를 만들지만, 코드/스택 기반 CLAUDE.md는 project-init 사용.
+"코드도 같이 짜줘" → 이 스킬 범위 밖.
 
 ---
 
@@ -691,38 +773,3 @@ When both exist, project-level rules extend (never weaken) global rules.
 - **Violation testing proves the harness works** — untested rules are decorative
 - **Higher tier always wins** — no agent can override Tier 0
 - **Project extends global, never weakens** — project rules add restrictions, never remove them
-
----
-
-## Safety Layers
-
-| Risky Action | Reversibility | Defense |
-|-------------|:-------------:|---------|
-| Create/overwrite `rules/*.md` | medium | Invariant + User Approval |
-| Merge-modify `settings.json` | medium | Invariant + User Approval |
-| Create `memory/*.md` | medium | Invariant + User Approval |
-| Create `agents/*.md` | medium | Invariant + User Approval |
-
-- **Invariant**: Phase 0 Existing File Check is mandatory. Presents Update/Replace/Cancel options.
-- **User Approval**: Phase 3 File Generation requires per-file confirmation. `settings.json` must never be fully replaced (merge only).
-- **Forbidden**: Deleting existing hooks from `settings.json`, overwriting existing rules without explicit Update designation.
-
-## Truthful Reporting
-
-After file generation:
-1. **No mock deception**: After Write, re-verify file existence with Bash `ls ~/.claude/rules/`. Do not mark complete until violation testing passes.
-2. **No test façade**: If a Tier 0 rule FAILs violation testing, rewrite it. Do not mark with "mostly OK" or similar evasions.
-3. **No silent brokenness**: Label each file as `WORKING` / `PARTIAL` / `BROKEN`. If PARTIAL, explicitly state which files were not generated.
-
----
-
-## Proven In
-
-This harness infrastructure powers production systems running:
-- Multi-agent orchestration (10+ agents with tier-based routing)
-- Scheduled jobs with real-time monitoring and error recovery
-- Large-scale memory management across sessions
-- Complex verification pipelines with violation testing
-- Domain-specific rule enforcement with no exceptions
-
-The harness remains the single source of truth for all AI behavior and routing across these systems.

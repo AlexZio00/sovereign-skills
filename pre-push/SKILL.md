@@ -1,14 +1,23 @@
 ---
+skill_type: workflow
+tools: Read, Bash, Glob, Grep
+triggers:
+  - "push"
+  - "git push"
+  - "푸시해"
 name: "pre-push"
 description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks, auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
   version: "3.2.0"
   author: "coinangel"
+user_invocable: true
 ---
 
 <!--
-  v3.2.0 (2026-05-06) — agent failure recovery + conflict resolution rules in Step 7
+  v3.3.0 (2026-06-12) — Step 6 대형 diff 결정론 번들링 (출처: alibaba/open-code-review 차용 —
+                         커버리지를 에이전트 성실성이 아닌 구조로 보장. 번들 합집합 = staged 전체 검증)
+  v3.2.0 (2026-05-06) — /XVII 상속 추가: Error Recovery (Step 7) + State Sync (Step 6 병렬 결과 병합)
   v3.1.0 (2026-04-11) — defense structure: Dominant variable, Discard if,
                          Rationalization Table (6), Invariants (4), Scope Boundary
   v3.0.0 (2026-04-10) — scanner: scripts/scan_secrets.pl (12 patterns) |
@@ -16,23 +25,25 @@ metadata:
 -->
 # Pre-Push Pipeline
 
-**Dominant variable**: Secret scanning runs without exception — one skip grants permanent credential exposure in git history.
-**Discard if**: User explicitly requests "skip review" or "force push" → go directly to Emergency Override section.
+## Dominant Variable
+시크릿 스캔이 예외 없이 실행되는가 — 한 번의 스킵으로 자격증명이 git history에 영구히 기록된다.
 
-> ⛔ **BLOCKING REQUIREMENT**: Complete this pipeline and resolve all Critical/High issues BEFORE executing `git push`.
+## Trigger
 
-> **YOLO auto-approve**: `git diff`, `git status`, `git branch`, `git log` (read-only ops) are auto-approved without a permission prompt. `git push` is a write operation — it only runs after all gates pass.
+- "push"
+- "git push"
+- "푸시해"
 
-## Prerequisites
+## Discard If
+- 사용자가 "skip review" 또는 "force push" 명시 → Emergency Override로 직행
+- staged 파일이 0개 (커밋할 것이 없음)
+- `*.md` / `docs/**` 변경만 (Step 2에서 fast-exit되지만, 이 조건이면 에이전트 리뷰 오버헤드 불필요)
 
-| Requirement | Used in | Install |
-|-------------|---------|---------|
-| `perl` | Step 1 (scan_secrets.pl) | Ships with macOS/Linux; [Strawberry Perl](https://strawberryperl.com) for Windows |
-| `git` | All steps | Ships with most systems |
-| `pytest` / `go test` / `npm test` | Step 4 (language tests) | Language-specific; skipped automatically if not installed |
-| `ruff` / `flake8` / `eslint` | Step 5a (lint) | Optional; skipped automatically if not installed |
+## Key Assumptions 
+1. **scan_secrets.pl 스크립트 접근 가능** — 깨지면: 시크릿 스캔 불가 → push 차단.
+2. **git staged files 존재** — 깨지면: "staged 파일 없음" 안내 후 중단.
+3. **에이전트 도구(code-reviewer 등) 디스패치 가능** — 깨지면: AI 리뷰 스킵, lint/test만 실행.
 
-> **Zero-dependency path**: Only `perl` + `git` are strictly required. Steps 4–5a degrade gracefully to `➖ SKIPPED` when test runners or linters are absent.
 
 ## Step 1: Assess & Scan
 
@@ -183,11 +194,11 @@ fi
 
 Lint fails → **BLOCK**. Fix errors before continuing to 5b.
 
-### 5b: quick-validator Gate (AI, Serial)
+### 5b: code-reviewer --quick Gate (AI, Serial)
 
 **Skip if `$DIFF_LINES` < 50** — tiny diffs have negligible type/lint risk.
 
-Run **quick-validator** (haiku) for type errors and logical lint issues that static tools miss. FAIL → fix before continuing.
+Run **code-reviewer --quick** (haiku) for type errors and logical lint issues that static tools miss. FAIL → fix before continuing.
 
 ```
 Review the following staged diff for type errors and lint issues only.
@@ -202,7 +213,16 @@ Do NOT read entire files unless absolutely necessary.
 
 > **Spawn all applicable agents in a SINGLE response turn** using concurrent subagent calls — never sequentially. Parallel execution cuts total wall time by the duration of the slowest agent.
 
-**Large diff** (`$DIFF_LINES` > 500): also pass `git diff --staged --stat` as a preamble so agents can prioritise which files to read in full.
+**Large diff — 결정론 번들링** (`$DIFF_LINES` > 500 OR 파일 > 10개) (출처: alibaba/open-code-review 차용, 2026-06-12):
+
+대형 changeset에서 에이전트가 "알아서 골라 읽는" 방식은 커버리지 누락을 낳는다 — 커버리지는 프롬프트 성실성이 아니라 **구조로 보장**한다:
+
+1. **번들 분할 (결정론)**: `$STAGED_FILES`를 최상위 디렉토리/모듈 기준으로 그룹핑. 자연 쌍(소스+테스트, 구현+설정)은 같은 번들에. 번들 크기 가이드: diff ≤ ~300줄 또는 ≤ 5파일. 초과 시 번들 재분할.
+2. **번들당 리뷰어 1개**: code-reviewer를 번들 수만큼 디스패치 — 각 에이전트는 **자기 번들의 diff만** 받는다 (격리 컨텍스트, 전체 diff 전달 금지). 병렬 cap 5 — 번들 6개+면 5개씩 배치.
+3. **커버리지 검증 (결정론)**: 디스패치 전 `번들들의 파일 합집합 == $STAGED_FILES 전체` 카운트 대조. 불일치 → 누락 파일을 마지막 번들에 추가. 이 검증 없이 디스패치 금지.
+4. **조건부 에이전트**(security/database/refactor)는 기존 트리거 규칙대로 — 단 트리거에 매칭된 번들의 diff만 전달.
+
+소형 diff (≤500줄 AND ≤10파일): 기존대로 전체 diff를 각 에이전트에 전달. 번들링 오버헤드 불필요.
 
 ### Always run
 
@@ -226,16 +246,24 @@ Trigger `database-reviewer` (sonnet): `prisma/**`, `**/migrations/**`, `**/db*`,
 
 Trigger `refactor-cleaner` (sonnet): 10+ files changed, or user explicitly requested refactoring
 
-**Agent prompt template**:
+**Agent prompt template** (intent-passing — `no-mistakes` 차용: 의도적 결정 vs 실수 구분으로 오탐↓):
 
 ```
 Review the following staged diff. Focus on changed lines.
 Only read full files if you need more context.
 
+<intent>
+[이번 변경에서 유저가 달성하려던 것 — 세션 대화 기준 verbatim. 목표 + 의식적으로 내린 결정/트레이드오프 + 일부러 제외한 것. diff 설명이 아님. 비우지 말 것 — 비면 리뷰어가 의도적 선택을 "실수"로 오탐한다.]
+</intent>
+
 <diff>
 [paste full output of: git diff --staged]
 </diff>
+
+위 <intent>는 유저가 의도한 목표다. diff가 intent에서 벗어나면 플래그하되, intent에 명시된 의식적 결정·트레이드오프는 "실수"로 플래그하지 말 것.
 ```
+
+> **Intent 출처**: 별도 입력 아님 — pre-push 실행 에이전트(=너)가 **이 세션 대화에서 이미 알고 있는** 목표를 채운다. 모르면 채우지 말고 "intent 불명"으로 두되, 그 경우 리뷰 오탐 가능성을 Step 8 리포트에 명시.
 
 ## Step 7: Gate Check
 
@@ -253,13 +281,15 @@ Only read full files if you need more context.
 3. Max 1 retry per agent
 4. Still failing → halt and report exact issue + file location to user
 
-**Agent failure handling**: If a review agent times out or errors:
-- Retry once. Still failing → report `⚠️ SKIPPED (agent unavailable — {agent})` in Step 8 and continue.
-- Never silently skip a failed agent as "PASS."
+**Error Recovery ( 상속)**: Step 6 에이전트 또는 Bash 도구 실패 시:
+- Classify: `tool_failure`
+- Apply: 동일 에이전트 1회 재시도 → 여전히 실패 → `⚠️ TOOL_FAILURE: {agent} — 수동 검토 필요`로 보고 후 나머지 단계 계속. Silent failure 금지.
+- Step 8 리포트 해당 줄: `⚠️ SKIPPED (tool_failure — {agent})` 명시.
 
-**Conflict resolution**: When agents give opposing verdicts on the same file:
-- security-reviewer Critical + any Non-critical → **Critical wins** (weakest-link principle).
-- Fully opposing verdicts (one PASS, one Critical FAIL) → report both to user, do not push.
+**Parallel Conflict Resolution ( 상속)**: Step 6 에이전트들이 동일 파일에 상반된 판정 시:
+- security-reviewer Critical + code-reviewer Non-critical → **Critical 우선** (약한 고리 원칙).
+- 복수 에이전트 동일 파일 Critical → 합산하지 않음 (중복 계산 금지).
+- 판정 방향 완전 상충(한쪽 PASS, 한쪽 Critical FAIL) → **유저 에스컬레이션**. 임의 합의 금지.
 
 ## Step 8: Report & Push
 
@@ -275,7 +305,7 @@ Files: N | Diff: N lines | Total time: Xs
 - Build:             ✅ PASS (Xs) / ❌ FAIL (Xs) / ➖ SKIPPED (no source changes)
 - Tests:             ✅ PASS (Xs) / ⚠️ SKIPPED / ❌ FAIL (N failed)
 - Lint (direct):     ✅ PASS (Xs) / ❌ FAIL (N errors) / ➖ SKIPPED (no linter found)
-- quick-validator:   ✅ PASS (Xs) / ❌ FAIL (N issues) / ➖ SKIPPED (<50 lines)
+- code-reviewer --quick:   ✅ PASS (Xs) / ❌ FAIL (N issues) / ➖ SKIPPED (<50 lines)
 - code-reviewer:     ✅ PASS / ⚠️ N issues (X fixed, Y remaining)
 - security-reviewer: ✅ PASS / ❌ N issues / ➖ NOT TRIGGERED
 - database-reviewer: ✅ PASS / ⚠️ N issues / ➖ NOT TRIGGERED
@@ -289,6 +319,16 @@ Overall: ✅ READY TO PUSH / ❌ BLOCKED — <reason>
 
 Execute `git push` only when Overall = **READY TO PUSH**.
 
+### Memory Sync Reminder (READY TO PUSH 시만)
+
+push 대상 파일에 `` 경로 변경이 포함된 경우:
+
+```
+💡 Memory Sync: 코드가 변경됐습니다.
+   session-checkpoint를 아직 안 돌렸다면 메모리가 stale일 수 있습니다.
+   이 세션 종료 전에 /session-checkpoint 실행을 권장합니다.
+```
+
 ## Emergency Override
 
 If user explicitly says "skip review" or "force push":
@@ -297,57 +337,68 @@ If user explicitly says "skip review" or "force push":
 
 ---
 
-## Safety Layers
+## Safety Layers 
 
-Multiple defense layers protect against accidental credential exposure and logic errors:
+| Risky Action | Reversibility | Applied Layers |
+|-------------|:-------------:|----------------|
+| `git push` (일반 브랜치) | low | L1+L2+L3 |
+| `git push` (main/master) | low | L1+L2+L3+L4 |
+| `git push --force` | low | L1+L2 (deny 권고) |
+| 시크릿 노출 (secrets scan FAIL) | **none** | L1+L2+L3+L4 (BLOCK) |
 
-1. **Secrets Scan (Mandatory)**: Blocks any push containing hardcoded credentials. No exceptions — one skip leaves credentials permanently in git history.
-2. **Protected Branch Gate**: `main` / `master` pushes require explicit "yes" confirmation to prevent unreviewed code from reaching production.
-3. **Build & Test**: Compilation and test failures block push to catch integration errors early.
-4. **Review Agents (Independent)**: code-reviewer, security-reviewer, and specialized agents verify the diff independently of the implementer, catching logic errors and security issues.
-5. **Emergency Override (User Confirmation)**: Bypasses all gates only when the user explicitly says "skip review" or "force push". This is a **one-time override** — each push requires explicit re-confirmation.
+- **L1 (Invariants)**: 시크릿 스캔 통과 필수, Critical/High 이슈 수정 필수.
+- **L2 (Tool Restriction)**: `settings.json` hooks에서 `git push --force`, `--no-verify` deny 권고.
+- **L3 (User Approval)**: main/master 브랜치는 명시적 "yes" 확인. Emergency Override는 "skip review"/"force push" 명시.
+- **L4 (Independent Verification)**: Step 6 review agents (code-reviewer/security-reviewer/etc)가 구현자와 독립 검증.
 
-| Risky Action | Reversibility | Defense |
-|-------------|:-------------:|---------|
-| `git push` (normal branch) | low | Secrets scan + agent review + user confirmation |
-| `git push` (main/master) | low | Secrets scan + agent review + explicit "yes" confirmation |
-| `git push --force` | low | Blocked by tool restrictions (recommended in settings) |
-| Secret exposure (scan failure) | none | Mandatory block — no override possible |
+**세션 승인 유효기간 **: Emergency Override는 **해당 1회 push에만** 유효. "앞으로 계속 skip" 금지 — 매 push마다 재승인.
 
 ## Truthful Reporting
 
-After the pipeline runs, apply three principles:
-
-1. **No mock deception**: Report actual results for each step. Unskipped steps show real execution outcomes. Mark skipped steps with `➖ SKIPPED` and state the reason.
-2. **No test facade**: Never trust test results without verification. If pytest returns PASS via `--passWithNoTests`, verify that real tests actually exist before claiming success.
-3. **No silent brokenness**: Final status must be binary: `✅ READY TO PUSH` or `❌ BLOCKED`. If output shows `⚠️ PARTIAL` or intermediate concerns, explicitly detail the reason — do not hide incomplete work.
+파이프라인 실행 후:
+1. **no mock deception**: Step별 실제 실행 결과만 보고. 미실행 Step은 `➖ SKIPPED`, 이유 명시.
+2. **no test façade**: test 실행 결과 맹신 금지. `pytest --passWithNoTests`로 PASS 나오면 실제 테스트 있는지 확인.
+3. **no silent brokenness**: 최종 상태 `✅ READY TO PUSH` / `❌ BLOCKED` 이분법. 중간 `⚠️ PARTIAL` 시 이유 구체 명시.
 
 ---
 
 ## Rationalization Table
 
-| Rationalization | Rebuttal |
-|---------|----------|
-| "Diff is small, no need to scan" | A single-line diff can contain one API key |
-| "Tests passed locally, so it's safe" | Local pass ≠ staged diff safety. Other files can be mixed into staging |
-| "Only docs changed, no risk" | If SECRETS_EXIT=0 + docs-only, Step 2 auto-exits. Never manually skip it |
-| "Credentials here, but private repo, so OK" | Private repo offers no protection. All team members have access, and git history is permanent |
-| "Security reviewer trigger didn't match, so I'll skip it manually" | Unmet trigger = auto NOT TRIGGERED. Manual skip is a different problem |
-| "Urgent bug fix, I can skip the pipeline" | Urgency increases mistake probability. Secret scan runs in <10 seconds |
+| 합리화 | 반박 |
+|--------|------|
+| "diff가 작으니까 스캔 필요 없어" | 1줄짜리 diff도 API 키 1개 포함 가능 |
+| "이미 로컬에서 테스트 통과했어" | 로컬 통과 ≠ 스테이지 diff 안전. 다른 파일이 스테이징에 섞일 수 있음 |
+| "docs만 바꿨으니까 괜찮아" | SECRETS_EXIT=0 + docs-only이면 Step 2에서 자동 fast-exit됨. 직접 스킵하지 말 것 |
+| "시크릿이 있어도 private repo라 괜찮아" | private repo는 보호가 아님. 팀원 전원 접근 가능하고 git history는 영구적 |
+| "보안 리뷰어 트리거 조건이 안 맞아서 수동으로 스킵할게" | 트리거 조건 미충족이면 자동으로 NOT TRIGGERED. 수동 스킵은 별개 문제 |
+| "급한 버그 fix라 스킵해도 돼" | 급할수록 실수 가능성 높음. 시크릿 스캔은 <10초 |
+
+---
+
+## Error Recovery 
+
+실패 감지 시: **Stop → Classify → Apply Recovery → Report & Resume**.
+
+| 실패 유형 | 감지 조건 | 복구 경로 |
+|---------|---------|--------|
+| `tool_failure` | Bash 시크릿 스캔 / pytest 실행 실패 | "체크 실행 불가" 명시 → push 중단. 실행 못 한 체크를 통과로 취급 금지 |
+| `input_error` | push 대상 브랜치/원격 불명확 | `git status` 재확인 후 명확화. 추측으로 push 진행 금지 |
+| `missing_data` | 시크릿 패턴 파일 / pytest 없음 | 해당 체크 skip + ⚠️ 명시. 빠진 체크 있으면 유저 확인 후 push |
+| `logic_inconsistency` | pytest 통과했지만 lint 실패 | 모든 체크 통과 후에만 push. 일부 통과를 "충분"으로 취급 금지 |
 
 ---
 
 ## Invariants (never violate)
 
-1. **Secrets scan always runs**: SECRETS_EXIT=1 blocks the push. Requests to "just push" cannot override this without explicit Emergency Override confirmation. Violation consequence: credentials remain permanently in git history and the remote repository becomes compromised.
+1. **시크릿 스캔은 항상 실행**: SECRETS_EXIT=1이면 push BLOCK. "그냥 push해" 요청도 Emergency Override 확인 없이는 우회 불가. Violation → 자격증명이 git history에 영구히 남고 원격 저장소 전체가 오염된다.
 
-2. **Protected branch check**: main/master pushes cannot proceed without explicit "yes" confirmation. Violation consequence: unreviewed code flows directly into production branches.
+2. **보호 브랜치 확인**: main/master push는 명시적 "yes" 없이 진행 불가. Violation → 미검증 코드가 프로덕션 브랜치에 직접 유입된다.
 
-3. **Critical/High findings block push**: When review agents find Critical or High severity issues, push is blocked until fixes are applied. Medium severity can be fixed within 5 minutes or marked with a TODO comment. Violation consequence: known vulnerabilities are deployed remotely.
+3. **Critical/High는 push 차단**: 에이전트 리뷰에서 Critical/High 발견 시 수정 없이 push 불가. Medium은 5분 내 수정 또는 TODO 태그. Violation → 알려진 취약점이 원격에 배포된다.
 
-4. **Scan only added lines**: Lines that *remove* a secret (marked with `-` in the diff) are not scanned to allow cleanup commits. This exception prevents legitimate secret-removal commits from being blocked. Violation consequence: secret removal commits would be falsely blocked, making remediation impossible.
+4. **추가 라인만 스캔**: 시크릿을 제거하는 `-` 라인은 스캔 대상이 아님. Violation → 시크릿 제거 커밋이 BLOCK되어 정리가 불가능해진다.
 
-These rules are unconditional. Emergency Override applies only when the user explicitly says "skip review" or "force push".
+These rules are unconditional. Emergency Override는 사용자가 명시적으로 "skip review" 또는 "force push"를 말한 경우에만 적용된다.
 
 ---
 
@@ -355,15 +406,8 @@ These rules are unconditional. Emergency Override applies only when the user exp
 
 | Does | Does NOT |
 |------|----------|
-| [BASH] Scan staged diff for secrets (added lines only) | Create or modify commits |
-| [BASH] Run language-specific tests (changed files only) | Force entire test suite to run |
-| [AGENT] Run parallel review agents (code/security/db/refactor) | Modify code directly (except in fix loop) |
-| [BASH] Check protected branches (main/master) | Rewrite git history or rebase |
-| [BASH] Execute push (when all gates pass) | Force push with `--force` or `--no-verify` |
-
----
-
-## Proven In
-
-Pre-push verification across production codebases with 500+ tests and multi-file changes.
-Every push goes through this gate — catches credential leaks, dependency drift, and logic errors before they reach main branches.
+| [BASH] 스테이지 diff에서 시크릿 스캔 (추가 라인만) | 커밋 생성 또는 수정 |
+| [BASH] 언어별 테스트 실행 (변경 파일만) | 전체 테스트 스위트 강제 실행 |
+| [AGENT] 병렬 에이전트 리뷰 (code/security/db/refactor) | 코드 직접 수정 (fix loop 제외) |
+| [BASH] 보호 브랜치 확인 (main/master) | git history 수정 또는 rebase |
+| [BASH] push 실행 (모든 게이트 통과 시) | `--force` 또는 `--no-verify` push |

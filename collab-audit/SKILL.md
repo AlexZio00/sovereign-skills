@@ -1,361 +1,429 @@
 ---
+skill_type: analysis
+tools: Read, Write, Bash
+triggers:
+  - "/collab-audit"
+  - "AI 협업 진단"
+  - "협업 분석"
+  - "AI 협업 진단해줘"
 name: collab-audit
-description: "This skill should be used when the user types /collab-audit or requests AI collaboration diagnosis. Analyzes conversation history, artifacts, and work patterns to generate a 13-section AI Collaboration Audit. Behavioral analysis and feedback are bundled by design — separating them causes users to skip one, defeating the purpose. Saves to ~/.claude/collab-audits/YYYY-MM-DD.md. Compare mode: /collab-audit compare (diffs latest 2 audits). Triggers: '/collab-audit', '/collab-audit compare', 'collaboration diagnosis', 'work pattern analysis', 'what kind of person am I', 'AI collaboration audit', 'work pattern analysis', 'compare audits'. Requires minimum 2 sessions or 100+ messages. Do NOT use self-report surveys — observation-only."
+description: "This skill should be used when the user types /collab-audit or requests AI collaboration diagnosis. Analyzes conversation history, artifacts, and work patterns to generate a 13-section AI Collaboration Audit. Behavioral analysis and feedback are bundled by design — separating them causes users to skip one, defeating the purpose. Saves to ~/.claude/collab-audits/YYYY-MM-DD.md. Compare mode: /collab-audit compare (diffs latest 2 audits). Triggers: '/collab-audit', '/collab-audit compare', 'AI 협업 진단해줘', '협업 진단', '행동 패턴 분석', '나 어떤 사람이야', 'AI collaboration audit', 'work pattern analysis', 'compare audits'. Requires minimum 2 sessions or 100+ messages. Do NOT use self-report surveys — observation-only."
 user_invocable: true
 ---
 
-# /collab-audit — AI Collaboration Audit
+# /collab-audit — AI Collaboration Audit (AI 협업 진단)
 
 ## Purpose
 
-Analyzes conversation history, artifacts, and work patterns to generate behavioral and psychological insights. 
-Based on **observation of actual work patterns**, not self-report surveys. Observation-based analysis is more accurate than questionnaires.
+대화 기록·아티팩트·작업 패턴을 분석해 사람의 행동·심리 분석 결과를 생성한다.
+자기보고(설문) 대신 **실제 작업 중 행동 관찰** 기반. 설문 방식보다 정확하다.
 
-**Dominant variable**: Can you infer the *reason* behind observed patterns, or just list facts? (Fact listing ≠ success)
 
-**Discard if**: Fewer than 2 sessions AND fewer than 100 messages
+## Dominant Variable
+
+관찰된 행동에서 패턴의 이유까지 추론하는가 (사실 나열 ≠ 성공)
+
+## Trigger
+
+- `/collab-audit`
+- "AI 협업 진단"
+- "협업 분석"
+- "AI 협업 진단해줘"
+
+## Discard If
+
+- 관찰 세션 2개 미만 AND 메시지 100개 미만 — 표본 부족으로 패턴 추출 불가
+- 단순 코드 리뷰 요청 → code-reviewer 사용
+- 세션 습관 정량 지표만 필요 → 별도 분석 도구 사용
 
 ---
 
-## Mode Selection (execute first)
+## Key Assumptions 
+1. **관찰 세션 2개 이상 + 메시지 100개 이상** — 깨지면: Discard If 발동.
+2. **memory/session-handoff-LATEST.md 접근 가능** — 깨지면: 핸드오프 패턴 분석 불가, 해당 차원 스킵.
 
-- Input is `/collab-audit compare` or contains "compare" → **Compare Mode** (see separate section below)
-- Otherwise → **Audit Mode** (13-section analysis)
+## 모드 판별 (가장 먼저 실행)
+
+- 입력이 `/collab-audit compare` 또는 "비교" 포함 → **Compare 모드** (아래 별도 섹션)
+- 그 외 → **Audit 모드** (13섹션 분석)
 
 ---
 
-## Input Validation (Step 0 — execute first)
+## 입력 검증 (Step 0 — 가장 먼저 실행)
 
-Minimum criteria — at least one of:
-- 2+ sessions
-- 100+ messages
-- **Single-session high-density exception** → see Invariant 4 criteria. If exception met, display `⚠ Single-session analysis — pattern confidence limited` then proceed.
+최소 조건 — 아래 중 하나 충족:
+- 2세션 이상
+- 100+ 메시지
+- **단일 세션 고밀도 예외** → Invariant 4 기준 참조. 예외 충족 시 `⚠ 단일 세션 분석 — 패턴 신뢰도 제한됨` 표시 후 진행.
 
-If all criteria unmet:
-> "Insufficient data — minimum 2 sessions or 100 messages required. Currently observed: [N] messages, [M] artifacts."
+전부 미달 시:
+> "데이터 부족 — 최소 2세션 또는 100개 메시지 필요. 현재 [N]개 메시지, [M]개 아티팩트 관찰됨."
 
-Output and **terminate immediately**. Reject requests like "even if just a guess".
+출력 후 **즉시 종료**. "추측으로라도" 요청도 거절한다.
 
 ---
 
 ## Workflow
 
-### Step 0.5: Tone Detection (determine delivery calibration)
+### Step 0.5: 문체 감지 (전달 강도 결정)
 
-Determine **delivery calibration** for section 11 (blind spots) only. Other sections are factual, so tone variation is minimal.
+섹션 11 사각지대의 **전달 강도**만 결정한다. 나머지 섹션은 사실 서술이라 문체 차이가 작다.
 
-Read signals from conversation patterns:
-- High proportion of short, direct messages / "facts only" / speed-first requests → **Direct** (maintain as default)
-- High emotional expression / preference for long explanations / feedback-receptive signals → **Calibrated** (deliver blind spots with identical content but added context)
+대화 패턴에서 신호를 읽는다:
+- 짧고 직접적인 메시지 비율이 높음 / "팩트만" / 속도 우선 요청 → **Direct** (현재 기본값 유지)
+- 감정 표현 빈도 높음 / 긴 설명 선호 / 피드백 수용 신호 → **Calibrated** (사각지대를 동일 내용이지만 맥락 제공 후 전달)
 
-Display result in one line before section 11: `[Delivery calibration: Direct / Calibrated]`
+판정 결과를 섹션 11 앞에 1줄 표시: `[전달 강도: Direct / Calibrated]`
 
-**Re-evaluate mid-session**: If conversation tone clearly shifts (sudden emotional expression increase, request pattern change, defensive responses), re-evaluate just before outputting section 11. Initial assessment does not lock the entire session.
+**세션 중 재판정**: 대화 톤이 명확히 전환되는 신호(감정 표현 급증, 요청 방식 변화, 방어적 반응 등장)가 관찰되면 섹션 11 출력 직전에 재판정한다. 초기 판정이 전체 세션을 고정하지 않는다.
 
-**Important**: Changing delivery calibration does NOT change the blind spots' content (accuracy). Only adjust temperature.
+**중요**: 전달 강도가 바뀌어도 사각지대의 내용(정확도)은 바뀌지 않는다. 온도만 조절한다.
 
-### Step 1: Data Collection
-Collect all available observation sources:
-- Current session conversation history (message length, frequency, content)
-- MEMORY.md, session-handoff files (if present, access via Read)
-- User-created artifacts (code, docs, config files — if present, access via Read)
-- Tool usage patterns (which tools, how often)
+### Step 1: 데이터 수집
+사용 가능한 모든 관찰 소스를 수집한다:
+- 현재 세션 대화 기록 (메시지 길이, 빈도, 내용)
+- MEMORY.md, session-handoff 파일 (존재하면 Read로 접근)
+- 사용자가 만든 아티팩트 (코드, 문서, 설정 파일 — 존재하면 Read)
+- 도구 사용 패턴 (어떤 도구를 얼마나 요청했는가)
 
-### Step 2: Evidence Mapping
-Extract required evidence for each section first. Secure grounding before output.
-- Sections without evidence → Mark as "Observation unavailable — no data present". Do not omit.
-- Sections 7-8 (Claude-specific): If no Claude usage pattern → "Claude usage data unavailable — N/A"
+**수집 후 의무 선언**: 이 분석의 한계 — [편향된 작업 유형 1-2개], [실패·중단 사례 관찰 여부] 를 1-2줄로 출력한 후 Step 2로 진행. 데이터가 특정 도메인(예: 코딩만, 대화만)에 편중되어 있으면 명시.
 
-### Step 3: Framework Application
-Map collected evidence to each section's analysis framework.
-All framework labels (MBTI, DiSC, etc.) must connect to specific behavioral evidence.
-Outputting labels without evidence = analysis failure.
+### Step 2: 증거 매핑
+각 섹션에 필요한 증거를 먼저 추출한다. 출력 전에 근거를 확보한다.
+- 증거가 없는 섹션 → "관찰 불가 — 해당 데이터 없음"으로 표기. 생략 금지.
+- 섹션 7-8 (Claude-specific): Claude 사용 패턴이 없으면 → "Claude 사용 데이터 없음 — 해당 없음"
 
-### Step 4: Output 13 sections in fixed order
-Do not reorder or arbitrarily omit sections.
-Sections with no data → Mark "Observation unavailable" then proceed to next section.
+### Step 3: 프레임워크 적용
+수집된 증거를 각 섹션의 분석 틀에 대입한다.
+모든 프레임워크 레이블(MBTI, DiSC 등)에 반드시 행동 증거를 연결한다.
+증거 없이 레이블만 출력하는 것은 분석 실패다.
 
-### Step 5: Save file + gitignore protection
-1. Include file header:
+### Step 4: 13섹션 순서대로 출력
+섹션 순서를 변경하거나 임의로 생략하지 않는다.
+데이터가 없는 섹션은 "관찰 불가" 표기 후 다음 섹션으로 진행한다.
+
+### Step 5: 파일 저장 + gitignore 보호
+1. 저장 파일 헤더를 포함한다:
    ```
    ---
    profile_version: 1.0
    sections: 13
    date: YYYY-MM-DD
-   language: en
+   language: [ko|en]
    ---
 
    # MAGIC DOC: AI Collaboration Audit YYYY-MM-DD
    ```
-2. Save to `~/.claude/collab-audits/YYYY-MM-DD.md`
-   - If re-run on same day: append `-2.md` suffix (no overwriting)
-3. Check `~/.claude/.gitignore`:
-   - If file absent → Create `.gitignore` with single line: `collab-audits/`
-   - If file exists but lacks `collab-audits/` → Add that line
-   - If already present → Do not touch
-4. After save, display in chat:
+2. `~/.claude/collab-audits/YYYY-MM-DD.md`에 저장한다.
+   - 같은 날 재실행 시: `-2.md` suffix (덮어쓰기 금지)
+3. `~/.claude/.gitignore`를 확인한다:
+   - 파일이 없으면 → `collab-audits/` 한 줄만 있는 `.gitignore`를 생성한다.
+   - 파일이 있는데 `collab-audits/`가 없으면 → 해당 줄을 추가한다.
+   - 이미 있으면 → 건드리지 않는다.
+4. 저장 완료 후 대화창에 표시:
    ```
-   Saved: ~/.claude/collab-audits/YYYY-MM-DD.md
-   ⚠ Personal audit results — git tracking disabled (~/.claude/.gitignore)
+   저장됨: ~/.claude/collab-audits/YYYY-MM-DD.md
+   ⚠ 개인 감사 결과 — git 추적 차단됨 (~/.claude/.gitignore)
    ```
 
 ---
 
-## Output Structure (13 sections, fixed order)
+## 출력 구조 (13섹션, 순서 고정)
 
-### 1. Artifact Structure Analysis
-Infer values from what you create (code, docs, systems).
-- Architecture choices → Connect to philosophy
-- Naming patterns, file structure, comment density
-- Are there hard rules? If so, what principles?
-- No artifacts → "Observation unavailable — no artifact data"
+### 1. 아티팩트 구조 분석
+만든 것(코드, 문서, 시스템)에서 가치관을 역추론.
+- 아키텍처 선택 → 철학 연결
+- 이름 짓는 방식, 파일 구조, 주석 밀도
+- Hard Rule이 있는가? 있다면 어떤 원칙인가?
+- **기여 출처 분류**: 관찰된 아티팩트를 `사용자 주도 / AI 보조 / 공동 산출` 중 하나로 분류. 분리 불가 시 `공동 산출`로 표기하고 해당 섹션 신뢰도를 명시적으로 하향.
+- 아티팩트 없음 → "관찰 불가 — 아티팩트 데이터 없음"
 
-### 2. Communication Patterns
-- Message length distribution (ratio of short confirmations vs long explanations)
-- When do messages shorten or lengthen? (identify triggers)
-- Emotional expression style (direct/indirect, intensity)
-- Closure patterns ("confirmed", "done", etc.)
+### 2. 커뮤니케이션 패턴
+- 메시지 길이 분포 (짧은 확인 비율 vs 긴 설명 비율)
+- 언제 짧아지고 언제 길어지는가 (트리거 파악)
+- 감정 표현 방식 (직접/간접, 강도)
+- 마감 표현 패턴 ("확인완료", "됐어" 등)
 
-### 3. Question Typology
-Classify questions on two axes:
-- **Verification-type**: Gather info then decide immediately
-- **Tracking-type**: Chase cause/intent
-- Ratio of each type + contexts where each appears
+### 3. 질문 유형학
+질문을 두 축으로 분류:
+- **확인형**: 정보 수집 후 즉시 결정
+- **추적형**: 원인·의도 추적
+- 두 유형의 비율 + 어떤 맥락에서 각 유형이 나오는지
 
-### 4. Delegation & Trust Structure + Maturity Stage
-**Maturity stage (choose one):**
-- Stage 1: Copy-paste results, no verification
-- Stage 2: Review results before use
-- Stage 3: Set conditions and delegate, then verify results
-- Stage 4: Use rules/guardrails for pre-emptive AI control
+### 4. 위임·신뢰 구조 + 성숙도 단계
+**성숙도 단계 판정 (하나만 선택):**
+- L1 복붙형: 결과를 그대로 씀, 검증 없음
+- L2 검수형: 결과 확인 후 씀
+- L3 위임형: 조건만 주고 맡김, 결과는 검수
+- L4 시스템형: 규칙·가드레일로 AI 행동을 사전 통제
 
-**Delegation vs Retention:**
-- What do you delegate? (research, analysis, implementation)
-- What do you never delegate? (judgment, prioritization, timing)
+**위임 vs 보유 구조:**
+- 무엇을 위임하는가 (탐색·분석·구현)
+- 무엇은 절대 위임 안 하는가 (판단·우선순위·타이밍)
 
-### 5. Failure & Blocking Response + Recovery Strategy
-**Recovery strategy classification (identify observed types):**
-- Retry identical prompt
-- Search for workaround path
-- Reframe the problem
-- Give up and handle manually
-- Explicit hold then restart
+### 5. 실패·막힘 대응 + 회복 전략
+**회복 전략 분류 (관찰된 유형 명시):**
+- 동일 프롬프트 반복형
+- 우회 경로 탐색형
+- 문제 재정의형
+- 포기 후 수동처리형
+- 명시적 보류 후 재시작형
 
-How do you distinguish blocking from failure? Do you record failures in a system?
+막힘과 실패를 어떻게 구분하는가? 실패를 시스템에 기록하는가?
 
-### 6. Energy Distribution + Time Horizon (integrated)
-**Energy landscape:**
-- Longest-dwelling task type
-- Quick-skip task type
-- Token ratio (conversation length) vs output (files, code, decisions) → verbose vs execution-focused
+**협업 안티패턴 플래그 (관찰 시에만 — 없으면 "관찰 안 됨"):**
+<!-- 차용: vibe-sunsang (fivetaku) antipattern 감지, 2026-06-11. 잘한 것만 짚던 진단에 "반복 비효율" 명시 플래그 추가. -->
+반복(2회+) 관찰되는 비효율 습관만 플래그한다. 1회성 제외. 사각지대(섹션 11)와 달리 추론이 아니라 **행동 빈도 카운트**가 근거 — N회 관찰만, 추측 금지.
+- **회복 없는 반복 실패**: 동일 프롬프트 3회+ 재시도하며 전략 전환 없음 (위 "동일 프롬프트 반복형"이 만성화된 경우)
+- **검증 없는 위임 반복**: L1 복붙(섹션 4)이 되돌리기 어려운 작업에서 반복
+- **컨텍스트 재요청 반복**: 리셋 후 핸드오프 미활용으로 같은 정보 재설명 (섹션 8 미성숙 신호)
+- **설계 생략 → 되돌림 반복**: 사전 설계 없이 진입해 높은 되돌림(섹션 9)이 반복되는 루프
+플래그는 1개당 관찰 횟수를 함께 적는다 (예: "회복 없는 반복 실패 — 3회 관찰"). 카운트 없으면 플래그하지 않는다.
 
-**Time horizon structure:**
-- Immediate / short-term / conditional (e.g., "after hardware upgrade") / perpetual hold
-- Session-scale work capacity (how many tasks per session)
+### 6. 에너지 분배 + 시간 지평 (통합)
+**에너지 지형:**
+- 가장 오래 머무는 작업 유형
+- 빠르게 넘기는 유형
+- 토큰(대화 길이) 대비 산출물(파일·코드·결정) 비율 → 수다형 vs 실행형
 
-### 7. Tool Usage Patterns (Claude-specific)
-If no Claude usage data → Mark "N/A" and proceed to next section.
-- Read/Grep/Glob ratio vs Bash dependency — "direct" vs "search-driven"
-- Subagent spawn frequency — "delegating" vs "direct execution"
-- Top 3 frequently used tools, rarely used tools
-- New tool adoption speed — immediate vs wait-and-see
+**시간 지평 구조:**
+- 즉시 / 단기 / 조건부(예: "하드웨어 후") / 영원히 보류 분류
+- 세션 단위 작업 크기 (한 세션에 몇 개 작업 소화하는가)
 
-### 8. Context Management Maturity (Claude-specific)
-If no Claude usage data → Mark "N/A" and proceed to next section.
-**Maturity level (choose one):**
-- Level 0: No context file, re-explain each session
-- Level 1: Context file exists but static (no updates)
-- Level 2: Operate MEMORY.md + session handoff
-- Level 3: Use compact instructions + hooks
-- Level 4: No context loss between sessions, AI as long-term partner
-- Level 5: Operate `tasks/lessons.md` — AI behavior correction loop exists. Convert repeated mistakes into rules. Meta-layer for continuous learning.
+### 7. 도구 활용 패턴 (Claude-specific)
+Claude 사용 데이터 없으면 → "해당 없음"으로 표기하고 다음 섹션으로.
+- Read/Grep/Glob 비율 vs Bash 의존도 — "직접형" vs "탐색형"
+- Agent spawn 빈도 — "위임형" vs "직접실행형"
+- 자주 쓰는 도구 Top 3, 거의 안 쓰는 도구
+- 새 도구 도입 속도 — 즉시 채택 vs 관망
 
-Also describe recovery pattern after context loss.
+### 8. 컨텍스트 관리 성숙도 (Claude-specific)
+Claude 사용 데이터 없으면 → "해당 없음"으로 표기하고 다음 섹션으로.
+**레벨 판정 (하나만 선택):**
+- L0: CLAUDE.md 없음, 매 세션 재설명
+- L1: CLAUDE.md 있지만 정적 (업데이트 안 함)
+- L2: MEMORY.md + 세션 핸드오프 운용
+- L3: Compact Instructions 설정 + 훅 활용
+- L4: 세션 간 컨텍스트 손실 없음, AI를 장기 파트너로 운용
+- L5: `tasks/lessons.md` 운용 — AI 행동 교정 루프 존재. 반복 실수를 룰로 전환하는 메타 레이어 구축. Boris Cherny의 개발자 워크플로우 방법론에서 파생 (출처: *Programming TypeScript* 저자, Meta Staff Engineer)
 
-### 9. Rollback Frequency (Rollback Pattern)
-Measure frequency of "undo", "revert", "drop that".
-- High: Signal of missing brainstorming/planning
-- Low: Either mature pre-design OR skipping verification (distinguish which)
-- Post-rollback retry pattern — retry same direction vs change direction
+컨텍스트 날아간 후 복구 패턴도 기술.
 
-### 10. Psychological Framework Mapping
-Connect each framework to **behavioral evidence** and mark **confidence (High/Medium/Low)**.
+### 9. 되돌림 빈도 (Rollback Pattern)
+"아 취소", "원래대로", "그거 빼" 빈도 측정.
+- 높음: brainstorming/planning 부재 신호
+- 낮음: 사전 설계 성숙 OR 검증 안 함 (방향 구분 필요)
+- 되돌림 후 재시도 패턴 — 같은 방향 재시도 vs 방향 전환
 
-**10-A. Unique AI User Type (most important)**
-Identify primary + secondary type:
-- **Designer-type**: System, rules, architecture first. AI is implementation tool.
-- **Executor-type**: Fast results priority. AI is speed amplifier.
-- **Explorer-type**: Search possibility space, adopt new tools immediately. AI is exploration partner.
-- **Optimizer-type**: Focus on improving existing systems. AI is tuning tool.
+### 10. 심리 프레임워크 매핑
+각 프레임워크마다 **행동 증거**를 연결하고 **확신도(High/Medium/Low)** 표시.
 
-**10-B. MBTI Indicator (behavioral evidence required)**
-For each of 4 axes: estimate direction + strength. Mark confidence.
+**10-A. 독자 AI 사용자 유형 분류 (가장 중요)**
+주형(primary) + 부형(secondary) 판정:
+- **설계자형**: 시스템·규칙·아키텍처 먼저. AI는 구현 도구
+- **실행자형**: 빠른 결과 우선. AI는 속도 증폭기
+- **탐험가형**: 가능성 탐색, 새 도구 즉시 채택. AI는 탐색 파트너
+- **최적화형**: 기존 시스템 개선에 집중. AI는 튜닝 도구
 
-**10-C. DiSC Profile**
-Estimate D/i/S/C proportions. Primary style + secondary style.
+**10-B. MBTI 지표 (행동 증거 필수)**
+4축 각각 방향 + 강도 추정. 확신도 표시.
 
-**10-D. Enneagram Hypothesis**
-Type + Wing hypothesis. Require minimum 2 pieces of evidence in "this behavior is grounds for" format.
+**10-C. DiSC 프로파일**
+D/i/S/C 비중 추정. 주 스타일 + 부 스타일.
 
-**10-E. Big Five Estimate**
-Each of O/C/E/A/N: High/Medium/Low. One behavioral ground each.
+**10-D. 에니어그램 가설**
+Type + Wing 가설. "이 행동이 근거" 형식으로 최소 2개 증거 필요.
 
-### 11. Blind Spots + Development Direction
-**Blind spots (things likely unknown to you):**
-- Strength points becoming weakness points
-- Patterns visible but you don't notice them
+**10-E. Big Five 추정**
+O/C/E/A/N 각각 High/Medium/Low. 행동 근거 1개씩.
 
-After outputting blind spots, include **feedback loop** — always include this question:
-> "Identify one blind spot above you think is most wrong."
+### 11. 사각지대 + 개발 방향
+**사각지대 (본인이 모를 가능성이 높은 것):**
+- 강점이 약점이 되는 지점
+- 패턴이 보이지만 본인은 의식 못 할 것들
 
-This rebuttal is additional data. Blind spots are definitionally unknown to you, so the rebuttal itself reveals patterns. When you receive rebuttal:
-**Rebuttal type classification:**
-- **Evidence-based**: Specific counterexample provided ("In that situation X happened because Y"), grounds in observable event → Consider revising that blind spot
-- **Emotional**: Only denial, no counterexample ("Doesn't seem right to me", "I disagree"), rejection without alternative → Internal note "this reaction itself is evidence of the blind spot" (do not voice, record only)
-- **No rebuttal** → Treat as acceptance. Maintain blind spot and proceed.
+사각지대 출력 후 **피드백 루프** — 반드시 다음 질문을 포함한다:
+> "위 사각지대 중 가장 틀렸다고 생각하는 것 하나를 지적하라."
 
-**One development direction** (highest leverage only):
-- The one thing that "if changed, the rest follows"
+이 반박은 추가 데이터다. 사각지대는 정의상 본인이 모르는 것이므로, 반박 자체가 패턴을 드러낸다. 반박을 받으면:
+**반박 유형 판정 기준:**
+- **증거 기반**: 구체적 반례 제시 ("그 상황은 X였기 때문에 Y를 한 거다"), 관찰 가능한 사건을 근거로 댐 → 해당 사각지대 수정 검토
+- **감정적**: 부정만 하고 반례 없음 ("그건 아닌 것 같다", "동의 안 한다"), 대안 설명 없이 거부 → "이 반응 자체가 사각지대의 증거" 내부 메모 (말하지 않는다, 기록만 한다)
+- **반박 없음** → 수용으로 간주. 사각지대 유지 후 진행.
 
-### 11.5 Actionable Advice (Implementation Guide)
-Concrete actions (2–3) to actually begin development direction from section 11 (the "where") — specify "how" + "when".
+**개발 방향 1개** (가장 레버리지가 높은 것 하나만):
+- "이걸 바꾸면 나머지가 따라온다"는 것 하나
 
-Format: `[Observed pattern] → [Specific situation] → [Action]`
+### 11.5 어드바이스 (실천 가이드)
+11번 개발 방향(where)을 실제로 시작하기 위한 구체적 행동 2-3개 (how + when).
 
-Rules:
-- Derive only from observed patterns. No universal advice or generic tips.
-- **Must distinguish maintain vs launch**:
-  - **Maintain**: Conditions to sustain patterns already in progress ("Keep doing X, but only in situation Y")
-  - **Launch**: Start a new behavior not yet present ("In situation Z, do W for the first time")
-  - Giving launch-only advice to someone already doing well is failure. Maintain conditions may matter more.
-- Trigger conditions first priority ("When X happens") — use time-based conditions (next session, this week, this month) only when trigger is unclear
-- No suggestion phrasing ("might be good to try") — use directive form ("do this")
+형식: `[관찰된 패턴] → [구체적 상황] → [행동]`
 
-### 12. One-Liner
-One sentence summarizing this person in 20 characters or fewer.
+조건:
+- 관찰된 패턴에서만 도출. 일반론·보편적 조언 금지
+- **유지 vs 신규 구분 필수**:
+  - **유지**: 이미 실행 중인 패턴을 지속할 조건 ("X를 계속하되, Y 상황에서만")
+  - **신규**: 아직 없는 행동을 시작하는 것 ("Z 상황에서 처음으로 W를 한다")
+  - 이미 잘 하고 있는 사람에게 신규만 주는 건 실패. 유지 조건이 더 중요할 수 있다.
+- 시간 범위: **트리거 조건 우선** ("X가 발생하면") — 트리거가 불명확할 때만 기간 조건(다음 세션 / 이번 주 / 이번 달) 사용
+- "해보는 게 좋다" 같은 권유형 금지 — "한다" 형식으로
+
+### 12. 한 줄
+이 사람을 20자 이내로 요약하는 문장 하나.
+
+---
+
+## Error Recovery 
+
+실패 감지 시: **Stop → Classify → Apply Recovery → Report & Resume**.
+
+| 실패 유형 | 감지 조건 | 복구 경로 |
+|---------|---------|--------|
+| `tool_failure` | 세션 JSONL 읽기 실패 / audit 파일 Write 실패 | JSONL 읽기 실패 → 접근 가능 세션만으로 범위 축소 명시. Write 실패 → 대화창 출력으로 대체 |
+| `missing_data` | 세션 수 < 2 또는 메시지 수 < 100 | 최소 기준 미달 명시 + 축소 리포트 생성. 임의 채워넣기 금지 |
+| `input_error` | 범위/기간 불명확 | 1개 질문으로 명확화 — 추측으로 범위 결정 금지 |
+
+## Truthful Reporting
+
+이 스킬은 audit 리포트 저장 후 보고 시:
+1. **no mock deception**: 13섹션 중 관찰 근거 부족으로 추론만 한 섹션은 `⚠️ 근거 부족` 명시. "통찰"로 위장 금지.
+2. **no test façade**: 세션 수·메시지 수 최소 기준(2 sessions / 100 msgs) 미달 시 축소 리포트 생성. 임의 채워넣기 금지.
+3. **no silent brokenness**: 저장 실패 시 `BROKEN` 상태 명시. 부분 저장 시 `PARTIAL` + 누락 섹션 나열.
 
 ---
 
 ## Output
 
-**Audit Mode:**
-- Chat: Output 13-section structured report in order. Final section must be "12. One-Liner".
-- File save: `~/.claude/collab-audits/YYYY-MM-DD.md` (auto-save, no overwrite — if re-run same day, append `-2.md` suffix)
-- After save, display path in chat: `Saved: ~/.claude/collab-audits/YYYY-MM-DD.md`
+**Audit 모드:**
+- 대화창: 13섹션 구조화 리포트 순서대로 출력. 마지막 섹션은 반드시 "12. 한 줄".
+- 파일 저장: `~/.claude/collab-audits/YYYY-MM-DD.md` (자동 저장, 덮어쓰기 금지 — 같은 날 재실행 시 `-2.md` suffix)
+- 저장 완료 후 대화창에 경로 표시: `저장됨: ~/.claude/collab-audits/YYYY-MM-DD.md`
 
-**Compare Mode (`/collab-audit compare`):**
-- Auto-select last 2 files from `~/.claude/collab-audits/`
-  - Can specify dates: `/collab-audit compare 2026-01-01 2026-04-09`
-  - Only 1 file exists → "No prior audit to compare. Save current audit result, then compare next time."
-  - Version/section count mismatch → Compare only common sections, display at top: `⚠ Version mismatch (v1.0 13 sections ↔ older version N sections) — comparing common sections only`
-- Compare output format:
+**Compare 모드 (`/collab-audit compare`):**
+- `~/.claude/collab-audits/` 에서 최근 2개 파일 자동 선택
+  - 날짜 지정 가능: `/collab-audit compare 2026-01-01 2026-04-09`
+  - 파일 1개뿐이면 → "비교할 이전 감사 결과 없음. 현재 감사 결과를 저장하고 다음에 비교하세요."
+  - 버전/섹션 수 불일치 시 → 공통 섹션만 비교, 상단에 표시: `⚠ 버전 불일치 (v1.0 13섹션 ↔ 구버전 N섹션) — 공통 섹션만 비교`
+- 비교 출력 형식:
 
 ```
-## Audit Compare: [Date A] → [Date B]
+## Audit Compare: [날짜A] → [날짜B]
 
-### Core Changes Summary
-- What changed (2–3 lines)
-- What stayed the same (1 line)
+### 핵심 변화 요약
+- 무엇이 바뀌었는가 (2-3줄)
+- 무엇이 유지됐는가 (1줄)
 
-### Changes by Section
-| Section | Previous | Current | Change |
-|---------|----------|---------|--------|
-| AI Type | Designer+Optimizer | Designer+Builder | Modified |
-| MBTI | INTJ | INTJ | Unchanged |
+### 섹션별 변화
+| 섹션 | 이전 | 현재 | 변화 |
+|------|------|------|------|
+| AI 유형 | 설계자+최적화 | 설계자+빌더 | 수정됨 |
+| MBTI | INTJ | INTJ | 유지 |
 ...
 
-### Blind Spot Tracking
-Previous blind spot: [summary]
-Current status: Resolved / Maintained / Deepened + grounds
+### 사각지대 추적
+이전 사각지대: [요약]
+현재 상태: 해소 / 유지 / 심화 + 근거
 
-### Advice Execution Status (most important)
-Previous N pieces of advice:
-1. [Content] → Executed / Not executed / Partially executed + **Observational grounds (specify behavior signals)**
+### 어드바이스 실행 여부 (가장 중요)
+이전 어드바이스 N개:
+1. [내용] → 실행됨 / 미실행 / 부분실행 + **관찰 근거 (행동 신호 명시)**
 2. ...
 
 ---
-**Execution classification rule (separate from output format)**: Use only behavioral observation, no self-report.
-- **Executed**: Behavior not present before is now observed in current chat (new file structure, different request pattern, new tool adoption, etc.)
-- **Partially executed**: Direction correct but inconsistent (attempted 1–2 times, then reverted to previous pattern)
-- **Not executed**: Same pattern continues, no change signals
-- **Cannot classify**: Current session lacks situations where this advice would apply
+**실행 판정 기준 (규칙 — 출력 포맷과 별개)**: 자기보고 없이 행동 관찰만 사용.
+- **실행됨**: 이전에 없던 행동이 현재 대화에서 관찰됨 (새 파일 구조, 다른 요청 패턴, 새 도구 도입 등)
+- **부분실행**: 방향은 맞지만 일관성 없음 (1-2번 시도 후 이전 패턴으로 복귀)
+- **미실행**: 이전과 동일한 패턴 지속, 변화 신호 없음
+- **판정불가**: 해당 어드바이스가 적용될 상황이 현재 세션에 나타나지 않음
 
-⚠ If user says "I did it" but behavior evidence absent, mark as "Self-reported — observation unavailable". Self-report does not replace observation.
+⚠ 사용자가 "했다"고 말해도 행동 증거 없으면 "자기보고 — 관찰 불가"로 표기. 자기보고는 관찰을 대체하지 않는다.
 
-### Next Quarter Focus
-One next concentration point based on previous development direction + current patterns
+### 다음 분기 포커스
+이전 개발 방향 + 현재 패턴 기반으로 다음 집중점 1개
 ```
 
 ---
 
 ## Tools
 
-- **Read**: MEMORY.md, artifact files, `~/.claude/collab-audits/*.md` (Compare mode)
-- **Write**: Save `~/.claude/collab-audits/YYYY-MM-DD.md` and `~/.claude/.gitignore` (gitignore protection only)
-- **Glob**: List files in `~/.claude/collab-audits/` (Compare mode)
-- Do not use delete or execution tools
+- **Read**: MEMORY.md, 아티팩트 파일, `~/.claude/collab-audits/*.md` (Compare 모드)
+- **Write**: `~/.claude/collab-audits/YYYY-MM-DD.md` 저장 및 `~/.claude/.gitignore` (gitignore 보호 목적 한정)
+- **Glob**: `~/.claude/collab-audits/` 파일 목록 조회 (Compare 모드)
+- 삭제·실행 도구 사용 금지
 
-## Recommended Timing
+## 권장 사용 시점
 
-| Timing | Reason |
-|--------|--------|
-| Once per quarter (3 months) | Minimum unit for pattern change |
-| Before project start | Record baseline |
-| After project end | Measure change |
-| Before major decision | Clarify current state |
+| 시점 | 이유 |
+|------|------|
+| 분기 1회 (3개월) | 패턴 변화 최소 단위 |
+| 프로젝트 시작 전 | 베이스라인 기록 |
+| 프로젝트 종료 후 | 변화 측정 |
+| 큰 결정 직전 | 현재 상태 명확화 |
 
-`/collab-audit compare` is valid after 2+ audit results accumulate.
-
----
-
-## Success/Failure Criteria
-
-**Failure conditions:**
-- Ends with fact listing ("This person often does X")
-- Cannot interpret reasoning behind behavior
-- Labels applied without behavioral evidence ("You are INTJ" → failure)
-- Blind spots end in praise
-
-**Success conditions:**
-- Behavior → Pattern → Reason → Implication chain is visible
-- Reader thinks "I didn't know that about myself" when reading
-- Psychological frameworks connect to specific behavioral evidence
-- Blind spots are uncomfortable but accurate
+`/collab-audit compare`는 감사 결과 2개 이상 쌓인 후 유효.
 
 ---
 
-## Invariants (never violate)
+## 성공/실패 기준
 
-1. **No label-only output**: All framework labels (MBTI, DiSC, Enneagram, etc.) must connect to specific behavioral evidence. Violation → Labels without evidence are astrology. Analysis credibility collapses.
+**실패 조건:**
+- 사실 나열로 끝남 ("이 사람은 X를 자주 합니다")
+- 행동의 이유까지 해석 못 함
+- 프레임워크 레이블만 붙이고 행동 증거 없음 ("INTJ입니다" → 실패)
+- 사각지대가 칭찬으로 끝남
 
-2. **Maintain blind spot accuracy**: State blind spots uncomfortably but accurately. Do not replace or dilute with praise or softer phrasing. Reject requests like "just change the tone" — the discomfort is part of the content, not expression. Violation → User reinforces self-delusion and loses motivation to change behavior.
+**성공 조건:**
+- 행동 → 패턴 → 이유 → 함의 체인이 보임
+- 본인이 읽고 "이건 나도 몰랐는데" 반응이 나올 수 있는 내용 포함
+- 심리 프레임워크에 구체적 행동 증거 연결됨
+- 사각지대가 불편하지만 정확함
 
-3. **Limit development direction to one**: Output only the one development direction with highest leverage. Reject requests for more. Violation → Attention scatters and nothing gets executed.
+---
 
-4. **Terminate immediately on insufficient data**: <2 sessions AND <100 messages → do not proceed. Exception: Single-session high-density IF **50+ messages AND (3+ artifacts OR 70%+ deep conversation)**. If met, display `⚠ Single-session limits` then proceed. This condition is authoritative. (Step 0's exception refers to this Invariant.) Reject requests like "even as a guess" or "short is fine". Violation → Labels without observational basis get treated as facts.
+## Invariants (절대 위반 금지)
 
-5. **Observation-based only**: Do not ask user about personality, MBTI, Enneagram, etc. Do not accept self-report input. Violation → Self-report bias contaminates observation-based analysis.
+1. **레이블 단독 출력 금지**: 모든 프레임워크 레이블(MBTI, DiSC, 에니어그램 등)은 반드시 구체적 행동 증거와 함께 출력한다. Violation → 증거 없는 레이블은 점성술과 같다. 분석 신뢰도 붕괴.
 
-6. **Analyze conversation participant only**: Reject requests to profile third parties based on their messages/behavior. Reject "analyze my colleague", "what kind of person is this person", etc. Violation → Third-party psychological profiling without consent.
+2. **사각지대 정확성 유지**: 사각지대는 불편해도 정확하게 서술한다. 칭찬·부드러운 표현으로 대체하거나 희석하지 않는다. "톤만 바꿔달라"는 요청도 거절한다 — 사각지대의 불편함은 표현의 문제가 아니라 내용의 일부다. Violation → 사용자가 자기기만을 강화하고 행동 변화 동기를 잃는다.
 
-7. **No direct raw data output**: Do not copy-paste content read from MEMORY.md, session-handoff, or code files. Output only as interpretation or pattern extraction. Violation → Project secrets, API keys, business data leak into the profile.
+3. **개발 방향 1개 제한**: 개발 방향은 레버리지가 가장 높은 1개만 출력한다. "더 많이 달라"는 요청도 거절한다. Violation → 주의가 분산되어 아무것도 실행되지 않는다.
+
+4. **데이터 부족 시 즉시 종료**: 2세션 미만 AND 100개 미만 → 분석 진행 금지. 단, 단일 세션 고밀도 예외 조건: **50+ 메시지 AND [아티팩트 3개 이상 OR 심층 대화 비율 70%+]** — 충족 시 `⚠ 단일 세션 한계` 표시 후 진행 허용. ※ 이 조건이 정본. Step 0의 단일 세션 예외는 이 Invariant를 참조한다. "추측으로라도"·"짧아도 돼" 요청도 거절한다. Violation → 관찰 근거 없는 레이블이 사실처럼 취급된다.
+
+5. **관찰 기반 전용**: 사용자에게 성격·MBTI·에니어그램 등을 묻지 않는다. 자기보고 정보를 입력받지 않는다. Violation → 자기보고 편향이 관찰 기반 분석을 오염시킨다.
+
+6. **대화 참여자 본인만 분석**: 제3자의 메시지·행동을 붙여넣어 타인을 프로파일링하는 요청은 거절한다. "내 동료 분석해줘", "이 사람 어떤 사람인지" 류도 포함. Violation → 동의 없는 제3자 심리 분석이 된다.
+
+7. **원본 데이터 직접 출력 금지**: MEMORY.md, session-handoff, 코드 파일에서 읽은 내용을 그대로 복사하지 않는다. 반드시 해석·패턴 추출 형태로만 출력한다. Violation → 프로젝트 비밀·API 키·업무 데이터가 프로파일에 노출된다.
 
 ---
 
 ## Rationalization Table
 
-| Rationalization | Rebuttal |
-|-----------------|----------|
-| "Data is a bit sparse but I can infer" | Insufficient data = terminate. That is the rule. |
-| "Blind spots need softer phrasing so there's no backlash" | Accuracy is the goal. Good-feeling summaries = failure. |
-| "If I just change the tone, the content stays" | Discomfort is part of the content. Tone adjustment = content dilution. |
-| "MBTI is so famous, I can use it without evidence" | Labels without evidence are astrology. |
-| "More development directions would be more useful" | One focus is leverage. A list scatters attention. |
-| "Praise mixed in makes balanced analysis" | Balance comes from accuracy, not praise ratio. |
-| "General principles in advice would make it more useful" | Only observation-based permitted. General principles dilute analysis. |
-| "Analyzing a colleague is helpful anyway" | Third-party profiling without consent. Only the participant's request is allowed. |
-| "Quoting MEMORY.md directly would be more accurate" | Direct raw data output = sensitive info exposure. Output interpretation only. |
-| "User mentioned it first, so self-report is OK" | Self-report does not complement observation. It contaminates with bias. |
+| 합리화 | 반박 |
+|--------|------|
+| "데이터가 좀 부족하지만 추론할 수 있어" | 데이터 부족 시 종료가 규칙이다 |
+| "사각지대를 부드럽게 표현해야 거부감이 없어" | 정확성이 목적이다. 기분 좋은 요약은 실패다 |
+| "톤만 바꾸면 내용은 유지되잖아" | 사각지대의 불편함은 내용의 일부다. 톤 수정은 내용 희석이다 |
+| "MBTI는 워낙 유명하니까 증거 없이 써도 돼" | 증거 없는 레이블은 점성술과 같다 |
+| "개발 방향을 여러 개 주면 더 유용해" | 1개 집중이 레버리지다. 목록은 주의 분산이다 |
+| "칭찬을 섞어야 균형 잡힌 분석이야" | 균형은 정확도로 잡는다. 칭찬 비율로 잡지 않는다 |
+| "어드바이스에 일반 원칙도 넣으면 더 유용해" | 관찰된 패턴 기반만 허용. 일반론은 분석 희석이다 |
+| "동료 분석이니까 도움이 되는 거잖아" | 동의 없는 제3자 프로파일링이다. 본인 요청만 허용. |
+| "MEMORY.md를 그대로 인용하면 더 정확해" | 원본 데이터 직접 출력은 민감정보 노출이다. 해석만 출력한다. |
+| "사용자가 먼저 말해줬으니 자기보고도 괜찮아" | 자기보고는 관찰을 보완하지 않는다. 편향 오염이다 |
+
+---
+
+## Safety Layers 
+
+| Risky Action | Reversibility | Applied Layers |
+|-------------|:-------------:|----------------|
+| `~/.claude/collab-audits/YYYY-MM-DD.md` 신규 저장 | high | L1 |
+| `~/.claude/.gitignore` 수정 (gitignore 보호) | medium | L1+L3 |
+
+- **L1 (Invariants)**: 감사 결과 파일 저장만. 기존 세션·메모리 파일 수정 금지.
+- **L3 (User Approval)**: .gitignore에 `collab-audits/` 추가 전 파일 존재 여부 확인. 자동 저장은 L1으로 충분(되돌리기 쉬움).
 
 ---
 
@@ -363,36 +431,22 @@ One next concentration point based on previous development direction + current p
 
 | Does | Does NOT |
 |------|----------|
-| Infer patterns from observed behavior | Judge personality or criticize |
-| Interpret reasoning behind behavior | List prescriptions (development direction = 1 only) |
-| Map frameworks to evidence | Guess based on survey answers |
-| Point out blind spots | End with feel-good summary |
-| Extract patterns from current conversation context | Infer information outside conversation |
-| Mark sections without data "observation unavailable" | Fill sections with guesses |
-| Profile conversation participant (you) | Profile third parties (unguarded people analysis) |
-| Extract only patterns and interpretation from read data | Direct quote or copy raw file contents |
+| [READ] 관찰된 행동에서 패턴 추론 | 성격 판단·비판 |
+| [READ] 행동 이유 해석 | 처방전 나열 (개발 방향은 1개만) |
+| [READ] 증거 기반 프레임워크 매핑 | 설문 기반 추측 |
+| [READ] 사각지대 지적 | 기분 좋은 요약으로 마무리 |
+| [READ] 현재 대화 컨텍스트에서 패턴 추출 | 대화 외 외부 정보 추론 |
+| [READ] 데이터 없는 섹션 "관찰 불가" 표기 | 추측으로 섹션 채우기 |
+| [READ] 대화 참여자 본인 프로파일링 | 제3자 프로파일링 (동의 없는 타인 분석) |
+| [READ] 읽은 데이터에서 패턴·해석만 추출 | 원본 파일 내용 직접 인용·복사 |
+| [WRITE] 감사 결과 파일 저장 (collab-audits/) | 유저 승인 없이 외부 공유 디렉토리에 저장 |
 
 ---
 
-## Language
+## 언어
 
-Detect conversation language and output in same language.
-- Korean conversation → Korean output
-- English conversation → English output
-- Mixed → Use more frequent language
-- Technical terms (MBTI, DiSC, Big Five, etc.) always stay English
-
----
-
-## Truthful Reporting
-
-When this skill saves an audit report:
-1. **No mock deception**: If any of 13 sections lack observation grounds and contain only inference, mark `⚠️ Insufficient grounds`. Do not disguise as insight.
-2. **No test façade**: If session count or message count falls below minimums (2 sessions / 100 messages), generate condensed report. Do not arbitrarily fill sections.
-3. **No silent brokenness**: If save fails, mark state as `BROKEN`. If partial save, mark `PARTIAL` + list missing sections.
-
----
-
-## Proven In
-
-Collaboration audits across multi-developer Claude Code projects, especially those with evolving patterns over extended timescales.
+대화 언어를 감지해서 동일 언어로 출력한다.
+- 한국어 대화 → 한국어 출력
+- 영어 대화 → 영어 출력
+- 혼합 → 더 많이 쓰인 언어 기준
+- 전문 용어(MBTI, DiSC, Big Five 등)는 항상 영어 유지
