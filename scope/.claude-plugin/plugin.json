@@ -1,0 +1,20 @@
+{
+  "name": "scope",
+  "version": "6.0.0",
+  "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec with ADR).",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "scope",
+    "requirements",
+    "exit-criteria",
+    "adr",
+    "specification",
+    "planning"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "freeze",
+  "version": "6.0.0",
+  "description": "Declare the editable zone — everything outside is frozen. Prevents scope creep during implementation by locking untouched files.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "freeze",
+    "scope-control",
+    "editable-zone",
+    "scope-creep",
+    "protection"
+  ]
+}

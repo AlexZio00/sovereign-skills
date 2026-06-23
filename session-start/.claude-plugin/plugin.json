@@ -1,0 +1,20 @@
+{
+  "name": "session-start",
+  "version": "6.0.0",
+  "description": "Session opener — loads handoff from last session, reviews lessons learned, runs health check, outputs ready signal with priority action.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "session",
+    "handoff",
+    "context-restore",
+    "lessons",
+    "health-check",
+    "start"
+  ]
+}

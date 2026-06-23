@@ -1,0 +1,21 @@
+{
+  "name": "session-checkpoint",
+  "version": "6.0.0",
+  "description": "Session closer — saves context before compact. Handoff file, memory updates, lesson extraction, reflexion (what went wrong, what to improve).",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "session",
+    "checkpoint",
+    "handoff",
+    "memory",
+    "reflexion",
+    "compact",
+    "lessons"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "setup",
+  "version": "6.0.0",
+  "description": "Claude Code infrastructure and agent team setup — rules, hooks, memory system, routing, and agent installation in one guided flow.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "infrastructure",
+    "agent-team",
+    "rules",
+    "hooks",
+    "memory",
+    "routing",
+    "setup"
+  ]
+}

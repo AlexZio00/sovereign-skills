@@ -1,3 +1,5 @@
+🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
+
 # claude-code-skills v6.0
 
 10 skills for the full Claude Code project lifecycle — from setup to daily workflow to session management. Each skill is useful standalone; the full sequence covers everything.
@@ -88,6 +90,8 @@ then daily:
 
 ## Installation
 
+### Option A: Copy skills (simplest)
+
 Each skill is a standalone directory with a `SKILL.md` file. Copy the ones you want:
 
 ```bash
@@ -100,11 +104,15 @@ for d in */; do [ -f "$d/SKILL.md" ] && cp -r "$d" ~/.claude/skills/; done
 cp -r goal-lock ~/.claude/skills/
 ```
 
+### Option B: Plugin (marketplace-ready)
+
+Each skill includes `.claude-plugin/plugin.json` metadata. If your marketplace supports git-based plugins, point it to this repo.
+
 Skills are invoked by typing the trigger command (e.g., `/goal-lock`) in Claude Code. Claude reads the SKILL.md and follows the instructions.
 
 ### Requirements
 
-- [Claude Code](https://claude.ai/code) CLI or desktop app
+- [Claude Code](https://claude.ai/code) CLI, desktop app, or web app (claude.ai/code)
 - Skills directory: `~/.claude/skills/` (created automatically by Claude Code)
 - `pre-push` requires Perl (for `scan_secrets.pl` — included)
 

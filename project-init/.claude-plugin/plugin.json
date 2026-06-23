@@ -1,0 +1,20 @@
+{
+  "name": "project-init",
+  "version": "6.0.0",
+  "description": "Interview-based project scaffolding for Claude Code — generates CLAUDE.md, ROADMAP, .gitignore, and .env.example from decisions, not templates.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "scaffolding",
+    "project-setup",
+    "claude-md",
+    "roadmap",
+    "interview",
+    "init"
+  ]
+}

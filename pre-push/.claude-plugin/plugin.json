@@ -1,0 +1,21 @@
+{
+  "name": "pre-push",
+  "version": "6.0.0",
+  "description": "Mandatory pre-push pipeline — secrets scan (12 patterns), build/test gate, lint, parallel AI code review. Blocks push on Critical/High findings.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/claude-code-skills",
+  "repository": "https://github.com/AlexZio00/claude-code-skills",
+  "license": "MIT",
+  "keywords": [
+    "pre-push",
+    "secrets-scan",
+    "code-review",
+    "security",
+    "lint",
+    "ci",
+    "pipeline"
+  ]
+}
