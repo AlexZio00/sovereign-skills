@@ -102,9 +102,16 @@ for d in */; do [ -f "$d/SKILL.md" ] && cp -r "$d" ~/.claude/skills/; done
 cp -r goal-lock ~/.claude/skills/
 ```
 
-### 方法 B：插件（支持市场分发）
+### 方法 B：市场（sovereign-plugins）
 
-每个技能都包含 `.claude-plugin/plugin.json` 元数据。如果您的市场支持基于 Git 的插件，请指向此仓库。
+本仓库是 Claude Code 市场。注册一次即可浏览和安装技能：
+
+```bash
+# 在 Claude Code 中添加 sovereign-plugins 市场
+# 设置 → 插件 → 添加市场 → https://github.com/AlexZio00/claude-code-skills.git
+```
+
+每个技能也包含独立的 `.claude-plugin/plugin.json` 元数据。
 
 在 Claude Code 中输入触发命令（如 `/goal-lock`）即可运行技能。
 

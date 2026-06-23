@@ -1,0 +1,80 @@
+{
+  "name": "sovereign-plugins",
+  "description": "Production-grade Claude Code skills for the full project lifecycle — setup, daily workflow, session management, and quality audits",
+  "owner": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "plugins": [
+    {
+      "name": "project-init",
+      "description": "Interview-based project scaffolding — generates CLAUDE.md, ROADMAP, .gitignore, and .env.example from decisions, not templates",
+      "source": "./project-init",
+      "category": "development",
+      "tags": ["scaffolding", "project-setup", "claude-md", "roadmap", "interview", "init"]
+    },
+    {
+      "name": "setup",
+      "description": "Claude Code infrastructure and agent team setup — rules, hooks, memory system, routing, and agent installation in one guided flow",
+      "source": "./setup",
+      "category": "development",
+      "tags": ["infrastructure", "agent-team", "rules", "hooks", "memory", "routing", "setup"]
+    },
+    {
+      "name": "scope",
+      "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec with ADR)",
+      "source": "./scope",
+      "category": "productivity",
+      "tags": ["scope", "requirements", "exit-criteria", "adr", "specification", "planning"]
+    },
+    {
+      "name": "freeze",
+      "description": "Declare the editable zone — everything outside is frozen. Prevents scope creep during implementation",
+      "source": "./freeze",
+      "category": "productivity",
+      "tags": ["freeze", "scope-control", "editable-zone", "scope-creep", "protection"]
+    },
+    {
+      "name": "goal-lock",
+      "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 11 success masquerading patterns",
+      "source": "./goal-lock",
+      "category": "productivity",
+      "tags": ["goal", "discipline", "verification", "masquerading", "agent-control", "quality"]
+    },
+    {
+      "name": "pre-push",
+      "description": "Mandatory pre-push pipeline — secrets scan (12 patterns), build/test gate, lint, parallel AI code review. Blocks push on Critical/High findings",
+      "source": "./pre-push",
+      "category": "development",
+      "tags": ["pre-push", "secrets-scan", "code-review", "security", "lint", "ci", "pipeline"]
+    },
+    {
+      "name": "session-start",
+      "description": "Session opener — loads handoff from last session, reviews lessons learned, runs health check, outputs ready signal with priority action",
+      "source": "./session-start",
+      "category": "productivity",
+      "tags": ["session", "handoff", "context-restore", "lessons", "health-check", "start"]
+    },
+    {
+      "name": "session-checkpoint",
+      "description": "Session closer — saves context before compact. Handoff file, memory updates, lesson extraction, reflexion",
+      "source": "./session-checkpoint",
+      "category": "productivity",
+      "tags": ["session", "checkpoint", "handoff", "memory", "reflexion", "compact", "lessons"]
+    },
+    {
+      "name": "project-check",
+      "description": "Scan existing project across 4 dimensions: Infrastructure, Security, Quality, Harness. Returns scored gaps ordered by severity",
+      "source": "./project-check",
+      "category": "development",
+      "tags": ["audit", "health-check", "infrastructure", "security", "quality", "diagnostic"]
+    },
+    {
+      "name": "collab-audit",
+      "description": "13-section AI collaboration audit — analyzes actual work patterns to generate behavioral profile, blind spots, and growth direction",
+      "source": "./collab-audit",
+      "category": "productivity",
+      "tags": ["collaboration", "audit", "behavioral", "patterns", "growth", "diagnostic"]
+    }
+  ]
+}

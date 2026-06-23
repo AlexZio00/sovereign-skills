@@ -102,9 +102,16 @@ for d in */; do [ -f "$d/SKILL.md" ] && cp -r "$d" ~/.claude/skills/; done
 cp -r goal-lock ~/.claude/skills/
 ```
 
-### 方法B：プラグイン（マーケットプレイス対応）
+### 方法B：マーケットプレイス（sovereign-plugins）
 
-各スキルに`.claude-plugin/plugin.json`メタデータが含まれています。Gitベースのプラグインをサポートするマーケットプレイスでこのリポジトリを指定してください。
+このリポジトリはClaude Codeマーケットプレイスです。一度登録すればスキルを閲覧・インストールできます：
+
+```bash
+# Claude Codeでsovereign-pluginsマーケットプレイスを追加
+# 設定 → プラグイン → マーケットプレイス追加 → https://github.com/AlexZio00/claude-code-skills.git
+```
+
+各スキルに個別の`.claude-plugin/plugin.json`メタデータも含まれています。
 
 トリガーコマンド（例：`/goal-lock`）をClaude Codeで入力するとスキルが実行されます。
 

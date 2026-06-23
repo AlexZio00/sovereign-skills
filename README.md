@@ -104,9 +104,16 @@ for d in */; do [ -f "$d/SKILL.md" ] && cp -r "$d" ~/.claude/skills/; done
 cp -r goal-lock ~/.claude/skills/
 ```
 
-### Option B: Plugin (marketplace-ready)
+### Option B: Marketplace (sovereign-plugins)
 
-Each skill includes `.claude-plugin/plugin.json` metadata. If your marketplace supports git-based plugins, point it to this repo.
+This repo is a Claude Code marketplace. Register it once and browse/install skills:
+
+```bash
+# Add sovereign-plugins marketplace in Claude Code
+# Settings → Plugins → Add Marketplace → https://github.com/AlexZio00/claude-code-skills.git
+```
+
+Each skill also includes standalone `.claude-plugin/plugin.json` metadata.
 
 Skills are invoked by typing the trigger command (e.g., `/goal-lock`) in Claude Code. Claude reads the SKILL.md and follows the instructions.
 

@@ -102,9 +102,16 @@ for d in */; do [ -f "$d/SKILL.md" ] && cp -r "$d" ~/.claude/skills/; done
 cp -r goal-lock ~/.claude/skills/
 ```
 
-### 방법 B: 플러그인 (마켓플레이스 지원)
+### 방법 B: 마켓플레이스 (sovereign-plugins)
 
-각 스킬에 `.claude-plugin/plugin.json` 메타데이터가 포함되어 있습니다. Git 기반 플러그인을 지원하는 마켓플레이스에서 이 리포를 지정하세요.
+이 리포는 Claude Code 마켓플레이스입니다. 한 번 등록하면 스킬을 탐색/설치할 수 있습니다:
+
+```bash
+# Claude Code에서 sovereign-plugins 마켓플레이스 추가
+# 설정 → 플러그인 → 마켓플레이스 추가 → https://github.com/AlexZio00/claude-code-skills.git
+```
+
+각 스킬에 개별 `.claude-plugin/plugin.json` 메타데이터도 포함되어 있습니다.
 
 트리거 명령어(예: `/goal-lock`)를 Claude Code에서 입력하면 스킬이 실행됩니다.
 

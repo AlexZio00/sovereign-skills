@@ -102,9 +102,16 @@ for d in */; do [ -f "$d/SKILL.md" ] && cp -r "$d" ~/.claude/skills/; done
 cp -r goal-lock ~/.claude/skills/
 ```
 
-### Opción B: Plugin (compatible con marketplace)
+### Opción B: Marketplace (sovereign-plugins)
 
-Cada habilidad incluye metadatos `.claude-plugin/plugin.json`. Si su marketplace soporta plugins basados en Git, apúntelo a este repositorio.
+Este repositorio es un marketplace de Claude Code. Regístrelo una vez para explorar e instalar habilidades:
+
+```bash
+# Agregar marketplace sovereign-plugins en Claude Code
+# Configuración → Plugins → Agregar Marketplace → https://github.com/AlexZio00/claude-code-skills.git
+```
+
+Cada habilidad también incluye metadatos `.claude-plugin/plugin.json` independientes.
 
 Escriba el comando de activación (ej: `/goal-lock`) en Claude Code para ejecutar la habilidad.
 
