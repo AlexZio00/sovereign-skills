@@ -134,6 +134,30 @@ Skills are invoked by typing the trigger command (e.g., `/goal-lock`) in Claude 
 
 ---
 
+## Agentic Design Patterns Coverage
+
+These 10 skills implement 15 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+
+| Pattern | Implemented by | How |
+|---------|---------------|-----|
+| **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Full lifecycle chain |
+| **Parallel Execution** | pre-push | Parallel AI code review agents |
+| **Loop (Retry)** | goal-lock | VERIFY fail → PLAN re-entry, capped retries |
+| **Review & Critique** | pre-push | Independent code-reviewer + security-reviewer |
+| **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE passes |
+| **Coordinator/Router** | setup | Agent routing rules generation |
+| **Plan-and-Execute** | goal-lock, scope | Plan reviewable before execution |
+| **ReAct** | project-check | Investigate → score → recommend path |
+| **Reflexion** | session-checkpoint | Phase 1.7: analyze failures → lessons for next session |
+| **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES, Critical/High blocks push |
+| **Custom Logic** | pre-push | Deterministic secrets scan (Perl) + AI review |
+| **Event-Driven** | session-start | Triggered on session open, loads prior state |
+| **Guardrails/Safety** | goal-lock | 11 success masquerading patterns detected |
+| **Memory Management** | session-checkpoint | Handoff file + memory updates + lesson extraction |
+| **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE input sheet |
+
+---
+
 ## Design Principles
 
 1. **Interview over template** — Skills ask questions and generate filled content, not empty skeletons
