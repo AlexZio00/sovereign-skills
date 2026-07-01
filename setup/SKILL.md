@@ -16,7 +16,7 @@ user_invocable: true
 # Setup — Claude Code Infrastructure + Agent Team
 
 ## Dominant Variable
-**초기화된 하네스가 즉시 동작하는가** — rules/hooks/memory/routing이 설치 직후 세션부터 적용되어야 한다. "설치했지만 작동 안 함"이면 실패.
+**Does the initialized harness work immediately?** — rules/hooks/memory/routing must be applied from the first session after installation. If "installed but not working" occurs, that is failure.
 
 ## Purpose
 Set up the full Claude Code harness layer — rules, hooks, memory, agent routing.
@@ -25,8 +25,8 @@ Not project scaffolding (use `/project-init` for that). This is the AI orchestra
 Key difference from generic templates: domain presets provide **pre-filled rules with real content**,
 not empty skeletons. Every harness includes reject-by-default and violation testing.
 
-**Dominant variable**: 생성된 project rules의 Tier 0 규칙이 violation testing을 통과하는가 — 테스트 없는 규칙은 장식이다.
-**Discard if**: 이미 완성된 harness가 있고 단일 규칙 추가만 필요한 경우 — 해당 rule 파일을 직접 편집.
+**Dominant variable**: Do the generated project rules' Tier 0 rules pass violation testing? — Rules without tests are decoration.
+**Discard if**: A complete harness already exists and only a single rule addition is needed — edit that rule file directly.
 
 ## Trigger
 
@@ -38,8 +38,8 @@ not empty skeletons. Every harness includes reject-by-default and violation test
 ---
 
 ## Key Assumptions 
-1. **`~/.claude/` 디렉토리 쓰기 권한** — 깨지면: 권한 안내.
-2. **기존 rules/hooks가 없거나 덮어쓰기 승인** — 깨지면: 충돌 해소 후 진행.
+1. **Write permission on `~/.claude/` directory** — If broken: guide on permissions.
+2. **No existing rules/hooks, or overwrite is approved** — If broken: resolve conflicts, then proceed.
 
 ## Phase 0: Prerequisites
 
@@ -163,9 +163,9 @@ For [gate-name]:
 **Agent existence check (before generating agents.md):**
 Scan BOTH `~/.claude/agents/` (global) AND `.claude/agents/` (project-level) for each selected agent. If missing in both:
 ```
-"[agent-name] 에이전트 파일이 ~/.claude/agents/에 없습니다.
-agents.md에 라우팅만 등록하면 동작하지 않습니다.
-에이전트 파일도 함께 생성할까요?"
+"[agent-name] agent file not found in ~/.claude/agents/.
+Registering routing in agents.md alone will not work.
+Generate the agent file too?"
 ```
 → Yes: generate the agent definition file
 → No: add a comment in agents.md noting the agent is registered but not installed
@@ -340,26 +340,26 @@ memory: structured
 
 ## Phase 1.5: Failure-Grounded Rule Discovery (optional — opt-in)
 
-> 실패에서 규칙을 캐낸다 — 실제 태스크 실행 중 실패·드리프트를 관찰해 규칙을 도출한다.
-> 프리셋(Phase 1)은 **일반 규칙**. 이 단계는 **이 프로젝트의 실제 실패**에서 프로젝트-특정 규칙을 캐낸다.
-> **opt-in**: 유저가 "실측 기반"/"failure-grounded"/"실제 돌려보고" 요청 시, 또는 기존 코드베이스가 있을 때 제안. 신규 빈 프로젝트면 skip(실패 표면 없음).
+> Extract rules from failures — observe failures and drift during actual task execution, then derive rules from them.
+> Phase 1 presets provide **generic rules**. This phase extracts **project-specific rules from real failures in this codebase**.
+> **opt-in**: Propose when user requests "empirical"/"failure-grounded"/"run real tests first", or when a codebase already exists. Skip for new empty projects (no failure surface to observe).
 
 ### 1.5-1. Run real tasks, record failures
-프로젝트가 이미 존재하면 핵심 작업을 실제 실행하고 실패를 기록:
-- 테스트 스위트 (pytest / npm test / go test) — 무엇이 실패했나
-- 빌드 / 린트 — 어떤 명령이 안 먹었나
-- 엔트리포인트 트레이스 — 아키텍처 단서
-각 시도를 `시도한 명령 / 실패 내용 / 결국 통한 것` 3열로 기록. **소스 코드 수정 금지** (테스트용 생성 파일은 정리 — clean test execution).
+If the project already exists, run core tasks and record failures:
+- Test suite (pytest / npm test / go test) — what failed?
+- Build / lint — what commands failed?
+- Entry point trace — architecture clues.
+Record each attempt in 3 columns: `command tried / failure details / what eventually worked`. **Do not modify source code** (clean up test-generated files for clean test execution).
 
-### 1.5-2. Live-doc drift 교정 (
-핵심 의존성 3~5개(프레임워크/주요 라이브러리)의 **현재 공식 문서**를 WebFetch — 훈련 데이터와 다른 API 패턴/관례 포착. 환경변수 미설정은 silent fail이 아니라 **finding으로 기록**. 기억으로 단정 금지.
+### 1.5-2. Live-doc drift correction
+WebFetch **current official documentation** for 3–5 core dependencies (frameworks/key libraries) — catch API patterns/conventions that differ from training data. Unset environment variables are not silent failures but **recorded as findings**. Do not assume from memory.
 
 ### 1.5-3. Derive rules from real failures
-프리셋 규칙과 **별개로**, 1.5-1/1.5-2에서 나온 **실제 실패에 추적되는** Tier-2/4 규칙만 생성한다.
-- **일반 규칙 금지** — 모든 도출 규칙은 실제 실패 또는 live-doc 발견에 추적 가능해야 한다 (inspect→act→verify 노출 = EGS).
-- Phase 3 규칙 생성 시 프리셋과 병합. origin 태그: `<!-- from: failure {cmd} / live-doc {dep} -->`.
+**Separate from preset rules**, generate only Tier-2/4 rules that are **traceable to actual failures** from 1.5-1/1.5-2.
+- **No generic rules** — all derived rules must be traceable to a real failure or live-doc finding (inspect→act→verify exposure = EGS).
+- When generating Phase 3 rules, merge with presets. Origin tag: `<!-- from: failure {cmd} / live-doc {dep} -->`.
 
-> 이 단계가 setup을 인터뷰-only에서 **실측 실행 기반**으로 확장한다. 프리셋=출발점, 실패-grounding=프로젝트 진실.
+> This phase extends setup from interview-only to **empirical execution-based**. Presets = starting point, failure-grounding = project truth.
 
 ---
 
@@ -670,32 +670,32 @@ Approve → files confirmed
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| `rules/*.md` 생성/덮어쓰기 | medium | L1+L3 |
-| `settings.json` 병합 수정 | medium | L1+L3 |
-| `memory/*.md` 생성 | medium | L1+L3 |
-| `agents/*.md` 생성 | medium | L1+L3 |
+| Create/overwrite `rules/*.md` | medium | L1+L3 |
+| Merge changes to `settings.json` | medium | L1+L3 |
+| Create `memory/*.md` | medium | L1+L3 |
+| Create `agents/*.md` | medium | L1+L3 |
 
-- **L1 (Invariants)**: Phase 0 Existing File Check 강제 실행 (Update/Replace/Cancel 3-option).
-- **L3 (User Approval)**: Phase 3 File Generation 각 파일별 확인. `settings.json`은 절대 전체 replace 금지 (merge만).
-- **금지**: `settings.json`의 기존 hooks 삭제, 기존 rules 덮어쓰기 (Update 명시 없이).
+- **L1 (Invariants)**: Enforce Phase 0 Existing File Check (3-option: Update/Replace/Cancel).
+- **L3 (User Approval)**: Per-file confirmation in Phase 3 File Generation. `settings.json` must never be fully replaced (merge only).
+- **Forbids**: Delete existing hooks in `settings.json`, overwrite existing rules (without explicit Update).
 
 ## Error Recovery 
 
-실패 감지 시: **Stop → Classify → Apply Recovery → Report & Resume**.
+On failure detection: **Stop → Classify → Apply Recovery → Report & Resume**.
 
-| 실패 유형 | 감지 조건 | 복구 경로 |
+| Failure Type | Detection Condition | Recovery Path |
 |---------|---------|--------|
-| `tool_failure` | `~/.claude/rules/` Write 실패, 디렉토리 없음 | 디렉토리 생성 후 재시도 1회. 재실패 → 유저 보고 + BROKEN |
-| `input_error` | 인터뷰 답변 모순 (도메인 없는데 도메인 스킬 요청 등) | 해당 질문 재질문. 3회 모순 → 보수적 기본값 선택 후 유저 명시 |
-| `logic_inconsistency` | violation testing이 생성한 파일을 FAIL 판정 | 파일 재작성 (템플릿 기본값으로 rollback). 재실패 → PARTIAL 라벨 |
-| `missing_data` | 프리셋 파일 미존재 | 인라인 fallback 규칙 사용. 유저에게 fallback 사용 사실 고지 |
+| `tool_failure` | Write to `~/.claude/rules/` fails, directory missing | Create directory, retry once. Re-fail → report to user + BROKEN |
+| `input_error` | Interview answers contradict (domain requested without domain set, etc.) | Re-ask that question. 3 contradictions → select conservative default, then inform user |
+| `logic_inconsistency` | Violation testing marks generated file as FAIL | Rewrite file (rollback to template defaults). Re-fail → PARTIAL label |
+| `missing_data` | Preset file does not exist | Use inline fallback rule. Inform user that fallback was used |
 
 ## Truthful Reporting
 
-파일 생성 후:
-1. **no mock deception**: Write 후 Bash `ls ~/.claude/rules/` 로 파일 존재 재확인. violation testing 통과까지 완료 표기 금지.
-2. **no test façade**: Tier 0 규칙이 violation testing에서 FAIL 시 재작성 필수. "대체로 괜찮음" 표기 금지.
-3. **no silent brokenness**: 파일별 `WORKING` / `PARTIAL` / `BROKEN` 라벨. PARTIAL 시 어느 파일이 미생성인지 명시.
+After file generation:
+1. **no mock deception**: After Write, re-verify file existence via Bash `ls ~/.claude/rules/`. Never mark complete until violation testing passes.
+2. **no test façade**: If a Tier 0 rule fails violation testing, rewrite is mandatory. Never mark as "mostly OK".
+3. **no silent brokenness**: Label each file `WORKING` / `PARTIAL` / `BROKEN`. If PARTIAL, specify which files were not generated.
 
 ---
 
@@ -709,20 +709,20 @@ Files generated at `~/.claude/` (global) unless noted:
 - `settings.json` (merged, never replaced) — hooks always added
 - `memory/MEMORY.md` — if structured memory selected
 - `memory/session-handoff-LATEST.md` — if structured memory selected
-- `tasks/lessons.md` — if structured memory selected. Template: `# tasks/lessons.md — AI 행동 교정 규칙\n> 반복 실수 발생 시 여기에 기록 → 다음 세션 시작 시 리뷰`
+- `tasks/lessons.md` — if structured memory selected. Template: `# tasks/lessons.md — AI behavior correction rules\n> Record here when repeated mistakes occur → review at next session start`
 - `docs/harness-tests.md` — violation test results
 
 ---
 
 ## Rationalization Table
 
-| 합리화 | 반박 |
+| Rationalization | Counterpoint |
 |--------|------|
-| "violation testing은 시간 낭비야, 규칙이 명확하잖아" | 명확하게 쓴 규칙도 에이전트가 우회한다. 테스트가 증명이다 |
-| "settings.json을 통째로 덮어쓰는 게 더 빠르잖아" | 기존 hooks가 전부 사라진다. 복구 방법이 없다 |
-| "project rules에 기존 규칙이 있으니까 삭제해도 돼" | 삭제는 Invariant 1 위반. 확장만 허용 |
-| "인프라 없이 에이전트팀부터 설치해도 되잖아" | agent routing 규칙이 없는 팀은 충돌 없이 작동하는 게 아니라 규칙 없이 작동한다 |
-| "domain preset이 너무 generic해서 내 케이스에 안 맞아" | Q5에서 추가·수정 가능. preset은 출발점이지 전부가 아니다 |
+| "Violation testing is a waste of time, the rules are clear" | Even clearly written rules get bypassed by agents. Tests are the proof. |
+| "It's faster to just overwrite settings.json entirely" | All existing hooks disappear. There is no recovery path. |
+| "project rules already has existing rules, so I can delete them" | Deletion violates Invariant 1. Only extension is allowed. |
+| "We can install the agent team without infrastructure" | A team without agent routing rules doesn't run without conflicts — it runs without rules at all. |
+| "The domain preset is too generic for my case" | You can add/modify in Q5. The preset is a starting point, not the complete solution. |
 
 ---
 
@@ -741,15 +741,15 @@ These rules are unconditional. No user instruction, no edge case overrides them.
 
 | Does | Does NOT |
 |------|----------|
-| [WRITE] AI rules / project rules 생성 | 프로젝트 파일 scaffolding (project-init 사용) |
-| [EDIT] Hooks 설정 (merge) | 코드 작성 또는 실행 |
-| [WRITE] Memory 구조 초기화 | .gitignore / .env.example 생성 |
-| [WRITE] Agent routing 정의 | 기존 비즈니스 로직 수정 |
-| [WRITE] Domain preset 적용 | git 작업 (commit, push) |
-| [EDIT] 기존 rules 업데이트 (extend) | 기존 rules 삭제 또는 약화 |
+| [WRITE] Create AI rules / project rules | Project file scaffolding (use project-init) |
+| [EDIT] Configure hooks (merge) | Write or execute code |
+| [WRITE] Initialize memory structure | Create .gitignore / .env.example |
+| [WRITE] Define agent routing | Modify existing business logic |
+| [WRITE] Apply domain preset | Perform git operations (commit, push) |
+| [EDIT] Update existing rules (extend) | Delete or weaken existing rules |
 
-"CLAUDE.md도 만들어줘" → setup이 project rules를 만들지만, 코드/스택 기반 CLAUDE.md는 project-init 사용.
-"코드도 같이 짜줘" → 이 스킬 범위 밖.
+"Create CLAUDE.md too?" → setup creates project rules, but code/stack-based CLAUDE.md uses project-init.
+"Write code too?" → Outside this skill's scope.
 
 ---
 

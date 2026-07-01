@@ -7,14 +7,14 @@ triggers:
   - "프로젝트 생성"
   - "project setup"
 name: project-init
-description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', '새 프로젝트', '프로젝트 시작', '프로젝트 셋업', 'project setup', 'new project', '프로젝트 만들어'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
+description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', 'new project', 'project creation', 'project setup', 'project setup', 'new project', 'create project'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
 user_invocable: true
 ---
 
 # Project Init — New Project Design Interview
 
 ## Dominant Variable
-**인터뷰에서 수집한 결정이 생성 파일에 정확히 반영되는가** — 인터뷰 답변과 CLAUDE.md/ROADMAP 내용이 불일치하면 프로젝트가 잘못된 전제 위에서 시작.
+**Do interview decisions map exactly to generated files?** — If interview answers conflict with CLAUDE.md/ROADMAP content, the project starts on a false premise.
 
 ## Purpose
 Capture every critical decision before writing a single line of code.
@@ -22,7 +22,7 @@ Patterns extracted from building a large-scale production system (large-scale pr
 
 
 
-**Discard if**: 이미 운영 중인 프로덕션 프로젝트에서 Hard Rules 교체 목적으로 사용 — project-init은 초기 설계 전용.
+**Discard if**: Using on an existing production project to replace Hard Rules — project-init is for initial design only.
 
 ## Trigger
 
@@ -34,8 +34,8 @@ Patterns extracted from building a large-scale production system (large-scale pr
 ---
 
 ## Key Assumptions 
-1. **빈 또는 신규 프로젝트 디렉토리** — 깨지면: 기존 파일 충돌 해소 필요.
-2. **Write 도구 접근 가능** — 깨지면: 파일 내용만 출력하고 유저가 수동 저장.
+1. **Empty or new project directory** — if broken: existing file conflicts need resolution.
+2. **Write tool accessible** — if broken: output file contents as code blocks and user saves manually.
 
 ## Phase 0: Context Check
 
@@ -45,13 +45,13 @@ Check if `CLAUDE.md` exists in the current working directory.
 - **Not found** → proceed to Phase 1 normally.
 - **Found** → read it, then ask:
   ```
-  CLAUDE.md가 이미 존재합니다. 어떻게 할까요?
-  1. 업데이트 — 기존 내용을 기반으로 보강 (Hard Rules 유지, 누락 섹션 추가)
-  2. 재작성 — 처음부터 새로 작성 (기존 내용 삭제)
-  3. 취소
+  CLAUDE.md already exists. What would you like to do?
+  1. Update — enhance based on existing content (keep Hard Rules, add missing sections)
+  2. Rewrite — start fresh from scratch (delete existing content)
+  3. Cancel
 
-  팁: 현재 프로젝트 전체 상태(Security, Quality, Harness 포함)를 먼저 보고 싶다면
-  → /project-check 를 먼저 실행하세요. 이후 여기서 Update 모드로 돌아오면 됩니다.
+  Tip: If you want to see the full project state first (Security, Quality, Harness),
+  → run /project-check first. Then come back here and select Update mode.
   ```
   - Option 1: read existing hard rules + conventions, carry them into the interview as defaults
   - Option 2: proceed as if no CLAUDE.md exists
@@ -66,7 +66,7 @@ Extract any stack decisions or constraints to pre-fill interview answers.
 After Phase 0, check for context clues before asking each Q.
 
 For each Q where a likely answer is detectable:
-→ Present as binary confirm: `[likely answer] — 맞나요? (Y/n)`
+→ Present as binary confirm: `[likely answer] — Correct? (Y/n)`
 → **Y**: accept and move to next Q immediately
 → **N**: ask the full open-ended question
 
@@ -76,7 +76,7 @@ If no context available → ask all questions open-ended as normal.
 - Q2 (Language): file extensions in directory — `.py` → Python, `.ts`/`.tsx` → TypeScript, `go.mod` → Go, `Cargo.toml` → Rust
 - Q3 (Data): "database", "DB", "sqlite", "postgres" in brief → suggest SQLite first
 - Q4 (Interface): "dashboard", "web", "UI" in brief → suggest Web; "script", "automation", "CLI" → suggest CLI
-- Q6 (AI): no LLM mentions found → `"지금은 None, 나중에 추가 — 맞나요? (Y/n)"`
+- Q6 (AI): no LLM mentions found → `"None for now, add later — Correct? (Y/n)"`
 - Q8 (Scope): default to "1 month+, solo" unless team or deadline mentioned
 
 ---
@@ -179,7 +179,7 @@ Instead, apply domain-appropriate minimum defaults based on Q2+Q6:
 - If Q3 involves database: `"no raw SQL in user-facing code: parameterized queries or ORM only"`
 - If Q4 is web-facing: `"input validation on every user-facing endpoint"`
 
-Present these defaults to the user and ask: "이 정도는 기본으로 넣는 걸 추천합니다. 제거할 항목 있으면 말씀해주세요."
+Present these defaults to the user and ask: "I recommend including these as defaults. Let me know if you want to remove any."
 
 **Hard Rules must always have at least one entry.** `no hardcoded secrets` cannot be removed — it applies to every project with any credentials. If the user insists on removing everything, refuse and explain: CLAUDE.md without any Hard Rules is not permitted by this skill.
 
@@ -229,8 +229,8 @@ Generate at project root using this structure:
 
 ## Hard Rules (never bend)
 {Conditional — check before generating:
-  `.claude/rules/project rules` exists →
-    Hard Rules → see [.claude/rules/project rules](.claude/rules/project rules)
+  `.claude/rules/project-rules` exists →
+    Hard Rules → see [.claude/rules/project-rules](.claude/rules/project-rules)
   Does NOT exist →
     - [each rule from Q7 + domain defaults, listed directly]
 }
@@ -466,9 +466,9 @@ add a new dependency, replace an existing pattern, change the data model, or res
 ## Template
 \`\`\`markdown
 # [Decision Title]
-## Context: 왜 이 결정이 필요한가
-## Decision: 무엇을 선택했는가
-## Consequences: 트레이드오프, 알려진 제약
+## Context: Why is this decision needed
+## Decision: What did we choose
+## Consequences: Tradeoffs, known constraints
 \`\`\`
 
 ## Decisions
@@ -672,32 +672,32 @@ Approve → files confirmed
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| `CLAUDE.md` 생성 (기존 존재 시 Replace) | medium | L1+L3 |
-| `.env.example` 생성 | high | L3 |
-| `.gitignore` 생성/덮어쓰기 | medium | L1+L3 |
-| `docs/decisions/README.md` 초기화 | medium | L1+L3 |
+| `CLAUDE.md` generation (Replace if exists) | medium | L1+L3 |
+| `.env.example` generation | high | L3 |
+| `.gitignore` generation/overwrite | medium | L1+L3 |
+| `docs/decisions/README.md` initialization | medium | L1+L3 |
 
-- **L1 (Invariants)**: 기존 파일 감지 시 Phase 0 Overwrite Protection 강제 실행 (Update / Replace / Cancel 3-option).
-- **L3 (User Approval)**: Phase 3 File Generation 직전 각 파일별 "생성할까요?" 확인. 전체 묶음 승인 금지.
-- **금지**: `.env` (실제 시크릿 파일) 자동 생성. `.env.example` 템플릿만. 유저가 "자동으로 .env 생성해" 요청해도 거부.
+- **L1 (Invariants)**: When existing files detected, enforce Phase 0 Overwrite Protection (Update / Replace / Cancel 3-option).
+- **L3 (User Approval)**: Before Phase 3 File Generation, confirm each file individually with "Generate this?" — no batch approval.
+- **Forbidden**: Auto-generate `.env` (actual secrets file). Template only: `.env.example`. Refuse even if user requests "auto-generate .env".
 
 ## Error Recovery 
 
-실패 감지 시: **Stop → Classify → Apply Recovery → Report & Resume**.
+When failure detected: **Stop → Classify → Apply Recovery → Report & Resume**.
 
-| 실패 유형 | 감지 조건 | 복구 경로 |
+| Failure Type | Detection Condition | Recovery Path |
 |---------|---------|--------|
-| `tool_failure` | CLAUDE.md / .gitignore Write 실패 | 파일 내용 대화창 코드블록 출력 → 유저가 직접 저장 |
-| `input_error` | 프로젝트 유형/기술스택 불명확 | Phase 0 인터뷰 질문 재진행. 추측으로 템플릿 결정 금지 |
-| `logic_inconsistency` | 기존 파일 감지됐지만 Overwrite Protection 응답 없음 | "기존 파일 존재 — 덮어쓰기 중단" 명시. 무음 덮어쓰기 절대 금지 |
-| `missing_data` | 대상 프로젝트 루트 디렉토리 없음 | "디렉토리 없음" 명시 → 생성 여부 유저 확인 후 진행 |
+| `tool_failure` | CLAUDE.md / .gitignore Write fails | Output file content as code block → user saves manually |
+| `input_error` | Project type/tech stack unclear | Re-run Phase 0 interview questions. Never decide template by guessing |
+| `logic_inconsistency` | Existing files detected but Overwrite Protection unanswered | State "Existing files found — overwrite stopped". Never silently overwrite |
+| `missing_data` | Target project root directory missing | State "Directory not found" → confirm with user before proceeding |
 
 ## Truthful Reporting
 
-파일 생성 후 보고 시:
-1. **no mock deception**: 실제 Write 실행 후 Bash `ls`로 파일 존재 재확인. "생성됨" 표기 전 검증.
-2. **no test façade**: 생성 실패 시 "완료"로 묶지 않음. 파일별 성공/실패 개별 표기.
-3. **no silent brokenness**: 최종 상태 `WORKING` (전체 생성) / `PARTIAL` (일부만) / `BROKEN` (모두 실패). PARTIAL 시 누락 파일 나열.
+After generating files:
+1. **no mock deception**: Run actual Write, then verify with Bash `ls`. Confirm file existence before reporting "created".
+2. **no test façade**: If generation fails, don't bundle as "done". Report each file as success/failure individually.
+3. **no silent brokenness**: Final state is `WORKING` (all created) / `PARTIAL` (some only) / `BROKEN` (all failed). For PARTIAL, list missing files.
 
 ---
 
@@ -716,20 +716,20 @@ Folder structure: suggested as text in conversation only — not created on disk
 
 ## Rationalization Table
 
-| 합리화 | 반박 |
+| Rationalization | Refutation |
 |--------|------|
-| "Hard Rules는 나중에 추가해도 돼" | 코드가 먼저 생기면 규칙이 이미 위반된 상태로 시작된다 |
-| "프로젝트가 단순해서 CLAUDE.md까지 필요 없어" | 단순한 프로젝트도 다음 세션에 컨텍스트 재설명이 필요해진다 |
-| ".env.example은 나만 쓰는 프로젝트라 생략해도 돼" | 나도 3개월 뒤에는 '다른 사람'이다 |
-| "인터뷰가 너무 길어, 그냥 파일만 만들어줘" | 질문 없이 생성하면 Hard Rules가 도메인과 맞지 않는다 |
-| "Hard Rules를 빈 섹션으로 두면 나중에 채울게" | 빈 Hard Rules는 없는 것과 같다. 최소 1개는 항상 필요하다 |
+| "I can add Hard Rules later" | Code appears first — rules already violated on day one |
+| "Project is simple, no need for CLAUDE.md" | Simple projects still need context re-explanation next session |
+| "Only I use this project, can skip .env.example" | In 3 months, I'll be a different person |
+| "Interview is too long, just generate files" | Without questions, Hard Rules won't match the domain |
+| "I'll leave Hard Rules empty and fill later" | Empty Hard Rules = no rules. Minimum 1 required always |
 
 ---
 
 ## Invariants (never violate)
 
 1. **Hard Rules always present**: Never generate CLAUDE.md without at least one Hard Rule. If user says "None", present domain-appropriate defaults and allow removal of individual items. Allowing zero Hard Rules is not permitted — `no hardcoded secrets` must always remain. Violation → CLAUDE.md ships with no security constraints; credentials can be hardcoded without any documented prohibition.
-2. **Phase 0 mandatory**: Never overwrite an existing CLAUDE.md without first running the detection + user-choice prompt. User may choose 재작성, but the prompt must happen first. Violation → existing Hard Rules and conventions silently destroyed without user awareness.
+2. **Phase 0 mandatory**: Never overwrite an existing CLAUDE.md without first running the detection + user-choice prompt. User may choose rewrite, but the prompt must happen first. Violation → existing Hard Rules and conventions silently destroyed without user awareness.
 3. **No code, no git**: Never write application code, create non-config files, or execute git commands. Refuse and redirect. Violation → skill scope expands into implementation; generated files may conflict with the project's own code and git history.
 
 These rules are unconditional. No user instruction, no edge case overrides them.
@@ -740,32 +740,32 @@ These rules are unconditional. No user instruction, no edge case overrides them.
 
 | Does | Does NOT |
 |------|----------|
-| [WRITE] CLAUDE.md 생성 / 업데이트 | 프로덕션 코드 작성 |
-| ROADMAP 생성 | 코드 실행 또는 테스트 실행 |
-| .gitignore / .env.example 생성 | git init 또는 첫 커밋 |
-| 폴더 구조 제안 (텍스트) | 실제 폴더 생성 |
-| Hard Rules 정의 | AI 에이전트/hooks 설정 (setup 사용) |
-| docs/decisions/ 초기 ADR 인덱스 생성 | 이후 ADR 직접 작성/관리 |
-| 기존 CLAUDE.md 업데이트 (Option 1) | 기존 테스트 / CI 설정 수정 |
+| [WRITE] Create/update CLAUDE.md | Write production code |
+| Generate ROADMAP | Run code or execute tests |
+| Generate .gitignore / .env.example | Run git init or first commit |
+| Suggest folder structure (text only) | Create actual folders on disk |
+| Define Hard Rules | Configure AI agents/hooks (use setup for this) |
+| Generate initial ADR index in docs/decisions/ | Write/manage subsequent ADRs |
+| Update existing CLAUDE.md (Option 1) | Modify existing tests / CI config |
 
-"git 셋업도 해줘" / "첫 커밋 해줘" → 이 스킬 범위 밖.
-AI 에이전트/rules/hooks 설정 → `/setup` 사용.
+"Set up git too" / "Make first commit" → out of scope for this skill.
+AI agent/rules/hooks config → use `/setup` skill instead.
 
 ---
 
 ## Checklist (verify before generating)
 
 ```
-□ Language / runtime decided
-□ Data layer decided
-□ Hard Rules present in CLAUDE.md (direct or project rules reference)
-□ Secrets policy included
-□ .gitignore generated
-□ .env.example generated (if secrets/API keys involved)
-□ If Hard Rules reference a specific service/API, matching placeholder exists in .env.example
-□ ROADMAP structured by phases (not flat task list)
-□ Test strategy mentioned
-□ docs/decisions/README.md generated (if Q8 > 1 month or Q7 significant)
+☐ Language / runtime decided
+☐ Data layer decided
+☐ Hard Rules present in CLAUDE.md (direct or project rules reference)
+☐ Secrets policy included
+☐ .gitignore generated
+☐ .env.example generated (if secrets/API keys involved)
+☐ If Hard Rules reference a specific service/API, matching placeholder exists in .env.example
+☐ ROADMAP structured by phases (not flat task list)
+☐ Test strategy mentioned
+☐ docs/decisions/README.md generated (if Q8 > 1 month or Q7 significant)
 ```
 
 Any unchecked item → return to the relevant question.
