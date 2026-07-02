@@ -70,6 +70,8 @@ Q9. Dead Code — unused imports/vars/functions, commented blocks, debug remnant
 
 [STEP 2] Finding Report
 
+**No finding suppression (Sonnet 5)**: Report EVERY code-confirmed (Factuality-passed) finding, even low severity — keep LOW/uncertain in the list. The deployment verdict is separate from the finding list. Following "only report what matters" too faithfully makes you investigate the same but drop LOW findings at report time, silently lowering recall. Goal here is COVERAGE. Drop only pure speculation / Factuality failures.
+
 ### [Severity: XX/100] Title
 **Location:** `file:line`
 **Question:** Q[N]
