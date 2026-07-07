@@ -2,9 +2,9 @@
 
 # sovereign-skills v6.3
 
-覆盖 Claude Code 项目完整生命周期的 12 个技能 — 从初始设置到日常工作流、代码审查、会话管理。每个技能可独立使用，完整序列覆盖所有环节。
+覆盖 Claude Code 项目完整生命周期的 15 个技能 — 从初始设置到日常工作流、代码审查、会话管理。每个技能可独立使用，完整序列覆盖所有环节。
 
-> **v6.2 变更：** 新增：`code-autopsy` — 12Q 定量代码审查，4 轴评分、严重度锚点、部署判定、CapCode/CEF 元检测。新增：`stepback` — 一次性视角重置。此前 10 个技能全部升级。
+> **v6.3 变更：** 新增：`skill-ops`（快照/回滚 + 使用状况 + 调用追踪中枢）、`next-action`（读取交接文件/git/lessons/STATE，按影响力提出前3项下一步行动）、`project-overview`（确定性跨项目状态地图）。`code-autopsy` → v7.1（各问题子检查深化）、`pre-push` → v3.5（供应链IOC 9种模式）、`goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` 全部强化。原有12个技能全部新增 `not_for`/`see_also` frontmatter 以提升可发现性。
 
 ---
 
@@ -20,6 +20,7 @@
   /freeze             实现前（声明可编辑区域）
   /goal-lock          锁定目标，强制 PLAN→DO→VERIFY 循环
   /stepback           随时 — 方向确认，10行
+  /next-action        随时 — 读取当前状态，提出前3项下一步行动
   /code-autopsy       12Q代码审查 + 严重性评分 + 部署判定
   /pre-push           push 前（密钥扫描 + AI 审查）
   /session-checkpoint 会话结束时
@@ -49,20 +50,21 @@
 |------|------|
 | [scope](../scope/) | 实现前定义 IN/OUT/退出标准。Quick 模式（3 个问题）或 Full 模式（分层规格） |
 | [freeze](../freeze/) | 声明可编辑区域 — 其余冻结。防止实现过程中的范围蔓延 |
-| [goal-lock](../goal-lock/) | 智能体纪律引擎 — 锁定目标，强制 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环，检测 11 种成功伪装模式 |
+| [goal-lock](../goal-lock/) | 智能体纪律引擎 — 锁定目标，强制 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环，检测 13 种成功伪装模式 |
 | [pre-push](../pre-push/) | 强制 pre-push 管道 — 密钥扫描（12 种模式）、构建/测试、lint、并行 AI 代码审查。发现 Critical/High 时阻止 push |
 
 ### 代码审查
 
 | 技能 | 功能 |
 |------|------|
-| [code-autopsy](../code-autopsy/) | 12Q量化代码审查 — 4轴评分（Security/Stability/Robustness/Operability）、严重性锚定表、部署判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate、CapCode评分gaming检测、CEF伪装错误检测。作为独立提示词可在任何LLM中使用 |
+| [code-autopsy](../code-autopsy/) | **更新 v7.1。** 12Q量化代码审查 — 4轴评分（Security/Stability/Robustness/Operability）、严重性锚定表、部署判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate、CapCode评分gaming检测、CEF伪装错误检测。作为独立提示词可在任何LLM中使用 |
 
 ### 视角转换
 
 | 技能 | 功能 |
 |------|------|
-| [stepback](../stepback/) | **新增。** 一次性视角重置 — 1个抽象重构问题 + 3项快速检查（范围偏移、副作用、更优方案），10行以内。工作中随时可用 |
+| [stepback](../stepback/) | **更新。** 一次性视角重置 — 1个抽象重构问题 + 3项快速检查（范围偏移、副作用、更优方案），10行以内。工作中随时可用 |
+| [next-action](../next-action/) | **新增。** 读取交接文件/git/lessons/STATE，按影响力提出前3项下一步行动。仅提议，不执行。随时可用 |
 
 ### 会话管理
 
@@ -78,6 +80,12 @@
 | [project-check](../project-check/) | 从 4 个维度扫描现有项目：基础设施、安全、质量、测试框架。按严重度排序差距 |
 | [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向 |
 
+### 运维
+
+| 技能 | 功能 |
+|------|------|
+| [skill-ops](../skill-ops/) | **新增。** 技能/智能体运维中枢 — 快照/回滚 + 使用状况 + 调用追踪，3 种模式 |
+| [project-overview](../project-overview/) | **新增。** 从已注册项目的会话交接文件生成确定性跨项目状态地图 |
 
 ---
 
@@ -152,8 +160,10 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 
 ### 要求
 
-- [Claude Code](https://claude.ai/code) CLI、桌面应用或网页应用
-- 技能目录：`~/.claude/skills/`（Claude Code 自动创建）
+- **Claude Code**：CLI、桌面应用或网页应用（[claude.ai/code](https://claude.ai/code)）
+- **Codex**：OpenAI Codex（支持 `npx skills`）
+- **Cursor**：Cursor IDE（支持技能插件）
+- 技能目录：`~/.claude/skills/`（Claude Code）或智能体专属路径
 - `pre-push` 需要 Perl（`scan_secrets.pl` 已包含）
 
 ---
@@ -188,7 +198,7 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 ## v6.0 变更
 
 ### 新增功能
-- **goal-lock** — 具有 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环的智能体纪律引擎。检测 11 种成功伪装模式（测试删除、mock 包装、阈值放松等）。小改动用 Quick 模式（3 字段），其他用 Full 模式（7 字段）。
+- **goal-lock** — 具有 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环的智能体纪律引擎。检测 13 种成功伪装模式（测试删除、mock 包装、阈值放松等）。小改动用 Quick 模式（3 字段），其他用 Full 模式（7 字段）。
 
 ### 合并
 - `harness-init` + `team-init` → **setup** — 基础设施和智能体团队一步到位
@@ -211,7 +221,7 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 
 ## 智能体设计模式覆盖
 
-这 12 个技能实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
+这 15 个技能中的 12 个（原始生命周期集合 — v6.3 的运维类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
 
 | 模式 | 实现技能 | 方法 |
 |------|---------|------|
@@ -227,7 +237,7 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 | **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES，Critical/High 阻止推送 |
 | **Custom Logic** | pre-push | 确定性密钥扫描（Perl）+ AI 审查 |
 | **Event-Driven** | session-start | 会话打开时触发，加载先前状态 |
-| **Guardrails/Safety** | goal-lock | 检测 11 种成功伪装模式 |
+| **Guardrails/Safety** | goal-lock | 检测 13 种成功伪装模式 |
 | **Memory Management** | session-checkpoint | 交接文件 + 记忆更新 + 教训提取 |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE 输入表 |
 | **Step-Back Abstraction** | stepback | DeepMind step-back：具体 → 抽象原则 |
@@ -241,6 +251,36 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 3. **先定范围再写代码** — 修改文件前定义 IN/OUT/退出标准。不修改的部分冻结
 4. **诚实报告** — WORKING / PARTIAL / BROKEN 标签。没有静默故障，没有 mock 欺骗
 5. **会话连续性** — 以交接开始，以检查点结束。上下文跨会话存续
+
+---
+
+## 技能间的连接关系
+
+各技能通过 frontmatter 中的 `see_also`（相关技能）和 `not_for`（误用防护）声明彼此关系。主要关系：
+
+| 技能 | 连接对象 | 关系 |
+|------|---------|------|
+| `scope` | `goal-lock`, `freeze` | scope 定义要构建什么，freeze 锁定可编辑区域，goal-lock 强制执行循环 |
+| `freeze` | `scope`, `goal-lock` | freeze 是连接 scope 规划与 goal-lock 循环强制的手动区域锁定 |
+| `goal-lock` | `scope`, `freeze` | goal-lock 是在 scope/freeze 划定边界内运作的执行期纪律层 |
+| `stepback` | `next-action` | stepback 检查方向（"是否在解决正确的问题"），next-action 推荐行动（"按影响力下一步是什么"） |
+| `next-action` | `session-start`, `stepback` | next-action 读取当前状态提出建议，session-start 恢复上一会话的状态 |
+| `session-start` | `session-checkpoint` | 生命周期配对 — 打开和关闭会话 |
+| `session-checkpoint` | `session-start`, `setup` | 关闭会话，setup 打开新项目 |
+| `code-autopsy` | `pre-push` | code-autopsy 是深入的按需 12Q 审查，pre-push 是每次 push 前运行的快速自动化流水线 |
+| `skill-ops` | `project-overview` | skill-ops 管理技能/智能体的生命周期（快照/回滚/使用状况），project-overview 汇总多个项目的状态 |
+
+图示（箭头 = "交接给" / "提供信息给"）：
+
+```
+setup ──> scope ──> freeze ──> goal-lock ──> pre-push
+                                   │
+                                stepback (随时，任何阶段)
+                                   │
+session-start <──> session-checkpoint
+                                   │
+                            next-action (读取状态并推荐)
+```
 
 ---
 

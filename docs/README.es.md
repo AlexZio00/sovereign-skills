@@ -2,9 +2,9 @@
 
 # sovereign-skills v6.3
 
-12 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código y gestión de sesiones. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
+15 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código y gestión de sesiones. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
-> **Cambios en v6.2:** Nuevo: `code-autopsy` — revisión de código cuantificada de 12 preguntas con puntuación de 4 ejes, anclas de severidad, veredicto de despliegue y meta-detección CapCode/CEF. Nuevo: `stepback` — reinicio de perspectiva de un solo uso. Las 10 habilidades existentes actualizadas.
+> **Cambios en v6.3:** Nuevo: `skill-ops` (hub de snapshot/rollback + salud de uso + seguimiento de invocaciones), `next-action` (lee handoff/git/lessons/STATE y propone las 3 acciones principales según impacto), `project-overview` (mapa determinista del estado entre proyectos). `code-autopsy` → v7.1 (subverificaciones más profundas por pregunta), `pre-push` → v3.5 (9 patrones IOC de cadena de suministro), `goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` reforzados. Las 12 habilidades anteriores ganaron frontmatter `not_for` y `see_also` para mejor capacidad de descubrimiento.
 
 ---
 
@@ -20,6 +20,7 @@ Diariamente:
   /freeze             antes de implementar (declarar zona editable)
   /goal-lock          bloquear objetivo, forzar ciclo PLAN→DO→VERIFY
   /stepback           en cualquier momento — verificar dirección, 10 líneas
+  /next-action        en cualquier momento — lee el estado actual y propone las 3 acciones principales
   /code-autopsy       revisión de código 12Q + puntuación + veredicto
   /pre-push           antes de cada push (escaneo de secretos + revisión AI)
   /session-checkpoint al final de cada sesión
@@ -49,20 +50,21 @@ Diariamente:
 |-----------|---------|
 | [scope](../scope/) | Definir IN/OUT/criterios de salida antes de implementar. Modo Quick (3 preguntas) o modo Full (especificación por capas) |
 | [freeze](../freeze/) | Declarar la zona editable — todo lo demás queda congelado. Previene la expansión del alcance durante la implementación |
-| [goal-lock](../goal-lock/) | Motor de disciplina de agentes — bloquea el objetivo, fuerza el ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT, detecta 11 patrones de enmascaramiento de éxito |
+| [goal-lock](../goal-lock/) | Motor de disciplina de agentes — bloquea el objetivo, fuerza el ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT, detecta 13 patrones de enmascaramiento de éxito |
 | [pre-push](../pre-push/) | Pipeline pre-push obligatorio — escaneo de secretos (12 patrones), build/test, lint, revisión de código AI en paralelo. Bloquea push ante hallazgos Critical/High |
 
 ### Revisión de código
 
 | Habilidad | Función |
 |-----------|---------|
-| [code-autopsy](../code-autopsy/) | Revisión de código cuantificada 12Q — puntuación de 4 ejes (Security/Stability/Robustness/Operability), anclajes de severidad, veredicto de despliegue (SHIP/FIX/RISKY/BLOCK), gate de factualidad, detección de gaming CapCode, detección de errores fabricados CEF. Funciona como prompt independiente en cualquier LLM |
+| [code-autopsy](../code-autopsy/) | **Actualizado v7.1.** Revisión de código cuantificada 12Q — puntuación de 4 ejes (Security/Stability/Robustness/Operability), anclajes de severidad, veredicto de despliegue (SHIP/FIX/RISKY/BLOCK), gate de factualidad, detección de gaming CapCode, detección de errores fabricados CEF. Funciona como prompt independiente en cualquier LLM |
 
 ### Cambio de perspectiva
 
 | Habilidad | Función |
 |-----------|---------|
-| [stepback](../stepback/) | **Nuevo.** Reinicio de perspectiva en un paso — 1 pregunta de reencuadre abstracto + 3 verificaciones rápidas (desvío de alcance, efectos secundarios, mejor enfoque) en menos de 10 líneas. Usar en cualquier momento durante el trabajo |
+| [stepback](../stepback/) | **Actualizado.** Reinicio de perspectiva en un paso — 1 pregunta de reencuadre abstracto + 3 verificaciones rápidas (desvío de alcance, efectos secundarios, mejor enfoque) en menos de 10 líneas. Usar en cualquier momento durante el trabajo |
+| [next-action](../next-action/) | **Nuevo.** Lee handoff/git/lessons/STATE y propone las 3 acciones principales según impacto. Solo propone, nunca ejecuta. Usar en cualquier momento |
 
 ### Gestión de sesiones
 
@@ -78,6 +80,12 @@ Diariamente:
 | [project-check](../project-check/) | Escanea el proyecto existente en 4 dimensiones: Infraestructura, Seguridad, Calidad, Harness. Brechas ordenadas por severidad |
 | [collab-audit](../collab-audit/) | Auditoría de colaboración AI en 14 secciones — analiza patrones de trabajo reales (no encuestas) para generar perfil conductual, puntos ciegos y dirección de crecimiento |
 
+### Operaciones
+
+| Habilidad | Función |
+|-----------|---------|
+| [skill-ops](../skill-ops/) | **Nuevo.** Hub de operaciones de habilidades/agentes — snapshot/rollback + salud de uso + seguimiento de invocaciones, 3 modos |
+| [project-overview](../project-overview/) | **Nuevo.** Genera un mapa determinista del estado entre proyectos a partir de los handoffs de sesión de los proyectos registrados |
 
 ---
 
@@ -92,13 +100,13 @@ Diariamente:
 │  /session-start                                      │
 │       ↓                                              │
 │  /scope → /freeze → /goal-lock → trabajo              │
-│       → /stepback (anytime) → /code-autopsy → /pre-push│
+│       → /stepback (en cualquier momento) → /code-autopsy → /pre-push│
 │       ↓                                              │
 │  /session-checkpoint                                 │
 └──────────────────────────────────────────────────────┘
          ↓
 ┌─────────────────── Bajo demanda ───────────────────┐
-│  /stepback         (reinicio de perspectiva)         │
+│  /stepback         (reinicio de perspectiva — en cualquier momento) │
 │  /project-check    (auditoría de salud)              │
 │  /collab-audit     (diagnóstico conductual)          │
 └─────────────────────────────────────────────────────┘
@@ -152,8 +160,10 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 
 ### Requisitos
 
-- [Claude Code](https://claude.ai/code) CLI, app de escritorio o app web
-- Directorio de habilidades: `~/.claude/skills/` (creado automáticamente por Claude Code)
+- **Claude Code**: CLI, app de escritorio o app web ([claude.ai/code](https://claude.ai/code))
+- **Codex**: OpenAI Codex (soporte para `npx skills`)
+- **Cursor**: Cursor IDE (soporte para plugin de habilidades)
+- Directorio de habilidades: `~/.claude/skills/` (Claude Code) o ruta específica del agente
 - `pre-push` requiere Perl (`scan_secrets.pl` incluido)
 
 ---
@@ -188,7 +198,7 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 ## Qué hay nuevo en v6.0
 
 ### Agregado
-- **goal-lock** — Motor de disciplina de agentes con ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT. Detecta 11 patrones de enmascaramiento de éxito (eliminación de pruebas, envoltura de mock, relajación de umbral, etc.). Modo Rápido (3 campos) para cambios pequeños, Modo Completo (7 campos) para todo lo demás.
+- **goal-lock** — Motor de disciplina de agentes con ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT. Detecta 13 patrones de enmascaramiento de éxito (eliminación de pruebas, envoltura de mock, relajación de umbral, etc.). Modo Rápido (3 campos) para cambios pequeños, Modo Completo (7 campos) para todo lo demás.
 
 ### Fusionado
 - `harness-init` + `team-init` → **setup** — Infraestructura y equipo de agentes en un flujo
@@ -211,7 +221,7 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 
 ## Cobertura de Patrones de Diseño Agénico
 
-Estas 12 habilidades implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+12 de estas 15 habilidades (el conjunto original del ciclo de vida — las nuevas habilidades de operaciones de v6.3 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Patrón | Implementado por | Cómo |
 |--------|------------------|------|
@@ -227,7 +237,7 @@ Estas 12 habilidades implementan 17 de los 25 patrones de diseño agénico conoc
 | **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES, Critical/High bloquea push |
 | **Custom Logic** | pre-push | Escaneo determinista de secretos (Perl) + revisión AI |
 | **Event-Driven** | session-start | Se dispara al abrir sesión, carga estado anterior |
-| **Guardrails/Safety** | goal-lock | 11 patrones de enmascaramiento de éxito detectados |
+| **Guardrails/Safety** | goal-lock | 13 patrones de enmascaramiento de éxito detectados |
 | **Memory Management** | session-checkpoint | Archivo handoff + actualizaciones de memoria + extracción de lecciones |
 | **Goal Setting** | goal-lock | Hoja de entrada GOAL + DONE EVIDENCE |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concreto → principio abstracto |
@@ -241,6 +251,36 @@ Estas 12 habilidades implementan 17 de los 25 patrones de diseño agénico conoc
 3. **Alcance antes del código** — Definir IN/OUT/criterios de salida antes de tocar archivos. Congelar lo que no se cambia
 4. **Reporte honesto** — Etiquetas WORKING / PARTIAL / BROKEN. Sin fallos silenciosos, sin engaño con mocks
 5. **Continuidad de sesión** — Comenzar con handoff, terminar con checkpoint. El contexto sobrevive entre sesiones
+
+---
+
+## Cómo se conectan las habilidades
+
+Las habilidades declaran relaciones mediante `see_also` (relacionadas) y `not_for` (guardarraíles de mal uso) en su frontmatter. Relaciones clave:
+
+| Habilidad | Se conecta con | Relación |
+|-----------|-----------------|----------|
+| `scope` | `goal-lock`, `freeze` | scope define qué construir; freeze bloquea la zona editable; goal-lock fuerza el ciclo de ejecución |
+| `freeze` | `scope`, `goal-lock` | freeze es el bloqueo manual de zona que acompaña a la planificación de scope y la aplicación del ciclo de goal-lock |
+| `goal-lock` | `scope`, `freeze` | goal-lock es la capa de disciplina en tiempo de ejecución que opera dentro de los límites que scope/freeze establecen |
+| `stepback` | `next-action` | stepback verifica la dirección ("¿estoy resolviendo el problema correcto?"), next-action recomienda qué hacer ("¿qué sigue según impacto?") |
+| `next-action` | `session-start`, `stepback` | next-action lee el estado actual para dar recomendaciones; session-start restaura el estado de la sesión anterior |
+| `session-start` | `session-checkpoint` | par de ciclo de vida — abre y cierra una sesión |
+| `session-checkpoint` | `session-start`, `setup` | cierra una sesión; setup abre un nuevo proyecto |
+| `code-autopsy` | `pre-push` | code-autopsy es una revisión 12Q profunda bajo demanda; pre-push ejecuta un pipeline automatizado más rápido antes de cada push |
+| `skill-ops` | `project-overview` | skill-ops gestiona el ciclo de vida de habilidades/agentes (snapshot/rollback/uso); project-overview agrega el estado entre múltiples proyectos |
+
+Diagrama (flechas = "entrega a" / "informa a"):
+
+```
+setup ──> scope ──> freeze ──> goal-lock ──> pre-push
+                                   │
+                                stepback (en cualquier momento, cualquier etapa)
+                                   │
+session-start <──> session-checkpoint
+                                   │
+                            next-action (lee el estado y recomienda)
+```
 
 ---
 

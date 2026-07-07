@@ -52,10 +52,17 @@ git/README history (the v6.0 rewrite dropped the changelog section from
   back over prior translations during v4-v6 upgrades). Full re-translation,
   shipped 2026-07-01.
 
-> Note: this release's content (Tasks A-D above) was fully applied to
-> English (README.md) and Korean (docs/README.ko.md) only. Japanese,
-> Chinese, and Spanish READMEs (docs/README.ja.md, .zh.md, .es.md) still
-> reflect the pre-v6.3 skill list and will be synced in a follow-up pass.
+> Note: this release's content (Tasks A-D above) was applied to all 5
+> language READMEs (EN/KO/JA/ZH/ES) as of 2026-07-07, including the
+> project-init correction (see fix entry below).
+
+**Fixed (2026-07-07):**
+- `project-init` was incorrectly marked as absorbed into `setup` at initial
+  release — it is a standalone skill (15 total, not 14). Corrected across
+  `marketplace.json`, all 5 language READMEs, this changelog, and the
+  GitHub release notes. Also fixed: missing `code-autopsy/.claude-plugin/plugin.json`,
+  and `goal-lock`'s masquerading-pattern count (stale "11" → actual 13)
+  across README/marketplace.json/plugin.json.
 
 ---
 
