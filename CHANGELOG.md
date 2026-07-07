@@ -46,13 +46,6 @@ git/README history (the v6.0 rewrite dropped the changelog section from
   pick the right skill and discover related ones
 - Individual version tags on all skills (previously only 2 had them)
 
-### Removed
-- **project-init** — absorbed into `setup`, which now combines
-  infrastructure setup with interview-based project scaffolding in one
-  guided flow. The `project-init` directory is preserved in the repo
-  history but no longer listed in `marketplace.json` or the README skill
-  index (see the deprecation notice at the top of its SKILL.md)
-
 ### Fixed
 - Localization regression: 9 of 12 skills had 7-57% Korean-language text left
   in the English SKILL.md files (personal-use version had been copy-pasted

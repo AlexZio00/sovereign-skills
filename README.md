@@ -2,9 +2,9 @@
 
 # sovereign-skills v6.3
 
-14 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management. Each skill is useful standalone; the full sequence covers everything.
+15 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management. Each skill is useful standalone; the full sequence covers everything.
 
-> **What changed in v6.3:** New: `skill-ops` (snapshot/rollback + usage health + invocation tracking hub), `next-action` (reads handoff/git/lessons/STATE and proposes the top-3 next actions), `project-overview` (deterministic cross-project status map). `code-autopsy` → v7.1 (deeper sub-checks per question), `pre-push` → v3.5 (9 supply-chain IOC patterns), `goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` all strengthened. `project-init` removed — absorbed into `setup`, which now combines infrastructure setup with interview-based project scaffolding in one guided flow. All prior skills gained `not_for` and `see_also` frontmatter for better discoverability.
+> **What changed in v6.3:** New: `skill-ops` (snapshot/rollback + usage health + invocation tracking hub), `next-action` (reads handoff/git/lessons/STATE and proposes the top-3 next actions), `project-overview` (deterministic cross-project status map). `code-autopsy` → v7.1 (deeper sub-checks per question), `pre-push` → v3.5 (9 supply-chain IOC patterns), `goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` all strengthened. All 12 prior skills gained `not_for` and `see_also` frontmatter for better discoverability.
 
 ---
 
@@ -12,7 +12,8 @@
 
 **New project (15 min):**
 ```
-/setup              →  CLAUDE.md + ROADMAP + .gitignore/.env.example + rules/ + hooks + memory/ + agent routing + team
+/project-init       →  CLAUDE.md + ROADMAP + .gitignore + .env.example
+/setup              →  rules/ + hooks + memory/ + agent routing + team
 then daily:
   /session-start      at the start of every session
   /scope              before each feature (define IN/OUT/exit criteria)
@@ -39,7 +40,8 @@ then daily:
 
 | Skill | What it does |
 |-------|-------------|
-| [setup](setup/) | Combines infrastructure setup (rules, hooks, memory, routing, agent team) with interview-based project scaffolding (CLAUDE.md, ROADMAP, .gitignore, .env.example) into one guided flow |
+| [project-init](project-init/) | Interview-based project scaffolding — generates CLAUDE.md, ROADMAP, .gitignore, and .env.example from decisions, not templates |
+| [setup](setup/) | Claude Code infrastructure and agent team — rules, hooks, memory, routing, and agent installation in one guided flow |
 
 ### Daily Workflow
 
@@ -171,7 +173,7 @@ The SKILL.md content is universal — it works with any LLM that reads markdown 
 
 ## Agentic Design Patterns Coverage
 
-These 12 of the 14 skills (the original lifecycle set — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+These 12 of the 15 skills (the original lifecycle set — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Pattern | Implemented by | How |
 |---------|---------------|-----|

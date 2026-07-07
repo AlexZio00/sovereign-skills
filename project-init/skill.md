@@ -14,16 +14,10 @@ not_for:
   - "Existing project audit -> project-check"
 see_also:
   - skill: setup
-    relation: "project-init=project scaffolding, setup=full harness+project"
+    relation: "project-init=project scaffolding, setup=AI harness/agent team setup (separate skill)"
 ---
 
 # Project Init — New Project Design Interview
-
-> **DEPRECATED (v6.3, 2026-07-07)**: project-init has been absorbed into
-> `setup`. Use `/setup` for new-project scaffolding — it now includes
-> interview-based CLAUDE.md/ROADMAP/.gitignore/.env.example generation as
-> part of its guided flow. This file is preserved for history and is no
-> longer listed in marketplace.json or the README skill index.
 
 ## Dominant Variable
 **Do interview decisions map exactly to generated files?** — If interview answers conflict with CLAUDE.md/ROADMAP content, the project starts on a false premise.

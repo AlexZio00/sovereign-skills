@@ -7,8 +7,15 @@
   },
   "plugins": [
     {
+      "name": "project-init",
+      "description": "Interview-based project scaffolding — generates CLAUDE.md, ROADMAP, .gitignore, and .env.example from decisions, not templates",
+      "source": "./project-init",
+      "category": "development",
+      "tags": ["scaffolding", "project-setup", "claude-md", "roadmap", "interview", "init"]
+    },
+    {
       "name": "setup",
-      "description": "Combines infrastructure setup (rules, hooks, memory, routing, agent team) with interview-based project scaffolding (CLAUDE.md, ROADMAP, .gitignore, .env.example) into one guided flow",
+      "description": "Claude Code infrastructure and agent team setup — rules, hooks, memory system, routing, and agent installation in one guided flow",
       "source": "./setup",
       "category": "development",
       "tags": ["infrastructure", "agent-team", "rules", "hooks", "memory", "routing", "setup"]
