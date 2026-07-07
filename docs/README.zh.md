@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.2
+# sovereign-skills v6.3
 
-覆盖 Claude Code 项目完整生命周期的 12 个技能 — 从初始设置到日常工作流、代码审查，再到会话管理。每个技能可独立使用，完整序列覆盖所有环节。
+覆盖 Claude Code 项目完整生命周期的 12 个技能 — 从初始设置到日常工作流、代码审查、会话管理。每个技能可独立使用，完整序列覆盖所有环节。
 
-> **v6.2 变更：** 新增：`code-autopsy` — 12Q量化代码审查。4轴评分（Security/Stability/Robustness/Operability）、严重性锚定、部署判定（SHIP/FIX/RISKY/BLOCK）、CapCode/CEF元检测。作为独立提示词可在任何LLM中使用。新增：`stepback` — 一次性视角重置。全部10个现有技能升级。
+> **v6.2 变更：** 新增：`code-autopsy` — 12Q 定量代码审查，4 轴评分、严重度锚点、部署判定、CapCode/CEF 元检测。新增：`stepback` — 一次性视角重置。此前 10 个技能全部升级。
 
 ---
 
@@ -77,6 +77,7 @@
 |------|------|
 | [project-check](../project-check/) | 从 4 个维度扫描现有项目：基础设施、安全、质量、测试框架。按严重度排序差距 |
 | [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向 |
+
 
 ---
 

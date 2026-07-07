@@ -1,7 +1,7 @@
 {
   "name": "goal-lock",
   "version": "1.0.0",
-  "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 11 success masquerading patterns.",
+  "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 13 success masquerading patterns.",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

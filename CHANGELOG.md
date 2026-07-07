@@ -8,36 +8,61 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ## v6.3 — 2026-07-15
 
+### Changed
+- **code-autopsy** → v7.1: expanded all 12 questions with detailed sub-checks
+  (deletion test, kitchen-sink detection, schema/migration safety, 5-domain
+  security, DONE↔GOAL alignment, state reproducibility, and more)
+- **goal-lock**: added a REFINE track for non-code artifacts (CRITIQUE →
+  REWRITE → DELTA CHECK, 1-round limit), a stagnation circuit breaker (S6 —
+  same blocker repeated 2+ times), external-failure-fabrication added to the
+  success-masquerading list, and documented the physical Stop-hook completion
+  gate (`goal_lock_stop_gate.py`)
+- **pre-push** → v3.5: 6 IOC patterns → 9 (added dependency confusion,
+  missing version pinning, post-install hook network calls)
+- **session-checkpoint**: added Attestation (SHA-256 hash sidecar for handoff
+  tamper detection), a 7-factor value function for lessons.md archival
+  judgment (reliability/goal-relevance/self-relevance/usage-history/oracle/
+  blind), and Growth Re-check for sessions that continue past checkpoint
+- **session-start**: added an Autoimmunity Rate section (rejection/total
+  ratio, 5%/15% thresholds) and expanded graduation gates from G1-G6 to
+  G1-G18
+- **scope**: replaced the subjective "can you answer in one sentence"
+  sufficiency check with a 4-dimension ambiguity score (function/boundary/
+  verification/assumptions, 0-10 each, ≥7 average to proceed)
+- **stepback**: added Key Assumptions, Safety Layers, and Error Recovery
+  sections; unified `see_also` to point at `next-action`
+- **freeze**: added 2 regression-test scenario files under `scenarios/`
+  (normal Scope Lock operation, Invariant violation detection)
+
+### Added
+- **New skill: skill-ops** — snapshot/rollback + usage health + invocation
+  tracking hub for skills and agents
+- **New skill: next-action** — reads handoff/git/lessons/STATE and proposes
+  the top-3 next actions by impact, proposal-only
+- **New skill: project-overview** — generates a deterministic cross-project
+  status map from registered projects' session handoffs
+- All prior skills: added `not_for` (misuse prevention) and `see_also`
+  (related skill cross-references) to YAML frontmatter — helps users
+  pick the right skill and discover related ones
+- Individual version tags on all skills (previously only 2 had them)
+
+### Removed
+- **project-init** — absorbed into `setup`, which now combines
+  infrastructure setup with interview-based project scaffolding in one
+  guided flow. The `project-init` directory is preserved in the repo
+  history but no longer listed in `marketplace.json` or the README skill
+  index (see the deprecation notice at the top of its SKILL.md)
+
 ### Fixed
 - Localization regression: 9 of 12 skills had 7-57% Korean-language text left
   in the English SKILL.md files (personal-use version had been copy-pasted
   back over prior translations during v4-v6 upgrades). Full re-translation,
   shipped 2026-07-01.
 
-### Changed
-- **code-autopsy** → v7.1: expanded all 12 questions with detailed sub-checks
-  (deletion test, kitchen-sink detection, schema/migration safety, 5-domain
-  security, DONE↔GOAL alignment, state reproducibility, and more)
-- **goal-lock**: added external-failure-fabrication to the success-masquerading
-  list; VERIFY step now checks DONE EVIDENCE against the original GOAL
-- **pre-push** → v3.5: 6 IOC patterns → 9 (added dependency confusion,
-  missing version pinning, post-install hook network calls)
-- **session-checkpoint**: strengthened memory retention/pruning judgment with
-  a 7-factor value function (confidence/last-seen/observations + reliability,
-  goal-relevance, self-relevance, usage-history); handoff quality gets a
-  2-question self-check before saving
-- **scope**: replaced the subjective "can you answer in one sentence"
-  sufficiency check with a 4-dimension ambiguity score (function/boundary/
-  verification/assumptions, 0-10 each, ≥7 average to proceed)
-- **setup**: now installs a baseline harness immediately (stack-detected
-  CLAUDE.md, coding-style rules, settings.json denylist, formatter hooks)
-  before the interview, instead of interviewing from a blank slate
-
-### Added
-- All 12 skills: added `not_for` (misuse prevention) and `see_also`
-  (related skill cross-references) to YAML frontmatter — helps users
-  pick the right skill and discover related ones
-- Individual version tags on all 12 skills (previously only 2 of 12 had them)
+> Note: this release's content (Tasks A-D above) was fully applied to
+> English (README.md) and Korean (docs/README.ko.md) only. Japanese,
+> Chinese, and Spanish READMEs (docs/README.ja.md, .zh.md, .es.md) still
+> reflect the pre-v6.3 skill list and will be synced in a follow-up pass.
 
 ---
 

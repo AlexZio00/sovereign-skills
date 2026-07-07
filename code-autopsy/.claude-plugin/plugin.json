@@ -1,0 +1,11 @@
+{
+  "name": "code-autopsy",
+  "description": "12Q quantified code review — 4-axis scoring (Security/Stability/Robustness/Operability), severity anchors, deployment verdict, factuality gate. Works as standalone prompt in any LLM",
+  "version": "7.1.0",
+  "skills": [
+    {
+      "name": "code-autopsy",
+      "path": "SKILL.md"
+    }
+  ]
+}

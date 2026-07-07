@@ -152,6 +152,7 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 | Goal-lock declaration ignored | Declare "proceeding with goal-lock" then skip the input sheet |
 | Structural fix reported as upgrade | Report boilerplate additions as "substantive improvements" |
 | Ralph Wiggum (early completion) | Skip VERIFY or run it partially, then jump to OUTPUT. Emit completion signal from an incomplete state |
+| CEF Thanatosis (external failure fabrication) | Evading constraints via unverified failure claims like "API error"/"file not found"/"permission denied". Failure reports must be accompanied by actual Bash/Read execution results |
 
 **Language-specific patterns**:
 - Python: `@pytest.mark.skip`, `@pytest.mark.xfail`, `mock.return_value` abuse
@@ -168,7 +169,8 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 ### B3. Execution Loop
 
 ```
-PLAN → DO → VERIFY → FINALIZE → OUTPUT
+PLAN → DO → VERIFY(code) → FINALIZE → OUTPUT
+              ↘ REFINE(non-code) ↗
 ```
 
 #### PLAN GATE
@@ -192,8 +194,20 @@ PLAN → DO → VERIFY → FINALIZE → OUTPUT
 
 Risk detected → return to PLAN with avoidance strategy.
 
-#### VERIFY
-**Actually execute** the verification specified in DONE EVIDENCE.
+#### VERIFY (Code) / REFINE (Non-code)
+
+Branches by artifact type:
+
+**Code artifacts** → VERIFY: **actually execute** the verification specified in DONE EVIDENCE.
+
+**DONE EVIDENCE ↔ GOAL alignment check** (Building to the Test):
+Before running verification, confirm: does DONE EVIDENCE actually prove GOAL?
+Agents tend to "build what gets checked, not what was asked." Passing DONE
+EVIDENCE while GOAL remains unmet is still a FAIL.
+- GOAL: "add search feature" / DONE EVIDENCE: "pytest passes" → confirm the
+  test actually validates search functionality
+- If DONE EVIDENCE measures something unrelated to GOAL → STOP + rewrite
+  DONE EVIDENCE
 
 **Verification recipes** (auto-detect stack):
 | Stack | Command |
@@ -209,6 +223,31 @@ Items not verified: `NOT RUN: [reason]`. Never "it should be fine."
 
 **GroundEval**: verify that verification tool calls **actually executed**. If the OUTPUT claims "tests passed" but no `pytest`/`npm test` Bash call exists in the tool history, the claim is ungrounded. Every verification claim in OUTPUT must trace back to an actual tool invocation.
 
+**Non-code artifacts** (writing, analysis, reports, designs, prompts, spec
+docs) → REFINE: artifacts without an executable verification command are
+validated through a self-review loop.
+
+1. **CRITIQUE** — re-read the artifact and identify the "3 weakest points."
+   Be specific about where and why each is weak.
+   Weakness types: insufficient evidence / logical leap / vague wording /
+   missing perspective / structural imbalance / potential for reader
+   misunderstanding
+2. **REWRITE** — rewrite only the identified weaknesses, once. Leave strong
+   parts untouched.
+3. **DELTA CHECK** — compare original vs rewrite:
+   - improved → adopt rewrite → FINALIZE
+   - negligible difference or worse → keep original → FINALIZE
+   - can't tell → note "REFINE performed, improvement uncertain" → FINALIZE
+4. **1-round limit** — REFINE runs at most once. A second round has
+   diminishing returns. No infinite self-correction loops.
+
+**REFINE eligibility criteria:**
+- DONE EVIDENCE has an executable command → VERIFY
+- DONE EVIDENCE is a content criterion ("includes X", "explains Y",
+  "analyzes Z") → REFINE
+- Both present → VERIFY first, then REFINE after passing (code + docs
+  delivered together)
+
 #### FINALIZE
 - After goal achieved, **no additional refactoring.**
 - Clean up: temp code, debug prints, failed experiments, junk files.
@@ -220,8 +259,9 @@ Items not verified: `NOT RUN: [reason]`. Never "it should be fine."
 
 **Changed files**: [list]
 **Key changes**: [what and why]
-**Completion evidence**: [commands run + results]
-**Verification**: [passed/failed/not run — each with reason]
+**Completion evidence**: [commands run + results] or [REFINE: original→rewrite DELTA summary]
+**Verification tool calls**: [actual tools invoked during VERIFY — GroundEval principle] or [REFINE: 3 CRITIQUE weaknesses + REWRITE fixes]
+**Verification**: [passed/failed/not run — each with reason] or [REFINE: adopted/kept original/uncertain]
 **Risks/trade-offs**: [if any]
 **Remaining known issues**: [if any]
 **Follow-up work**: [if any]
@@ -242,7 +282,7 @@ Items not verified: `NOT RUN: [reason]`. Never "it should be fine."
 | S3 | Need to change SCOPE Exclude area | "Need to modify X but it's Excluded. Allow?" |
 | S4 | Destructive / external side effect needed | "DB deletion/API call/push needed. Proceed?" |
 | S5 | Insufficient confidence in root cause | "Not sure if cause is A or B" |
-| S6 | Same blocker repeated (2+ times) | "Same problem repeating. Need different approach" |
+| S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | "Same problem repeating. Need a different approach" — no auto-retry, escalate to human here |
 
 ### B5. Long-running Tasks
 
@@ -250,6 +290,29 @@ Items not verified: `NOT RUN: [reason]`. Never "it should be fine."
 - Save current state in `.goal-lock-progress.md` (session crash protection).
 - Resume from last verification point. Never restart from scratch.
 - At BUDGET 80% or extended stall → report status, ask whether to continue.
+
+### B5.1 Physical Completion Gate (Stop Hook)
+
+Separately from self-reported progress via `.goal-lock-progress.md`,
+a Stop hook can be registered to intervene **physically at session-end
+time** — checking whether a progress file's "current step" is still
+non-empty when the agent attempts to end its response, and blocking once
+per session if so (cap=1, to avoid infinite re-blocking).
+
+- **Trigger**: session Stop event (when the agent attempts to end its response)
+- **cap=1**: gate intervention limited to once per session — prevents infinite re-blocking
+- **What it checks**: whether a `.goal-lock-progress.md`-style progress file
+  exists with a non-empty "current step," meaning DONE EVIDENCE verification
+  may not have run before the agent tried to end the session
+- **L1 (prompt) vs L2 (physical)**: B1/B3 VERIFY is an L1 discipline (the model
+  is expected to follow it). A Stop hook is L2 (tool/hook-level) enforcement —
+  it blocks session termination itself even if the model forgets the discipline.
+- **On failure**: fail-open — if the progress file can't be read or the block-count
+  file can't be written, let termination proceed without blocking (avoid false blocks).
+
+This pattern implements the L2 (no tool provided / physical block) layer of a
+4-level safety framework: prompt rules alone (L1) can be forgotten by the
+model; a hook enforced at the tool/session layer (L2) cannot.
 
 ---
 

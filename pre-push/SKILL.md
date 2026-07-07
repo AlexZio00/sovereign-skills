@@ -6,10 +6,10 @@ triggers:
   - "git push"
   - "푸시해"
 name: "pre-push"
-description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks, auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
+description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.2.0"
+  version: "3.5.0"
   author: "coinangel"
 user_invocable: true
 not_for:
@@ -20,8 +20,11 @@ see_also:
 ---
 
 <!--
+  v3.5.0 (2026-07-07) — 6-IOC→9-IOC expansion: dependency confusion / missing pinned version / post-install
+                        hook network calls. MCP tool poisoning 3 patterns (hidden instructions/Unicode
+                        deception/parameter injection) ported.
   v3.3.0 (2026-06-12) — Step 6 Large diff deterministic bundling (coverage guaranteed by structure, not agent integrity)
-  v3.2.0 (2026-05-06) — §XVII inheritance: Error Recovery (Step 7) + State Sync (Step 6 parallel result merge)
+  v3.2.0 (2026-05-06) — Error Recovery (Step 7) + State Sync (Step 6 parallel result merge)
   v3.1.0 (2026-04-11) — defense structure: Dominant variable, Discard if,
                          Rationalization Table (6), Invariants (4), Scope Boundary
   v3.0.0 (2026-04-10) — scanner: scripts/scan_secrets.pl (12 patterns) |
@@ -105,11 +108,17 @@ Scan `$STAGED_FILES` and list findings in the final report:
 - **Package manifests** (`package.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements.txt`, `Gemfile`, `go.mod`, `Cargo.toml`): list all **added** dependencies. Flag misspelled or unfamiliar names as potential typosquats.
 - **Infrastructure files** (`Dockerfile`, `docker-compose*.yml`, `*.tf`, `*.yaml`/`*.yml` in `k8s/` or `infra/`, `nginx.conf`): flag any ENV, ARG, or environment sections for human review.
 - **Python CVE scan** (`pip-audit`): run when `requirements.txt` or `pyproject.toml` changed and `pip-audit` is installed. WARN only — never blocks.
-- **3-IOC Supply Chain Check**: for newly added dependencies, check 3 indicators of compromise:
+- **9-IOC Supply Chain + MCP Check**: for newly added dependencies and MCP configuration, check 9 indicators of compromise:
   1. **External install links** — does the package README or setup script fetch from non-registry URLs?
   2. **Obfuscated exfiltration** — base64/hex-encoded strings in post-install scripts?
   3. **Capability mismatch** — does a "utility" package request network/filesystem access beyond its stated purpose?
-  Flag any match as `⚠️ SUPPLY_CHAIN_IOC` in the report.
+  4. **MCP hidden instructions** — does an MCP tool description/parameter embed text meant to steer agent behavior?
+  5. **MCP Unicode deception** — direction-override characters (e.g. U+202E) or homoglyphs in a tool name/description?
+  6. **MCP parameter injection** — an executable command or URL embedded in a tool parameter default/enum?
+  7. **Dependency confusion** — is an internal/private package name unregistered on public PyPI/npm? An attacker can register the same name (Birsan 2021). Check registry existence when adding a new package to `requirements.txt`/`package.json`.
+  8. **Missing pinned version** — warn when a new dependency has no pinned version (`requests` vs `requests==2.32.3`). Unpinned = supply-chain attack surface.
+  9. **Post-install hook** — does `setup.py`/`pyproject.toml`'s `[tool.setuptools.cmdclass]` or an npm `postinstall` script make network calls or write files?
+  Flag any match as `⚠️ SUPPLY_CHAIN_IOC` or `⚠️ MCP_POISONING` in the report.
 
 ```bash
 CHANGED_REQS=$(echo "$STAGED_FILES" | grep -E "(requirements.*\.txt|pyproject\.toml|setup\.py)$")
@@ -290,12 +299,12 @@ The <intent> above is the user's goal. If diff deviates from intent, flag it —
 3. Max 1 retry per agent
 4. Still failing → halt and report exact issue + file location to user
 
-**Error Recovery (§XVI inheritance)**: if Step 6 agents or Bash tools fail:
+**Error Recovery**: if Step 6 agents or Bash tools fail:
 - Classify: `tool_failure`
 - Apply: retry same agent once → still fail → report `⚠️ TOOL_FAILURE: {agent} — manual review needed` and continue remaining steps. No silent failures.
 - Step 8 report that line: explicitly note `⚠️ SKIPPED (tool_failure — {agent})`.
 
-**Parallel Conflict Resolution (§XVII inheritance)**: if Step 6 agents report conflicting verdicts on the same file:
+**Parallel Conflict Resolution**: if Step 6 agents report conflicting verdicts on the same file:
 - security-reviewer Critical + code-reviewer Non-critical → **Critical takes priority** (weakest link principle).
 - Multiple agents, same file, both Critical → sum-once (no double-counting).
 - Complete conflict (one PASS, other Critical FAIL) → **escalate to user**. No arbitrary consensus.

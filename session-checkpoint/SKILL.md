@@ -102,6 +102,16 @@ Scan session conversation to extract 4 entity types:
 - Items from context-log.md with `[ref:N]` ≥ 3 → review if permanent fact
 - Same entity appears 3+ times → if missing from MEMORY.md, add it
 
+**⑥ Lessons.md archival criteria — 7-factor value function**
+Beyond conf/seen/obs, consider these 7 factors when deciding what to keep or discard:
+- reliability: how often the lesson applies under the same conditions
+- goal-relevance: relevance to the currently active project/session
+- self-relevance: match to the user's specific context
+- usage-history: count of times the lesson actually changed behavior
+- oracle: lessons confirmed correct by a known outcome
+- blind: lessons recorded as a guess at the time, outcome unknown
+- Archive threshold: conf<0.4 AND seen>90 days AND usage-history<2 → low retention value (move to archive)
+
 **⑤ Snapshot Cleanup guidance (90-day policy)**
 
 If `~/.claude/.harness/snapshots/` directory exists, check for old snapshots:
@@ -155,7 +165,7 @@ Frequency count: cumulative same signature in session + context-log.md [ref:N] s
 [💡 Crystallization Proposal]
 - Signature: {Intent} + {Tool Sequence} + {Output Shape}
 - Frequency: {N} this session / {M} cumulative (total {T}x)
-- Recommendation: run `/forge` to consider promoting this workflow to skill
+- Recommendation: consider promoting this workflow to a dedicated skill
 - Predicted skill name: {snake_case_name}
 - Predicted triggers: {3 Korean + English trigger phrases}
 ```
@@ -165,17 +175,17 @@ Frequency count: cumulative same signature in session + context-log.md [ref:N] s
 [🔴 Crystallization Strong Rec — {T}x detected]
 - Signature: {Intent} + {Tool Sequence} + {Output Shape}
 - Frequency: {N} this session / {M} cumulative → strongly recommend skill creation
-- Recommend deciding whether to run `/forge` within this session
+- Recommend deciding whether to start building this skill within this session
 ```
 
 **No-crystallization conditions:**
 - Single-shot exploration (Glob → Read one-off)
 - Duplicate with existing skill — scan `~/.claude/skills/*/SKILL.md` to verify
-- Signature too generic, collision expected with Collision Map (forge Phase 0-2 discard)
+- Signature too generic, would collide with an existing skill's trigger
 
 **Promotion workflow:**
-Propose only. Actual forge execution requires user approval.
-User says "approve" / "yes" / "create" → pass to forge.
+Propose only. Actually authoring the skill requires user approval.
+User says "approve" / "yes" / "create" → proceed to author the skill (using whatever skill-creation process/tool the user has).
 User says "no" / "skip" → discard proposal, record in lessons.md `[YYYY-MM-DD] crystallization candidate rejected: {signature} — reason required`.
 
 ### Phase 1.6.5: Invocation Log — real-time recording (E11 infrastructure)
@@ -270,11 +280,11 @@ If N=0, then `[Reflexion] This session new lessons: none` 1 line only.
 
 **When detected** → append to `~/.claude/.harness/interventions/YYYY-MM.jsonl`:
 ```json
-{"ts":"ISO8601","date":"YYYY-MM-DD","session_id":"YYYY-MM-DDTHH:MM:SS","type":"correction|rejection|override|escalation","skill":"skill name or null","agent":"agent name or null","model":"opus-4.8 etc or null","l0_clause":"§ etc or null","context":"1-line summary"}
+{"ts":"ISO8601","date":"YYYY-MM-DD","session_id":"YYYY-MM-DDTHH:MM:SS","type":"correction|rejection|override|escalation","skill":"skill name or null","agent":"agent name or null","model":"opus-4.8 etc or null","rule_reference":"which project rule this relates to, or null","context":"1-line summary"}
 ```
 
 **`skill` / `agent` fields**: Record only if intervention occurred during specific skill/agent execution. For general conversation intervention, use `null`.
-**`model` field** (model diff analysis infrastructure, design §4①): Model responding at intervention (main session or subagent). Use `null` if unknown. session-start Phase 2.2 aggregation target — append-only schema means new fields stay backward-compatible.
+**`model` field** (model diff analysis infrastructure): Model responding at intervention (main session or subagent). Use `null` if unknown. session-start Phase 2.2 aggregation target — append-only schema means new fields stay backward-compatible.
 
 **Skip condition**: 0 intervention signals → skip record, no output.
 
@@ -431,14 +441,14 @@ Reflect Phase 1.5 extraction into files:
    - **If no trigger**: completely skip this step (no output)
    - **Execution procedure:**
      1. Scan full lessons.md → extract `conf≥0.7` items
-     2. Cluster by common L0 clause or behavior pattern (minimum 2+ grouped)
+     2. Cluster by common project rule or behavior pattern (minimum 2+ grouped)
      3. Write unified rule 1 line per cluster (include concrete action criteria)
      4. In lessons.md, **overwrite** `## Synthesis — conf≥0.7 clusters` section (no append)
         - If section missing, insert before `## Pending patterns` at file end
      5. Update `> Last updated: YYYY-MM-DD` timestamp at section top
    - **Cluster naming:** `### Cluster X — theme name: "one-line slogan"`
    - **List sources:** grouped lesson titles + conf + obs together
-   - **Link to L0**: note 1 closest L0 clause
+   - **Link to a rule**: note the 1 closest matching project rule, if any
 7. **Invocation Log — Fallback recording** (`~/.claude/.harness/invocations/YYYY-MM.jsonl`)
    - **Idempotency check (mandatory, first)**: Verify if Phase 1.6.5 already recorded this session's invocation:
      - Have this session's `session_id` (ISO8601 timestamp from Phase 1.6.5)? → grep `YYYY-MM.jsonl` for matching session_id
@@ -512,7 +522,7 @@ After verification passes, inform user:
 | [EDIT] Update STATE.md PENDING/blockers/change log (changes only) | Completely rewrite STATE.md |
 | [READ] Run Phase 1~5 preservation verification checklist | Call `/compact` directly (CLI only) |
 | [READ] Maintain single handoff file | Create versioned handoff files (v1, v2 forbidden) |
-| [AGENT] Propose crystallization candidates (Phase 1.6) | Run forge directly (user approval first) |
+| [AGENT] Propose crystallization candidates (Phase 1.6) | Author the skill directly (user approval first) |
 | [EDIT] tasks/lessons.md — add/update Reflexion lesson (Phase 1.7) | Delete lesson or force conf below 0.3 |
 | [EDIT] tasks/lessons.md — update Monthly Synthesis section (Phase 3.6, conditional) | Delete Synthesis or modify source lessons |
 | [WRITE] `~/.claude/.harness/invocations/YYYY-MM.jsonl` — real-time Invocation Log (Phase 1.6.5) | Modify or delete existing JSONL items |
@@ -526,10 +536,10 @@ After verification passes, inform user:
 |-------------|:-------------:|----------------|
 | Overwrite existing MEMORY.md section | medium | L1+L3 |
 | Delete STATE.md PENDING item | medium | L1+L3 |
-| Run crystallization forge auto-launch | medium | L1+L3 |
+| Auto-launching skill creation off a crystallization candidate | medium | L1+L3 |
 
 - **L1 (Invariants)**: Invariant 1 — maintain single handoff file. Invariant 4 — propose crystallization only, no auto-execution.
-- **L3 (User Approval)**: Verify trigger satisfied before deleting STATE.md PENDING. Run forge only after explicit user approval.
+- **L3 (User Approval)**: Verify trigger satisfied before deleting STATE.md PENDING. Only start authoring the skill after explicit user approval.
 
 ---
 
@@ -541,7 +551,7 @@ After verification passes, inform user:
 
 3. **Preservation verification before compact guidance**: Do not mention `/compact` if Phase 4 checklist fails any item. Violation → incomplete work disappears in compaction.
 
-4. **Crystallization proposal only, never auto-execute**: Phase 1.6 detects repeated workflow → propose `/forge` only. Never run without user approval. Violation → unnecessary skills created from one-off workflows, library pollution.
+4. **Crystallization proposal only, never auto-execute**: Phase 1.6 detects repeated workflow → propose skill creation only. Never start authoring without user approval. Violation → unnecessary skills created from one-off workflows, library pollution.
 
 ---
 
@@ -580,7 +590,7 @@ After handoff save, report status with:
 | "Keeping completed items as reference is nice" | No. Completed items make handoff a changelog. Git history preserves them. Deletion is correct behavior. |
 | "Phase 4 checklist has one NO but seems fine anyway..." | Invariant 3 violation. Checklist exists exactly for this moment. Do not suggest `/compact` if any NO. |
 | "Saving as session-handoff-v2.md keeps the old one too..." | Invariant 1 violation. Git history preserves old versions. Versioned files create "which is latest?" confusion, context recovery fails. |
-| "Detected repeat in Phase 1.6, let's just run forge now..." | Invariant 4 violation. Only user judges if work actually repeats. Auto-promote includes one-off exploration, library pollution. Propose only, user approval required. |
+| "Detected repeat in Phase 1.6, let's just start authoring the skill now..." | Invariant 4 violation. Only user judges if work actually repeats. Auto-promote includes one-off exploration, library pollution. Propose only, user approval required. |
 | "Session is short, skip Phase 1.5?" | Phase 1.5 takes 2 min. Missing one permanent fact means next session rediscovers it. Run it. |
 | "Repeated workflow detected but signature too simple, skip it?" | If meets "no-crystallization conditions", skip. But "too simple" temptation usually means "too lazy to record". Use context-log.md `[ref:N]` accumulation — next session re-evaluates. Log it. |
 | "This session perfect, no Reflexion..." | Phase 1.7 "no reflection" is legitimate if truly perfect. But perfect is rare. One user dissatisfaction signal → one lesson minimum. "None" means skip analysis, not zero-analysis result. Analyze before claiming zero. |

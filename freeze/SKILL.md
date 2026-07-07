@@ -221,3 +221,5 @@ Rules:
 ## Design Note
 
 This version uses task-level declaration (not session-global file lists) because Claude Code cannot persist state across sessions — the declaration block itself serves as in-context state.
+
+See `scenarios/case-1.md`, `scenarios/case-2.md` for regression test scenarios.

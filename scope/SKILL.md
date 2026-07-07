@@ -64,13 +64,19 @@ Unsure? Start Quick → if user wants more detail: "Shall we switch to full mode
 - Existing project: CLAUDE.md, package.json etc. exist → 2-level Glob + keyword Grep (10-file cap)
 - New project: skip
 
-### Step 2: Check input sufficiency
-Can you answer these 3 things in 1 sentence each?
-- What action is being added/changed?
-- What is explicitly excluded?
-- How do you verify "done"?
+### Step 2: Ambiguity score gating
+Score clarity across 4 dimensions (0-10 each). Target the lowest-scoring dimension with questions.
 
-Insufficient → **ask max 3 clarifying questions**. Beyond that → conservative minimum scope + `[assumed]` tag.
+| Dimension | Check |
+|-----------|-------|
+| **Function** | What behavior is being added/changed — are inputs/outputs concrete? |
+| **Boundary** | What is explicitly excluded — is IN/OUT clear? |
+| **Verification** | How is "done" verified — is there a measurable criterion? |
+| **Assumptions** | Any hidden assumptions — dependencies on existing system/data/environment? |
+
+**Gating**: proceed if the average across 4 dimensions is ≥ 7. Below threshold,
+target the weakest dimension with clarifying questions (max 3).
+Exceeds question limit → conservative minimum scope + `[assumed]` tag.
 
 ### Step 3: Generate Brief
 

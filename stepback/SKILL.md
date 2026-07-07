@@ -5,8 +5,8 @@ not_for:
   - "Next action recommendation -> next-action skill"
   - "Session start -> session-start"
 see_also:
-  - skill: scope
-    relation: "stepback=direction check, scope=boundary definition"
+  - skill: next-action
+    relation: "stepback=direction check, next-action=action recommendation"
 ---
 # /stepback — One-Shot Perspective Reset
 
@@ -17,6 +17,13 @@ see_also:
 Scan the current work context, generate 1 abstract reframing question + 3 quick checks (scope drift, side effects, better approach) in under 10 lines. No dialogue, no code, no agents.
 
 Use when you're deep in implementation and need to check if you're solving the right problem at the right level.
+
+## Key Assumptions
+
+1. **Current work context exists in the conversation** — if broken: ask once,
+   "tell me in one line what you're doing."
+2. **Output fits an abstraction level expressible in ≤10 lines** — if broken:
+   the question is too concrete → self-check "go more abstract."
 
 ## Trigger
 
@@ -135,11 +142,26 @@ Output and stop immediately. No follow-up questions, no menus, no "would you lik
 
 ---
 
+## Safety Layers
+
+| Risky Action | Reversibility | Applied Layers |
+|-------------|:-------------:|----------------|
+| (none — read-only one-shot) | — | L1 (Invariant 3: immediate return, no further action) |
+
 ## Invariants (never violate)
 
 1. **10-line cap**: Output exceeding 10 lines has already failed. Cut it down. Violation → over-explanation dilutes the perspective reset.
 2. **1 question limit**: Multiple questions split focus. Pick the most important one. Violation → user gets a list instead of a lens.
 3. **Immediate return**: No follow-up after output. User decides what to do next. Violation → stepback becomes a dialogue instead of a reset.
+
+---
+
+## Error Recovery
+
+| Failure Type | Detection | Recovery |
+|---------|---------|--------|
+| `input_error` | Current work context unclear | Ask once: "tell me in one line what you're doing now" |
+| `missing_data` | No git diff/status context | Infer from user's last message. If inference impossible, use generic reframing |
 
 ---
 

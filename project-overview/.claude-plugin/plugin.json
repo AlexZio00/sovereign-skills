@@ -1,0 +1,11 @@
+{
+  "name": "project-overview",
+  "description": "Generates a deterministic cross-project status map from registered projects' session handoffs.",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "project-overview",
+      "path": "SKILL.md"
+    }
+  ]
+}

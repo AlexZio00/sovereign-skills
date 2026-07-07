@@ -7,15 +7,8 @@
   },
   "plugins": [
     {
-      "name": "project-init",
-      "description": "Interview-based project scaffolding — generates CLAUDE.md, ROADMAP, .gitignore, and .env.example from decisions, not templates",
-      "source": "./project-init",
-      "category": "development",
-      "tags": ["scaffolding", "project-setup", "claude-md", "roadmap", "interview", "init"]
-    },
-    {
       "name": "setup",
-      "description": "Claude Code infrastructure and agent team setup — rules, hooks, memory system, routing, and agent installation in one guided flow",
+      "description": "Combines infrastructure setup (rules, hooks, memory, routing, agent team) with interview-based project scaffolding (CLAUDE.md, ROADMAP, .gitignore, .env.example) into one guided flow",
       "source": "./setup",
       "category": "development",
       "tags": ["infrastructure", "agent-team", "rules", "hooks", "memory", "routing", "setup"]
@@ -36,7 +29,7 @@
     },
     {
       "name": "goal-lock",
-      "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 11 success masquerading patterns",
+      "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 13 success masquerading patterns",
       "source": "./goal-lock",
       "category": "productivity",
       "tags": ["goal", "discipline", "verification", "masquerading", "agent-control", "quality"]
@@ -89,6 +82,27 @@
       "source": "./stepback",
       "category": "productivity",
       "tags": ["perspective", "zoom-out", "scope-check", "direction", "meta", "one-shot"]
+    },
+    {
+      "name": "skill-ops",
+      "description": "Skill ops hub: snapshot/rollback, usage health, and invocation tracking for Claude Code skills and agents",
+      "source": "./skill-ops",
+      "category": "development",
+      "tags": ["skill-management", "snapshot", "rollback", "usage-health", "invocations"]
+    },
+    {
+      "name": "next-action",
+      "description": "Reads handoff/git/lessons/STATE and proposes top-3 next actions by impact. Proposes only, never executes",
+      "source": "./next-action",
+      "category": "productivity",
+      "tags": ["next-action", "recommendation", "priority", "handoff", "state"]
+    },
+    {
+      "name": "project-overview",
+      "description": "Generates a deterministic cross-project status map from registered projects' session handoffs",
+      "source": "./project-overview",
+      "category": "productivity",
+      "tags": ["cross-project", "overview", "status-map", "registry"]
     }
   ]
 }

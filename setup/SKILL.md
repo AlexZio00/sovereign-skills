@@ -12,7 +12,7 @@ name: setup
 description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Triggers: /setup, setup, harness setup, agent team setup."
 user_invocable: true
 not_for:
-  - "Existing harness audit -> check-harness or project-check"
+  - "Existing harness audit -> project-check"
   - "Single rule addition -> edit the rule file directly"
 see_also:
   - skill: project-check

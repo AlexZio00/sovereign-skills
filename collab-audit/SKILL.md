@@ -11,7 +11,7 @@ description: "This skill should be used when the user types /collab-audit or req
 user_invocable: true
 not_for:
   - "Single feedback -> direct conversation"
-  - "Skill audit -> forge --audit"
+  - "Auditing a skill's own quality/structure — this audits collaboration patterns, not skill content"
 see_also:
   - skill: project-check
     relation: "collab-audit=user collaboration patterns, project-check=project health"

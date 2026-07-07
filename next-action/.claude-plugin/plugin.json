@@ -1,0 +1,11 @@
+{
+  "name": "next-action",
+  "description": "Reads handoff/git/lessons/STATE and proposes top-3 next actions by impact. Proposes only, never executes.",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "next-action",
+      "path": "SKILL.md"
+    }
+  ]
+}

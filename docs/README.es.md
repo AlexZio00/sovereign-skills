@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.2
+# sovereign-skills v6.3
 
 12 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código y gestión de sesiones. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
-> **Cambios en v6.2:** Nuevo: `code-autopsy` — revisión de código cuantificada 12Q. Puntuación de 4 ejes (Security/Stability/Robustness/Operability), anclajes de severidad, veredicto de despliegue (SHIP/FIX/RISKY/BLOCK), meta-detección CapCode/CEF. Funciona como prompt independiente en cualquier LLM. Nuevo: `stepback` — reinicio de perspectiva. Las 10 habilidades existentes actualizadas.
+> **Cambios en v6.2:** Nuevo: `code-autopsy` — revisión de código cuantificada de 12 preguntas con puntuación de 4 ejes, anclas de severidad, veredicto de despliegue y meta-detección CapCode/CEF. Nuevo: `stepback` — reinicio de perspectiva de un solo uso. Las 10 habilidades existentes actualizadas.
 
 ---
 
@@ -77,6 +77,7 @@ Diariamente:
 |-----------|---------|
 | [project-check](../project-check/) | Escanea el proyecto existente en 4 dimensiones: Infraestructura, Seguridad, Calidad, Harness. Brechas ordenadas por severidad |
 | [collab-audit](../collab-audit/) | Auditoría de colaboración AI en 14 secciones — analiza patrones de trabajo reales (no encuestas) para generar perfil conductual, puntos ciegos y dirección de crecimiento |
+
 
 ---
 

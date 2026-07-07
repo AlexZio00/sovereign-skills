@@ -10,7 +10,7 @@ user_invocable: true
 tools: Read, Bash, Glob, Grep
 not_for:
   - "New project setup -> setup skill"
-  - "Deep harness scoring -> check-harness"
+  - "Deep, scored harness audit — this is a shallow 4-dimension scan, not a full quantitative score"
 see_also:
   - skill: setup
     relation: "project-check=existing audit, setup=new project"
