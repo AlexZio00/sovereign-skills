@@ -6,7 +6,7 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
-## v6.3 — 2026-07-15
+## v6.3 — 2026-07-07
 
 ### Changed
 - **code-autopsy** → v7.1: expanded all 12 questions with detailed sub-checks
