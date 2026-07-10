@@ -6,6 +6,46 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.4 — 2026-07-10
+
+### Added
+- **full-audit**: exhaustive audit of an entire area (codebase/docs/skills/
+  memory/config) via a two-layer method — a deterministic sweep (counts,
+  version stamps, path/reference existence, frontmatter parsing, a
+  cross-index contract sweep for index-vs-reality and routing-vs-reality
+  reconciliation) followed by fanned-out content review with a 4-bucket
+  anti-false-positive classification and a per-finding kill-test. Persists
+  a coverage map across runs and states remaining gaps explicitly.
+- **integration-intake**: a 5-item screening gate (specificity, value,
+  structural fit, global applicability, redundancy) for deciding whether to
+  adopt an external skill/agent/rule/plugin/MCP pattern, plus a provenance
+  and injection-defense check for any imported executable content and a
+  skill-evolution protocol for sharpening an existing asset instead of
+  creating a new one.
+- **clean-room**: carves safety-adjacent requests into a safe scope,
+  executed by a genuinely isolated fresh-context subagent that never sees
+  the original request, with an adversarial verify pass (including
+  re-checking the carve judgment itself) and a descope ledger. Adapted from
+  LilMGenius/paperthin's "autobahn" skill (MIT license); this version adds
+  filesystem-layer isolation (the subagent is instructed not to consult
+  decision logs or session-transcript search tools), ledger-write timing
+  (write after the subagent's execution window closes, not before), and a
+  fresh-context appeal path for disputed bright-line calls.
+
+### Changed
+- **goal-lock**: added a constraint re-echo check to B5 (Long-running
+  Tasks) — at each BUDGET-80% checkpoint or progress-resume point, the
+  GOAL input sheet's CONSTRAINTS/SCOPE-Exclude get echoed verbatim,
+  separately from the status report, so they don't quietly fall out of
+  view during extended work as attention shifts to raw progress.
+- **session-checkpoint**: added Phase 2.4 (Attestation) — an
+  evidence-chain receipt log (`~/.claude/.harness/receipts/YYYY-MM.jsonl`)
+  plus a SHA-256 hash sidecar for the handoff file, written via a bundled
+  `scripts/handoff_attestation.py`, so a SessionStart hook in the next
+  session can detect handoff tampering.
+
+---
+
 ## v6.3 — 2026-07-07
 
 ### Changed

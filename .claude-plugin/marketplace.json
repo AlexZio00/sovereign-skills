@@ -110,6 +110,27 @@
       "source": "./project-overview",
       "category": "productivity",
       "tags": ["cross-project", "overview", "status-map", "registry"]
+    },
+    {
+      "name": "full-audit",
+      "description": "Exhaustive area audit (codebase/docs/skills/memory/config) with a deterministic-sweep + content-review two-layer method and a persistent coverage map",
+      "source": "./full-audit",
+      "category": "development",
+      "tags": ["audit", "exhaustive", "coverage-map", "deterministic", "false-positive-guard"]
+    },
+    {
+      "name": "integration-intake",
+      "description": "5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP), with a provenance/injection check for imported executable content",
+      "source": "./integration-intake",
+      "category": "development",
+      "tags": ["integration", "adoption-gate", "redundancy-check", "provenance", "supply-chain"]
+    },
+    {
+      "name": "clean-room",
+      "description": "Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent, with an adversarial verify pass and a descope ledger",
+      "source": "./clean-room",
+      "category": "productivity",
+      "tags": ["scope-isolation", "safety", "descope", "fresh-context", "ledger"]
     }
   ]
 }

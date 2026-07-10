@@ -290,6 +290,7 @@ validated through a self-review loop.
 - Save current state in `.goal-lock-progress.md` (session crash protection).
 - Resume from last verification point. Never restart from scratch.
 - At BUDGET 80% or extended stall → report status, ask whether to continue.
+- **Constraint re-echo**: at each BUDGET-80% checkpoint or progress-resume point, echo the GOAL input sheet's CONSTRAINTS/SCOPE-Exclude verbatim, separately from the status report. This is a static check against constraints quietly falling out of view during long tasks as attention shifts to raw progress — a full separate memory agent or a learned injection-timing policy would be overkill for this scale of harness.
 
 ### B5.1 Physical Completion Gate (Stop Hook)
 

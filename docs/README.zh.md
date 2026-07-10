@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.3
+# sovereign-skills v6.4
 
-覆盖 Claude Code 项目完整生命周期的 15 个技能 — 从初始设置到日常工作流、代码审查、会话管理。每个技能可独立使用，完整序列覆盖所有环节。
+覆盖 Claude Code 项目完整生命周期的 18 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
+> **v6.4 变更：** 新增：`full-audit`（对整个区域的详尽审计 — 确定性扫描+内容审查、持久化覆盖图、防误报kill-test）、`integration-intake`（外部技能/智能体/规则/插件采纳的5项筛选闸门，含provenance/注入检查）、`clean-room`（将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 改编自LilMGenius/paperthin的"autobahn"技能（MIT许可），新增文件系统层隔离与ledger记录时机升级）。更新：`goal-lock`（长任务检查点处重新回显CONSTRAINTS/SCOPE-Exclude）、`session-checkpoint`（新增Attestation阶段 — 内置`handoff_attestation.py`的证据链收据日志，供下次会话SessionStart钩子检测交接文件篡改）。
+>
 > **v6.3 变更：** 新增：`skill-ops`（快照/回滚 + 使用状况 + 调用追踪中枢）、`next-action`（读取交接文件/git/lessons/STATE，按影响力提出前3项下一步行动）、`project-overview`（确定性跨项目状态地图）。`code-autopsy` → v7.1（各问题子检查深化）、`pre-push` → v3.5（供应链IOC 9种模式）、`goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` 全部强化。原有12个技能全部新增 `not_for`/`see_also` frontmatter 以提升可发现性。
 
 ---
@@ -86,6 +88,14 @@
 |------|------|
 | [skill-ops](../skill-ops/) | **新增。** 技能/智能体运维中枢 — 快照/回滚 + 使用状况 + 调用追踪，3 种模式 |
 | [project-overview](../project-overview/) | **新增。** 从已注册项目的会话交接文件生成确定性跨项目状态地图 |
+
+### 治理
+
+| 技能 | 功能 |
+|------|------|
+| [full-audit](../full-audit/) | **新增。** 对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 — 确定性扫描+内容审查双层方法、防误报kill-test、持久化覆盖图 |
+| [integration-intake](../integration-intake/) | **新增。** 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查 + 引入内容的provenance/注入检查 |
+| [clean-room](../clean-room/) | **新增。** 将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 对抗性验证通过 + descope ledger |
 
 ---
 
@@ -221,7 +231,7 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 
 ## 智能体设计模式覆盖
 
-这 15 个技能中的 12 个（原始生命周期集合 — v6.3 的运维类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
+这 18 个技能中的 12 个（原始生命周期集合 — v6.3 的运维类新增技能与 v6.4 的治理类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
 
 | 模式 | 实现技能 | 方法 |
 |------|---------|------|

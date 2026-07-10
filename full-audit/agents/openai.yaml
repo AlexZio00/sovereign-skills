@@ -1,0 +1,3 @@
+name: full-audit
+description: "Exhaustive area audit — deterministic sweep + content review, coverage map."
+instructions: "../SKILL.md"

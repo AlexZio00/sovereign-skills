@@ -1,0 +1,3 @@
+name: integration-intake
+description: "Screening gate for adopting external skills/agents/rules/plugins — redundancy + provenance check."
+instructions: "../SKILL.md"

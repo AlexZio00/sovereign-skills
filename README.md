@@ -1,9 +1,11 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.3
+# sovereign-skills v6.4
 
-15 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management. Each skill is useful standalone; the full sequence covers everything.
+18 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
+> **What changed in v6.4:** New: `full-audit` (exhaustive area audit — deterministic sweep + content review, persistent coverage map, anti-false-positive kill-test), `integration-intake` (5-item screening gate for adopting external skills/agents/rules/plugins, with a provenance/injection check), `clean-room` (carves safety-adjacent requests into a safe scope executed by a genuinely isolated fresh-context subagent, adapted from LilMGenius/paperthin's "autobahn" skill under MIT with a filesystem-isolation and ledger-timing upgrade). Updated: `goal-lock` (a constraint re-echo check at long-task checkpoints, so CONSTRAINTS/SCOPE-Exclude don't quietly fall out of view during extended work), `session-checkpoint` (a new Attestation phase — an evidence-chain receipt log with a bundled `handoff_attestation.py`, so the next session's SessionStart hook can detect handoff tampering).
+>
 > **What changed in v6.3:** New: `skill-ops` (snapshot/rollback + usage health + invocation tracking hub), `next-action` (reads handoff/git/lessons/STATE and proposes the top-3 next actions), `project-overview` (deterministic cross-project status map). `code-autopsy` → v7.1 (deeper sub-checks per question), `pre-push` → v3.5 (9 supply-chain IOC patterns), `goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` all strengthened. All 12 prior skills gained `not_for` and `see_also` frontmatter for better discoverability.
 
 ---
@@ -85,6 +87,14 @@ then daily:
 |-------|-------------|
 | [skill-ops](skill-ops/) | **New.** Skill/agent ops hub — snapshot/rollback + usage health + invocation tracking, 3 modes |
 | [project-overview](project-overview/) | **New.** Generates a deterministic cross-project status map from registered projects' session handoffs |
+
+### Governance
+
+| Skill | What it does |
+|-------|-------------|
+| [full-audit](full-audit/) | **New.** Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review two-layer method, anti-false-positive kill-test, persistent coverage map |
+| [integration-intake](integration-intake/) | **New.** 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets + a provenance/injection check for imported executable content |
+| [clean-room](clean-room/) | **New.** Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent — adversarial verify pass + descope ledger |
 
 ---
 
@@ -173,7 +183,7 @@ The SKILL.md content is universal — it works with any LLM that reads markdown 
 
 ## Agentic Design Patterns Coverage
 
-These 12 of the 15 skills (the original lifecycle set — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+These 12 of the 18 skills (the original lifecycle set — the v6.3 operations additions and v6.4 governance additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Pattern | Implemented by | How |
 |---------|---------------|-----|
@@ -239,7 +249,7 @@ session-start <──> session-checkpoint
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full version history (v3.0 → v6.3).
+See [CHANGELOG.md](CHANGELOG.md) for the full version history (v3.0 → v6.4).
 
 ## License
 

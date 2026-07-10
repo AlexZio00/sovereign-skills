@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.3
+# sovereign-skills v6.4
 
-15 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código y gestión de sesiones. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
+18 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
+> **Cambios en v6.4:** Nuevo: `full-audit` (auditoría exhaustiva de un área completa — barrido determinista + revisión de contenido, mapa de cobertura persistente, kill-test anti-falsos-positivos), `integration-intake` (puerta de selección de 5 puntos para adoptar patrones externos de skills/agentes/reglas/plugins, con verificación de procedencia/inyección), `clean-room` (recorta solicitudes con elementos de seguridad hacia un alcance seguro, ejecutado por un subagente de contexto completamente aislado — adaptado de la skill "autobahn" de LilMGenius/paperthin bajo licencia MIT, con mejoras de aislamiento a nivel de sistema de archivos y de sincronización del registro). Actualizado: `goal-lock` (repite verbatim las CONSTRAINTS/SCOPE-Exclude en cada checkpoint de tareas largas), `session-checkpoint` (nueva fase de Attestation — registro de recibos evidence-chain con `handoff_attestation.py` incluido, para que el hook SessionStart de la siguiente sesión detecte manipulación del handoff).
+>
 > **Cambios en v6.3:** Nuevo: `skill-ops` (hub de snapshot/rollback + salud de uso + seguimiento de invocaciones), `next-action` (lee handoff/git/lessons/STATE y propone las 3 acciones principales según impacto), `project-overview` (mapa determinista del estado entre proyectos). `code-autopsy` → v7.1 (subverificaciones más profundas por pregunta), `pre-push` → v3.5 (9 patrones IOC de cadena de suministro), `goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` reforzados. Las 12 habilidades anteriores ganaron frontmatter `not_for` y `see_also` para mejor capacidad de descubrimiento.
 
 ---
@@ -86,6 +88,14 @@ Diariamente:
 |-----------|---------|
 | [skill-ops](../skill-ops/) | **Nuevo.** Hub de operaciones de habilidades/agentes — snapshot/rollback + salud de uso + seguimiento de invocaciones, 3 modos |
 | [project-overview](../project-overview/) | **Nuevo.** Genera un mapa determinista del estado entre proyectos a partir de los handoffs de sesión de los proyectos registrados |
+
+### Gobernanza
+
+| Habilidad | Función |
+|-----------|---------|
+| [full-audit](../full-audit/) | **Nuevo.** Auditoría exhaustiva de un área completa (código/documentación/skills/memoria/configuración) — método de dos capas: barrido determinista + revisión de contenido, kill-test anti-falsos-positivos, mapa de cobertura persistente |
+| [integration-intake](../integration-intake/) | **Nuevo.** Puerta de selección de 5 puntos para adoptar patrones externos (skills/agentes/reglas/plugins/MCP) — verificación de redundancia contra tus activos existentes + verificación de procedencia/inyección para contenido ejecutable importado |
+| [clean-room](../clean-room/) | **Nuevo.** Recorta solicitudes con elementos de seguridad hacia un alcance seguro, ejecutado por un subagente de contexto completamente aislado — paso de verificación adversarial + registro de exclusión (descope ledger) |
 
 ---
 
@@ -221,7 +231,7 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 
 ## Cobertura de Patrones de Diseño Agénico
 
-12 de estas 15 habilidades (el conjunto original del ciclo de vida — las nuevas habilidades de operaciones de v6.3 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+12 de estas 18 habilidades (el conjunto original del ciclo de vida — las nuevas habilidades de operaciones de v6.3 y las nuevas habilidades de gobernanza de v6.4 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Patrón | Implementado por | Cómo |
 |--------|------------------|------|

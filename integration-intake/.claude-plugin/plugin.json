@@ -1,0 +1,19 @@
+{
+  "name": "integration-intake",
+  "version": "1.0.0",
+  "description": "5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP), with a provenance/injection check for imported executable content.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT",
+  "keywords": [
+    "integration",
+    "adoption-gate",
+    "redundancy-check",
+    "provenance",
+    "supply-chain"
+  ]
+}

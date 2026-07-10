@@ -1,0 +1,19 @@
+{
+  "name": "full-audit",
+  "version": "1.0.0",
+  "description": "Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review, anti-false-positive kill-test, persistent coverage map.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT",
+  "keywords": [
+    "audit",
+    "exhaustive",
+    "coverage-map",
+    "deterministic",
+    "false-positive-guard"
+  ]
+}

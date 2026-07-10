@@ -1,0 +1,19 @@
+{
+  "name": "clean-room",
+  "version": "1.0.0",
+  "description": "Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent, with an adversarial verify pass and a descope ledger.",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT",
+  "keywords": [
+    "scope-isolation",
+    "safety",
+    "descope",
+    "fresh-context",
+    "ledger"
+  ]
+}
