@@ -193,23 +193,23 @@ The SKILL.md content is universal — it works with any LLM that reads markdown 
 
 ## Agentic Design Patterns Coverage
 
-These 12 of the 18 skills (the original lifecycle set — the v6.3 operations additions and v6.4 governance additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+These 15 of the 18 skills (the original lifecycle set plus the v6.4 governance additions — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Pattern | Implemented by | How |
 |---------|---------------|-----|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Full lifecycle chain |
 | **Parallel Execution** | pre-push | Parallel AI code review agents |
 | **Loop (Retry)** | goal-lock | VERIFY fail → PLAN re-entry, capped retries |
-| **Review & Critique** | pre-push, code-autopsy | Independent code-reviewer + security-reviewer; 12Q structured review |
+| **Review & Critique** | pre-push, code-autopsy, full-audit | Independent code-reviewer + security-reviewer; 12Q structured review; full-audit's Phase 2 fan-out reviewer pass |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE passes |
 | **Coordinator/Router** | setup | Agent routing rules generation |
 | **Plan-and-Execute** | goal-lock, scope | Plan reviewable before execution |
 | **ReAct** | project-check | Investigate → score → recommend path |
 | **Reflexion** | session-checkpoint | Phase 1.7: analyze failures → lessons for next session |
-| **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES, Critical/High blocks push |
+| **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES, Critical/High blocks push; integration-intake's 5-item screening gate before adoption |
 | **Custom Logic** | pre-push | Deterministic secrets scan (Perl) + AI review |
 | **Event-Driven** | session-start | Triggered on session open, loads prior state |
-| **Guardrails/Safety** | goal-lock | 13 success masquerading patterns detected |
+| **Guardrails/Safety** | goal-lock, clean-room | 13 success masquerading patterns detected; clean-room isolates safety-adjacent scope into a carved-out subagent run |
 | **Memory Management** | session-checkpoint | Handoff file + memory updates + lesson extraction |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE input sheet |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concrete → abstract principle |
@@ -256,6 +256,9 @@ setup ──> scope ──> freeze ──> goal-lock ──> pre-push
 session-start <──> session-checkpoint
                                    │
                             next-action (reads state, recommends)
+                                   │
+              integration-intake / full-audit / clean-room
+                    (on-demand governance, any stage)
 ```
 
 ---

@@ -241,23 +241,23 @@ SKILL.md 내용은 범용입니다 — 마크다운 지시문을 읽는 모든 L
 
 ## 에이전트 설계 패턴 커버리지
 
-이 18개 중 12개 스킬(원래 라이프사이클 세트 — v6.3의 운영 신규 스킬과 v6.4의 거버넌스 신규 스킬은 아직 매핑 안 됨)은 25개의 알려진 에이전트 설계 패턴 중 17개를 구현합니다([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+이 18개 중 15개 스킬(원래 라이프사이클 세트 + v6.4 거버넌스 신규 스킬 — v6.3 운영 신규 스킬은 아직 매핑 안 됨)은 25개의 알려진 에이전트 설계 패턴 중 17개를 구현합니다([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | 패턴 | 구현 스킬 | 방법 |
 |------|----------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | 전체 라이프사이클 체인 |
 | **Parallel Execution** | pre-push | 병렬 AI 코드 리뷰 에이전트 |
 | **Loop (Retry)** | goal-lock | VERIFY 실패 → PLAN 재입장, 상한선 있음 |
-| **Review & Critique** | pre-push, code-autopsy | 독립적 code-reviewer + security-reviewer; 12Q 구조화 리뷰 |
+| **Review & Critique** | pre-push, code-autopsy, full-audit | 독립적 code-reviewer + security-reviewer; 12Q 구조화 리뷰; full-audit의 Phase 2 팬아웃 리뷰어 패스 |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE 통과 |
 | **Coordinator/Router** | setup | 에이전트 라우팅 규칙 생성 |
 | **Plan-and-Execute** | goal-lock, scope | 실행 전 검토 가능한 계획 |
 | **ReAct** | project-check | 조사 → 점수 → 경로 권장 |
 | **Reflexion** | session-checkpoint | Phase 1.7: 실패 분석 → 다음 세션용 교훈 |
-| **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES, Critical/High가 push 차단 |
+| **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES, Critical/High가 push 차단; integration-intake의 도입 전 5항목 스크리닝 게이트 |
 | **Custom Logic** | pre-push | 결정론 시크릿 스캔(Perl) + AI 리뷰 |
 | **Event-Driven** | session-start | 세션 열림 시 트리거, 이전 상태 로드 |
-| **Guardrails/Safety** | goal-lock | 13가지 성공 위장 패턴 탐지 |
+| **Guardrails/Safety** | goal-lock, clean-room | 13가지 성공 위장 패턴 탐지; clean-room은 안전인접 스코프를 carve하여 격리된 서브에이전트로 실행 |
 | **Memory Management** | session-checkpoint | 핸드오프 파일 + 메모리 업데이트 + 교훈 추출 |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE 입력 시트 |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: 구체 → 추상 원칙 |
@@ -303,6 +303,9 @@ setup ──> scope ──> freeze ──> goal-lock ──> pre-push
 session-start <──> session-checkpoint
                                    │
                             next-action (상태 읽고 추천)
+                                   │
+              integration-intake / full-audit / clean-room
+                      (온디맨드 거버넌스, 어느 단계든)
 ```
 
 ---

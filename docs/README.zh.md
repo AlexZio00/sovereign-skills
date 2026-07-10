@@ -241,23 +241,23 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 
 ## 智能体设计模式覆盖
 
-这 18 个技能中的 12 个（原始生命周期集合 — v6.3 的运维类新增技能与 v6.4 的治理类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
+这 18 个技能中的 15 个（原始生命周期集合 + v6.4 治理类新增技能 — v6.3 的运维类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
 
 | 模式 | 实现技能 | 方法 |
 |------|---------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | 完整生命周期链 |
 | **Parallel Execution** | pre-push | 并行 AI 代码审查智能体 |
 | **Loop (Retry)** | goal-lock | VERIFY 失败 → PLAN 重新进入，有上限 |
-| **Review & Critique** | pre-push, code-autopsy | 独立 code-reviewer + security-reviewer；12Q 结构化审查 |
+| **Review & Critique** | pre-push, code-autopsy, full-audit | 独立 code-reviewer + security-reviewer；12Q 结构化审查；full-audit 的 Phase 2 扇出审查者环节 |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE 通过 |
 | **Coordinator/Router** | setup | 生成智能体路由规则 |
 | **Plan-and-Execute** | goal-lock, scope | 执行前可审查的计划 |
 | **ReAct** | project-check | 调查 → 评分 → 路径建议 |
 | **Reflexion** | session-checkpoint | Phase 1.7：失败分析 → 下一会话教训 |
-| **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES，Critical/High 阻止推送 |
+| **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES，Critical/High 阻止推送；integration-intake 采用前的 5 项筛选门 |
 | **Custom Logic** | pre-push | 确定性密钥扫描（Perl）+ AI 审查 |
 | **Event-Driven** | session-start | 会话打开时触发，加载先前状态 |
-| **Guardrails/Safety** | goal-lock | 检测 13 种成功伪装模式 |
+| **Guardrails/Safety** | goal-lock, clean-room | 检测 13 种成功伪装模式；clean-room 将安全相关范围切出到隔离的子智能体运行 |
 | **Memory Management** | session-checkpoint | 交接文件 + 记忆更新 + 教训提取 |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE 输入表 |
 | **Step-Back Abstraction** | stepback | DeepMind step-back：具体 → 抽象原则 |
@@ -303,6 +303,9 @@ setup ──> scope ──> freeze ──> goal-lock ──> pre-push
 session-start <──> session-checkpoint
                                    │
                             next-action (读取状态并推荐)
+                                   │
+              integration-intake / full-audit / clean-room
+                       (按需治理，任何阶段)
 ```
 
 ---

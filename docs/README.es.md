@@ -241,23 +241,23 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 
 ## Cobertura de Patrones de Diseño Agénico
 
-12 de estas 18 habilidades (el conjunto original del ciclo de vida — las nuevas habilidades de operaciones de v6.3 y las nuevas habilidades de gobernanza de v6.4 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+15 de estas 18 habilidades (el conjunto original del ciclo de vida + las nuevas habilidades de gobernanza de v6.4 — las nuevas habilidades de operaciones de v6.3 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Patrón | Implementado por | Cómo |
 |--------|------------------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Cadena de ciclo de vida completo |
 | **Parallel Execution** | pre-push | Agentes paralelos de revisión de código AI |
 | **Loop (Retry)** | goal-lock | VERIFY falla → reingreso a PLAN, con límites |
-| **Review & Critique** | pre-push, code-autopsy | code-reviewer + security-reviewer independientes; revisión estructurada 12Q |
+| **Review & Critique** | pre-push, code-autopsy, full-audit | code-reviewer + security-reviewer independientes; revisión estructurada 12Q; pase de revisores en abanico de la Fase 2 de full-audit |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE pasa |
 | **Coordinator/Router** | setup | Generación de reglas de enrutamiento de agentes |
 | **Plan-and-Execute** | goal-lock, scope | Plan revisable antes de ejecución |
 | **ReAct** | project-check | Investigar → puntuar → recomendar ruta |
 | **Reflexion** | session-checkpoint | Phase 1.7: analizar fallos → lecciones para próxima sesión |
-| **Human-in-the-Loop** | goal-lock, pre-push | STOP RULES, Critical/High bloquea push |
+| **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES, Critical/High bloquea push; puerta de cribado de 5 puntos de integration-intake antes de adoptar |
 | **Custom Logic** | pre-push | Escaneo determinista de secretos (Perl) + revisión AI |
 | **Event-Driven** | session-start | Se dispara al abrir sesión, carga estado anterior |
-| **Guardrails/Safety** | goal-lock | 13 patrones de enmascaramiento de éxito detectados |
+| **Guardrails/Safety** | goal-lock, clean-room | 13 patrones de enmascaramiento de éxito detectados; clean-room aísla el alcance relacionado con seguridad en una ejecución de subagente separada |
 | **Memory Management** | session-checkpoint | Archivo handoff + actualizaciones de memoria + extracción de lecciones |
 | **Goal Setting** | goal-lock | Hoja de entrada GOAL + DONE EVIDENCE |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concreto → principio abstracto |
@@ -303,6 +303,9 @@ setup ──> scope ──> freeze ──> goal-lock ──> pre-push
 session-start <──> session-checkpoint
                                    │
                             next-action (lee el estado y recomienda)
+                                   │
+              integration-intake / full-audit / clean-room
+                (gobernanza bajo demanda, cualquier etapa)
 ```
 
 ---
