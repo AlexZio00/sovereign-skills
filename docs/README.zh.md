@@ -35,6 +35,13 @@
 /collab-audit       →  14 节 AI 协作诊断
 ```
 
+**治理（按需）：**
+```
+/integration-intake →  采用外部技能/智能体/规则/插件前 — 5 项筛选门
+/full-audit         →  对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 + 持久覆盖图
+/clean-room         →  当任务混合了安全相关内容与真正安全的工作时
+```
+
 ---
 
 ## 技能列表
@@ -119,6 +126,9 @@
 │  /stepback         （视角重置 — 随时）                  │
 │  /project-check    （健康审计）                        │
 │  /collab-audit     （行为诊断）                        │
+│  /integration-intake （采用外部资产前）                 │
+│  /full-audit       （整个区域的详尽审计）              │
+│  /clean-room       （安全相关范围切分）                │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -279,6 +289,9 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 | `session-checkpoint` | `session-start`, `setup` | 关闭会话，setup 打开新项目 |
 | `code-autopsy` | `pre-push` | code-autopsy 是深入的按需 12Q 审查，pre-push 是每次 push 前运行的快速自动化流水线 |
 | `skill-ops` | `project-overview` | skill-ops 管理技能/智能体的生命周期（快照/回滚/使用状况），project-overview 汇总多个项目的状态 |
+| `integration-intake` | `full-audit` | integration-intake 为单次外部资产采用决策把关，full-audit 扫描整个区域（包括你现有的技能/智能体清单）的漂移或缺口 |
+| `full-audit` | `code-autopsy`, `project-check` | full-audit 是更广的多区域扫描 + 持久覆盖图，code-autopsy 保持文件级/12Q，project-check 保持 4 维度评分 |
+| `clean-room` | `goal-lock` | clean-room 在任务范围中途混入安全相关内容与安全工作时触发，goal-lock 是它所打断的 PLAN→DO→VERIFY 循环 |
 
 图示（箭头 = "交接给" / "提供信息给"）：
 

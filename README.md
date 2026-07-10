@@ -34,6 +34,13 @@ then daily:
 /collab-audit       →  14-section AI collaboration diagnostic from your work patterns
 ```
 
+**Governance (as needed):**
+```
+/integration-intake →  before adopting an external skill/agent/rule/plugin — 5-item screening gate
+/full-audit         →  exhaustive area audit (codebase/docs/skills/memory/config) with a coverage map
+/clean-room         →  when a task mixes safety-adjacent material with genuinely safe work
+```
+
 ---
 
 ## Skills
@@ -120,6 +127,9 @@ then daily:
 │  /project-check    (health audit)                    │
 │  /code-autopsy     (12Q code review — any LLM)       │
 │  /collab-audit     (behavioral diagnostic)           │
+│  /integration-intake (before adopting external work) │
+│  /full-audit       (exhaustive area audit)           │
+│  /clean-room       (safety-adjacent scope carve-out) │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -232,6 +242,9 @@ Skills declare relationships via `see_also` (related) and `not_for`
 | `session-checkpoint` | `session-start`, `setup` | closes a session; setup opens a new project |
 | `code-autopsy` | `pre-push` | code-autopsy is a deep, on-demand 12Q review; pre-push runs a faster automated pipeline before every push |
 | `skill-ops` | `project-overview` | skill-ops manages skill/agent lifecycle (snapshot/rollback/usage); project-overview aggregates status across multiple projects |
+| `integration-intake` | `full-audit` | integration-intake gates a single external adoption decision; full-audit sweeps an entire area (including your existing skill/agent inventory) for drift or gaps |
+| `full-audit` | `code-autopsy`, `project-check` | full-audit is a broader, multi-area sweep with a persistent coverage map; code-autopsy stays per-file/12Q, project-check stays a 4-dimension score |
+| `clean-room` | `goal-lock` | clean-room fires when a task's scope mixes safety-adjacent material with safe work, mid-execution; goal-lock is the surrounding PLAN→DO→VERIFY loop it interrupts |
 
 Diagram (arrows = "hands off to" / "informs"):
 

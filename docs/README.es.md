@@ -35,6 +35,13 @@ Diariamente:
 /collab-audit       →  Diagnóstico de colaboración AI en 14 secciones
 ```
 
+**Gobernanza (según necesidad):**
+```
+/integration-intake →  antes de adoptar una habilidad/agente/regla/plugin externo — filtro de 5 puntos
+/full-audit         →  auditoría exhaustiva de un área completa (código/docs/habilidades/memoria/config) con mapa de cobertura
+/clean-room         →  cuando una tarea mezcla material relacionado con seguridad y trabajo genuinamente seguro
+```
+
 ---
 
 ## Habilidades
@@ -119,6 +126,9 @@ Diariamente:
 │  /stepback         (reinicio de perspectiva — en cualquier momento) │
 │  /project-check    (auditoría de salud)              │
 │  /collab-audit     (diagnóstico conductual)          │
+│  /integration-intake (antes de adoptar algo externo) │
+│  /full-audit       (auditoría exhaustiva de un área) │
+│  /clean-room       (aislar alcance seguro/inseguro)  │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -279,6 +289,9 @@ Las habilidades declaran relaciones mediante `see_also` (relacionadas) y `not_fo
 | `session-checkpoint` | `session-start`, `setup` | cierra una sesión; setup abre un nuevo proyecto |
 | `code-autopsy` | `pre-push` | code-autopsy es una revisión 12Q profunda bajo demanda; pre-push ejecuta un pipeline automatizado más rápido antes de cada push |
 | `skill-ops` | `project-overview` | skill-ops gestiona el ciclo de vida de habilidades/agentes (snapshot/rollback/uso); project-overview agrega el estado entre múltiples proyectos |
+| `integration-intake` | `full-audit` | integration-intake filtra una única decisión de adopción externa; full-audit barre un área entera (incluyendo tu inventario existente de habilidades/agentes) buscando drift o brechas |
+| `full-audit` | `code-autopsy`, `project-check` | full-audit es un barrido más amplio multi-área con mapa de cobertura persistente; code-autopsy sigue siendo por archivo/12Q, project-check sigue siendo una puntuación de 4 dimensiones |
+| `clean-room` | `goal-lock` | clean-room se activa cuando el alcance de una tarea mezcla material relacionado con seguridad y trabajo seguro a mitad de ejecución; goal-lock es el bucle PLAN→DO→VERIFY que interrumpe |
 
 Diagrama (flechas = "entrega a" / "informa a"):
 
