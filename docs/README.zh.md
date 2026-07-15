@@ -42,6 +42,8 @@
 /integration-intake →  采用外部技能/智能体/规则/插件前 — 5 项筛选门
 /full-audit         →  对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 + 持久覆盖图
 /clean-room         →  当任务混合了安全相关内容与真正安全的工作时
+/eval-leakage-audit →  在信任某个eval/metric/holdout前 — 检查是否循环自我确认
+/doc-drift          →  审计已加载上下文（CLAUDE.md/MEMORY.md/skills）中的过时/矛盾措辞
 ```
 
 ---
@@ -133,6 +135,8 @@
 │  /integration-intake （采用外部资产前）                 │
 │  /full-audit       （整个区域的详尽审计）              │
 │  /clean-room       （安全相关范围切分）                │
+│  /eval-leakage-audit （eval循环逻辑检查）              │
+│  /doc-drift        （已加载上下文的漂移审计）          │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -245,14 +249,14 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 
 ## 智能体设计模式覆盖
 
-这 20 个技能中的 15 个（原始生命周期集合 + v6.4 治理类新增技能 — v6.3 的运维类新增技能与 v6.5 的新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
+这 20 个技能中的 17 个（原始生命周期集合、v6.4 治理类新增技能、v6.5 审计类新增技能 — v6.3 的运维类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
 
 | 模式 | 实现技能 | 方法 |
 |------|---------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | 完整生命周期链 |
 | **Parallel Execution** | pre-push | 并行 AI 代码审查智能体 |
 | **Loop (Retry)** | goal-lock | VERIFY 失败 → PLAN 重新进入，有上限 |
-| **Review & Critique** | pre-push, code-autopsy, full-audit | 独立 code-reviewer + security-reviewer；12Q 结构化审查；full-audit 的 Phase 2 扇出审查者环节 |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | 独立 code-reviewer + security-reviewer；12Q 结构化审查；full-audit 的 Phase 2 扇出审查者环节；eval-leakage-audit 评判某个eval是否确保了独立真值还是循环自我确认 |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE 通过 |
 | **Coordinator/Router** | setup | 生成智能体路由规则 |
 | **Plan-and-Execute** | goal-lock, scope | 执行前可审查的计划 |
@@ -262,7 +266,7 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 | **Custom Logic** | pre-push | 确定性密钥扫描（Perl）+ AI 审查 |
 | **Event-Driven** | session-start | 会话打开时触发，加载先前状态 |
 | **Guardrails/Safety** | goal-lock, clean-room | 检测 13 种成功伪装模式；clean-room 将安全相关范围切出到隔离的子智能体运行 |
-| **Memory Management** | session-checkpoint | 交接文件 + 记忆更新 + 教训提取 |
+| **Memory Management** | session-checkpoint, doc-drift | 交接文件 + 记忆更新 + 教训提取；doc-drift 审计加载到上下文中的记忆/文档中的过时声明、矛盾和风险措辞 |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE 输入表 |
 | **Step-Back Abstraction** | stepback | DeepMind step-back：具体 → 抽象原则 |
 
@@ -296,6 +300,8 @@ SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可
 | `integration-intake` | `full-audit` | integration-intake 为单次外部资产采用决策把关，full-audit 扫描整个区域（包括你现有的技能/智能体清单）的漂移或缺口 |
 | `full-audit` | `code-autopsy`, `project-check` | full-audit 是更广的多区域扫描 + 持久覆盖图，code-autopsy 保持文件级/12Q，project-check 保持 4 维度评分 |
 | `clean-room` | `goal-lock` | clean-room 在任务范围中途混入安全相关内容与安全工作时触发，goal-lock 是它所打断的 PLAN→DO→VERIFY 循环 |
+| `doc-drift` | `full-audit` | doc-drift 只审计加载到上下文中的记忆/文档（CLAUDE.md/MEMORY.md/skills/agents）的漂移与矛盾，full-audit 用覆盖图扫描整个区域 |
+| `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-audit 检查某个eval/metric/holdout是否循环论证（度量完整性），full-audit 和 code-autopsy 审查的是代码/区域，而非该eval的独立性 |
 
 图示（箭头 = "交接给" / "提供信息给"）：
 
@@ -308,7 +314,7 @@ session-start <──> session-checkpoint
                                    │
                             next-action (读取状态并推荐)
                                    │
-              integration-intake / full-audit / clean-room
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
                        (按需治理，任何阶段)
 ```
 

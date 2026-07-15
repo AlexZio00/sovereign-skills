@@ -36,11 +36,13 @@ then daily:
 /collab-audit       →  14-section AI collaboration diagnostic from your work patterns
 ```
 
-**Governance (as needed):**
+**Governance & audits (as needed):**
 ```
 /integration-intake →  before adopting an external skill/agent/rule/plugin — 5-item screening gate
 /full-audit         →  exhaustive area audit (codebase/docs/skills/memory/config) with a coverage map
 /clean-room         →  when a task mixes safety-adjacent material with genuinely safe work
+/eval-leakage-audit →  before trusting an eval/metric/holdout — check for circular self-confirmation
+/doc-drift          →  audit loaded context (CLAUDE.md/MEMORY.md/skills) for outdated/contradictory wording
 ```
 
 ---
@@ -134,6 +136,8 @@ then daily:
 │  /integration-intake (before adopting external work) │
 │  /full-audit       (exhaustive area audit)           │
 │  /clean-room       (safety-adjacent scope carve-out) │
+│  /eval-leakage-audit (eval circular-logic check)     │
+│  /doc-drift        (loaded-context drift audit)      │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -197,14 +201,14 @@ The SKILL.md content is universal — it works with any LLM that reads markdown 
 
 ## Agentic Design Patterns Coverage
 
-These 15 of the 20 skills (the original lifecycle set plus the v6.4 governance additions — the v6.3 operations additions and v6.5 additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+These 17 of the 20 skills (the original lifecycle set, the v6.4 governance additions, and the v6.5 audit additions — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Pattern | Implemented by | How |
 |---------|---------------|-----|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Full lifecycle chain |
 | **Parallel Execution** | pre-push | Parallel AI code review agents |
 | **Loop (Retry)** | goal-lock | VERIFY fail → PLAN re-entry, capped retries |
-| **Review & Critique** | pre-push, code-autopsy, full-audit | Independent code-reviewer + security-reviewer; 12Q structured review; full-audit's Phase 2 fan-out reviewer pass |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | Independent code-reviewer + security-reviewer; 12Q structured review; full-audit's Phase 2 fan-out reviewer pass; eval-leakage-audit critiques whether an eval secures independent ground truth vs circular self-confirmation |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE passes |
 | **Coordinator/Router** | setup | Agent routing rules generation |
 | **Plan-and-Execute** | goal-lock, scope | Plan reviewable before execution |
@@ -214,7 +218,7 @@ These 15 of the 20 skills (the original lifecycle set plus the v6.4 governance a
 | **Custom Logic** | pre-push | Deterministic secrets scan (Perl) + AI review |
 | **Event-Driven** | session-start | Triggered on session open, loads prior state |
 | **Guardrails/Safety** | goal-lock, clean-room | 13 success masquerading patterns detected; clean-room isolates safety-adjacent scope into a carved-out subagent run |
-| **Memory Management** | session-checkpoint | Handoff file + memory updates + lesson extraction |
+| **Memory Management** | session-checkpoint, doc-drift | Handoff file + memory updates + lesson extraction; doc-drift audits the memory/docs loaded into context for outdated claims, contradictions, and risky wording |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE input sheet |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concrete → abstract principle |
 
@@ -249,6 +253,8 @@ Skills declare relationships via `see_also` (related) and `not_for`
 | `integration-intake` | `full-audit` | integration-intake gates a single external adoption decision; full-audit sweeps an entire area (including your existing skill/agent inventory) for drift or gaps |
 | `full-audit` | `code-autopsy`, `project-check` | full-audit is a broader, multi-area sweep with a persistent coverage map; code-autopsy stays per-file/12Q, project-check stays a 4-dimension score |
 | `clean-room` | `goal-lock` | clean-room fires when a task's scope mixes safety-adjacent material with safe work, mid-execution; goal-lock is the surrounding PLAN→DO→VERIFY loop it interrupts |
+| `doc-drift` | `full-audit` | doc-drift audits only the memory/docs loaded into context (CLAUDE.md/MEMORY.md/skills/agents) for drift and contradictions; full-audit sweeps an entire area with a coverage map |
+| `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-audit checks whether an eval/metric/holdout is circular (measurement integrity); full-audit and code-autopsy review code/areas, not the eval's independence |
 
 Diagram (arrows = "hands off to" / "informs"):
 
@@ -261,8 +267,8 @@ session-start <──> session-checkpoint
                                    │
                             next-action (reads state, recommends)
                                    │
-              integration-intake / full-audit / clean-room
-                    (on-demand governance, any stage)
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
+                 (on-demand governance & audits, any stage)
 ```
 
 ---

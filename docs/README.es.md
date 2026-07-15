@@ -42,6 +42,8 @@ Diariamente:
 /integration-intake →  antes de adoptar una habilidad/agente/regla/plugin externo — filtro de 5 puntos
 /full-audit         →  auditoría exhaustiva de un área completa (código/docs/habilidades/memoria/config) con mapa de cobertura
 /clean-room         →  cuando una tarea mezcla material relacionado con seguridad y trabajo genuinamente seguro
+/eval-leakage-audit →  antes de confiar en un eval/métrica/holdout — comprobar autoconfirmación circular
+/doc-drift          →  auditar el contexto cargado (CLAUDE.md/MEMORY.md/skills) por redacción desactualizada/contradictoria
 ```
 
 ---
@@ -133,6 +135,8 @@ Diariamente:
 │  /integration-intake (antes de adoptar algo externo) │
 │  /full-audit       (auditoría exhaustiva de un área) │
 │  /clean-room       (aislar alcance seguro/inseguro)  │
+│  /eval-leakage-audit (chequeo de lógica circular en evals) │
+│  /doc-drift        (auditoría de drift del contexto cargado) │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -245,14 +249,14 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 
 ## Cobertura de Patrones de Diseño Agénico
 
-15 de estas 20 habilidades (el conjunto original del ciclo de vida + las nuevas habilidades de gobernanza de v6.4 — las nuevas habilidades de operaciones de v6.3 y las nuevas habilidades de v6.5 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+17 de estas 20 habilidades (el conjunto original del ciclo de vida, las nuevas habilidades de gobernanza de v6.4, y las nuevas habilidades de auditoría de v6.5 — las nuevas habilidades de operaciones de v6.3 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Patrón | Implementado por | Cómo |
 |--------|------------------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Cadena de ciclo de vida completo |
 | **Parallel Execution** | pre-push | Agentes paralelos de revisión de código AI |
 | **Loop (Retry)** | goal-lock | VERIFY falla → reingreso a PLAN, con límites |
-| **Review & Critique** | pre-push, code-autopsy, full-audit | code-reviewer + security-reviewer independientes; revisión estructurada 12Q; pase de revisores en abanico de la Fase 2 de full-audit |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | code-reviewer + security-reviewer independientes; revisión estructurada 12Q; pase de revisores en abanico de la Fase 2 de full-audit; eval-leakage-audit critica si un eval asegura una verdad de referencia independiente o es autoconfirmación circular |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE pasa |
 | **Coordinator/Router** | setup | Generación de reglas de enrutamiento de agentes |
 | **Plan-and-Execute** | goal-lock, scope | Plan revisable antes de ejecución |
@@ -262,7 +266,7 @@ El contenido de SKILL.md es universal — funciona con cualquier LLM que lea ins
 | **Custom Logic** | pre-push | Escaneo determinista de secretos (Perl) + revisión AI |
 | **Event-Driven** | session-start | Se dispara al abrir sesión, carga estado anterior |
 | **Guardrails/Safety** | goal-lock, clean-room | 13 patrones de enmascaramiento de éxito detectados; clean-room aísla el alcance relacionado con seguridad en una ejecución de subagente separada |
-| **Memory Management** | session-checkpoint | Archivo handoff + actualizaciones de memoria + extracción de lecciones |
+| **Memory Management** | session-checkpoint, doc-drift | Archivo handoff + actualizaciones de memoria + extracción de lecciones; doc-drift audita la memoria/documentación cargada en el contexto en busca de afirmaciones desactualizadas, contradicciones y redacción riesgosa |
 | **Goal Setting** | goal-lock | Hoja de entrada GOAL + DONE EVIDENCE |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concreto → principio abstracto |
 
@@ -296,6 +300,8 @@ Las habilidades declaran relaciones mediante `see_also` (relacionadas) y `not_fo
 | `integration-intake` | `full-audit` | integration-intake filtra una única decisión de adopción externa; full-audit barre un área entera (incluyendo tu inventario existente de habilidades/agentes) buscando drift o brechas |
 | `full-audit` | `code-autopsy`, `project-check` | full-audit es un barrido más amplio multi-área con mapa de cobertura persistente; code-autopsy sigue siendo por archivo/12Q, project-check sigue siendo una puntuación de 4 dimensiones |
 | `clean-room` | `goal-lock` | clean-room se activa cuando el alcance de una tarea mezcla material relacionado con seguridad y trabajo seguro a mitad de ejecución; goal-lock es el bucle PLAN→DO→VERIFY que interrumpe |
+| `doc-drift` | `full-audit` | doc-drift solo audita la memoria/documentación cargada en el contexto (CLAUDE.md/MEMORY.md/skills/agents) buscando drift y contradicciones; full-audit barre un área entera con un mapa de cobertura |
+| `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-audit comprueba si un eval/métrica/holdout es circular (integridad de la medición); full-audit y code-autopsy revisan código/áreas, no la independencia del eval |
 
 Diagrama (flechas = "entrega a" / "informa a"):
 
@@ -308,7 +314,7 @@ session-start <──> session-checkpoint
                                    │
                             next-action (lee el estado y recomienda)
                                    │
-              integration-intake / full-audit / clean-room
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
                 (gobernanza bajo demanda, cualquier etapa)
 ```
 
