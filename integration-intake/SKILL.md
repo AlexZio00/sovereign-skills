@@ -145,7 +145,7 @@ If skipped when it should have fired: mark the report `Phase 1.6: not run` — t
 
 **Fires: after Phase 1.2 (Value) passes, before entering Phase 2 (5-category routing).**
 
-**Why**: Phase 2's 5-category routing (agent/skill/rule/plugin/validation asset) decides "where to place it," but "which surface must this pattern actually fire on for its value to survive" is a separate question. Skipping the surface judgment and routing straight to a category lets a pattern land on a mismatched surface (e.g. something that needs to be an always-loaded rule instead gets placed as an explicitly-triggered skill), killing its value. (Adapted from an internal surface-selection methodology: direct prompt-surface transplants of external patterns tend to fail outright, while hook- and skill-surface placements survive.)
+**Why**: Phase 2's 5-category routing (agent/skill/rule/plugin/validation asset) decides "where to place it," but "which surface must this pattern actually fire on for its value to survive" is a separate question. Skipping the surface judgment and routing straight to a category lets a pattern land on a mismatched surface (e.g. something that needs to be an always-loaded rule instead gets placed as an explicitly-triggered skill), killing its value. (Adapted from an external skills corpus — specific attribution withheld at the source author's request. The observed pattern: direct prompt-surface transplants of external patterns tend to fail outright, while hook- and skill-surface placements survive.)
 
 **M-axis, 4 questions** (answer all before proceeding to Phase 2 routing):
 1. **M1 — Is this a prompt surface?** Does the value only hold if it fires inside a user-visible conversational instruction or dispatch prompt?
