@@ -1,0 +1,11 @@
+{
+  "name": "doc-drift",
+  "description": "Audits the memory and documents Claude Code loads into context (CLAUDE.md, MEMORY.md, skills, agents, commands, plugins) for outdated claims, contradictions, and risky/ambiguous wording. Produces a prioritized report at .drift-reports/.",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "doc-drift",
+      "path": "SKILL.md"
+    }
+  ]
+}

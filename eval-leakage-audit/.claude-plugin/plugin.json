@@ -1,0 +1,11 @@
+{
+  "name": "eval-leakage-audit",
+  "description": "Audits whether an eval/metric/experiment/holdout secures independent external ground truth or is circular via an 8-pattern taxonomy. Read-only.",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "eval-leakage-audit",
+      "path": "SKILL.md"
+    }
+  ]
+}

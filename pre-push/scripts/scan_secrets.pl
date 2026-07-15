@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 # scan_secrets.pl — Deterministic secrets scanner for git diffs
-# Version: 2.0.0
+# Version: 2.1.0
 # Usage: git diff --staged | perl ~/.claude/skills/pre-push/scripts/scan_secrets.pl
 # Exit code: 0 = clean, 1 = issues found
 #
@@ -60,6 +60,19 @@ while (<STDIN>) {
   # f10: Azure credentials
   # Storage Account Key (86-char base64 + ==)  |  SAS token sig param  |  connection string prefix
   $f10=1 if /AccountKey=[A-Za-z0-9+\/]{86}==|[?&]sig=[A-Za-z0-9%+\/]{30,}|DefaultEndpointsProtocol=https;AccountName=/;
+
+  # f11: Prompt injection strings embedded in code (supply-chain prompt attack)
+  # Detects classic injection phrases in string literals being committed to code.
+  # Targets: hardcoded system prompts or user inputs designed to hijack LLM behavior.
+  # False-positive guard: only fires inside quote delimiters to avoid matching defensive docs/tests.
+  $f11=1 if /["'](?:[^"']*?)(?:ignore\s+(?:previous|all\s+previous)\s+instructions|disregard\s+(?:your\s+)?(?:instructions|guidelines|system\s+prompt)|you\s+are\s+now\s+(?:a|an)\s+\w+\s+without\s+(?:restrictions|limits)|forget\s+(?:everything|your\s+previous|all\s+previous)|system\s+prompt\s+override|jailbreak\s+mode\s+enabled)(?:[^"']*?)["']/i;
+
+  # f12: Supply-chain risk — non-standard package sources
+  # Detects requirements.txt / pip additions pointing to non-PyPI index servers,
+  # or HTTP (non-HTTPS) git installs that are vulnerable to MITM.
+  $f12=1 if /--extra-index-url\s+(?!https?:\/\/(?:pypi\.org|files\.pythonhosted\.org))/i;
+  $f12=1 if /--index-url\s+(?!https?:\/\/(?:pypi\.org|files\.pythonhosted\.org))/i;
+  $f12=1 if /git\+http:\/\//i;  # HTTP (not HTTPS) git package installs
 }
 
 END {
@@ -76,5 +89,7 @@ END {
   if ($f8)     { print "🚨 HIGH: npm registry auth token detected\n";                                                $found=1; }
   if ($f9)     { print "🚨 CRITICAL: LLM provider API key detected (Anthropic / OpenAI / HuggingFace / Replicate / Groq)\n"; $found=1; }
   if ($f10)    { print "🚨 CRITICAL: Azure credential detected (Storage Key / SAS token / connection string)\n";     $found=1; }
+  if ($f11)    { print "🚨 HIGH: Prompt injection string detected in code (LLM supply-chain attack risk)\n";         $found=1; }
+  if ($f12)    { print "🚨 HIGH: Supply-chain risk detected (non-PyPI index URL or HTTP git install)\n";             $found=1; }
   exit($found ? 1 : 0);
 }

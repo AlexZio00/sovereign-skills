@@ -131,6 +131,20 @@
       "source": "./clean-room",
       "category": "productivity",
       "tags": ["scope-isolation", "safety", "descope", "fresh-context", "ledger"]
+    },
+    {
+      "name": "eval-leakage-audit",
+      "description": "Audits whether an eval/metric/holdout secures independent external ground truth vs circular self-confirmation, using an 8-pattern taxonomy. Read-only",
+      "source": "./eval-leakage-audit",
+      "category": "development",
+      "tags": ["eval", "leakage", "holdout", "circular-verification", "ground-truth"]
+    },
+    {
+      "name": "doc-drift",
+      "description": "Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, contradictions, and risky wording; produces a prioritized fix list",
+      "source": "./doc-drift",
+      "category": "development",
+      "tags": ["doc-drift", "memory-audit", "context", "outdated", "contradiction"]
     }
   ]
 }

@@ -1,9 +1,11 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.4
+# sovereign-skills v6.5
 
-18 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
+20 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
+> **What changed in v6.5:** New: `eval-leakage-audit` (audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation, via an 8-pattern taxonomy; read-only), `doc-drift` (audits the memory/docs Claude Code loads into context — CLAUDE.md/MEMORY.md/skills/agents/commands — for outdated claims, mutual contradictions, and risky/ambiguous wording, producing a prioritized fix list). Updated: `project-init` (fixed a `skill.md`→`SKILL.md` filename-casing bug that could break skill loading on case-sensitive filesystems, and moved the Phase 3 templates into `references/templates.md`), `pre-push` → v3.6 (two new secret-scanner patterns — f11 prompt-injection strings in diffs, f12 non-PyPI supply-chain index URLs — plus a Step 0 Hook Pipeline Health check), `scope` (added the Mid-Task Scope Drift 10x-Discovery Rule), `collab-audit` (added Step 0.6 Source Hygiene Filter to exclude auto-derived subagent/thread sessions), `full-audit` and `integration-intake` (both gained a Safety Layers section; `integration-intake` also added a Phase 1.8 M-axis surface-selection step — judge which surface (prompt/rule/hook/skill) a pattern should live on before routing), `goal-lock` (added a `migration` task template), `project-overview` (added a Rationalization Table), `stepback` (added a Dominant Variable section + frontmatter fields).
+>
 > **What changed in v6.4:** New: `full-audit` (exhaustive area audit — deterministic sweep + content review, persistent coverage map, anti-false-positive kill-test), `integration-intake` (5-item screening gate for adopting external skills/agents/rules/plugins, with a provenance/injection check), `clean-room` (carves safety-adjacent requests into a safe scope executed by a genuinely isolated fresh-context subagent, adapted from LilMGenius/paperthin's "autobahn" skill under MIT with a filesystem-isolation and ledger-timing upgrade). Updated: `goal-lock` (a constraint re-echo check at long-task checkpoints, so CONSTRAINTS/SCOPE-Exclude don't quietly fall out of view during extended work), `session-checkpoint` (a new Attestation phase — an evidence-chain receipt log with a bundled `handoff_attestation.py`, so the next session's SessionStart hook can detect handoff tampering).
 >
 > **What changed in v6.3:** New: `skill-ops` (snapshot/rollback + usage health + invocation tracking hub), `next-action` (reads handoff/git/lessons/STATE and proposes the top-3 next actions), `project-overview` (deterministic cross-project status map). `code-autopsy` → v7.1 (deeper sub-checks per question), `pre-push` → v3.5 (9 supply-chain IOC patterns), `goal-lock`/`session-checkpoint`/`session-start`/`scope`/`stepback`/`freeze` all strengthened. All 12 prior skills gained `not_for` and `see_also` frontmatter for better discoverability.
@@ -102,6 +104,8 @@ then daily:
 | [full-audit](full-audit/) | **New.** Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review two-layer method, anti-false-positive kill-test, persistent coverage map |
 | [integration-intake](integration-intake/) | **New.** 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets + a provenance/injection check for imported executable content |
 | [clean-room](clean-room/) | **New.** Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent — adversarial verify pass + descope ledger |
+| [eval-leakage-audit](eval-leakage-audit/) | **New.** Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 8-pattern taxonomy. Read-only |
+| [doc-drift](doc-drift/) | **New.** Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, mutual contradictions, and risky/ambiguous wording — produces a prioritized fix list |
 
 ---
 
@@ -193,7 +197,7 @@ The SKILL.md content is universal — it works with any LLM that reads markdown 
 
 ## Agentic Design Patterns Coverage
 
-These 15 of the 18 skills (the original lifecycle set plus the v6.4 governance additions — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+These 15 of the 20 skills (the original lifecycle set plus the v6.4 governance additions — the v6.3 operations additions and v6.5 additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Pattern | Implemented by | How |
 |---------|---------------|-----|
@@ -265,7 +269,7 @@ session-start <──> session-checkpoint
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full version history (v3.0 → v6.4).
+See [CHANGELOG.md](CHANGELOG.md) for the full version history (v3.0 → v6.5).
 
 ## License
 

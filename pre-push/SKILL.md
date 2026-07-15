@@ -9,7 +9,7 @@ name: "pre-push"
 description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.5.0"
+  version: "3.6.0"
   author: "coinangel"
 user_invocable: true
 not_for:
@@ -20,6 +20,9 @@ see_also:
 ---
 
 <!--
+  v3.6.0 (2026-07-15) — scan_secrets.pl synced to v2.1.0: f11 (prompt-injection string detection) + f12
+                        (non-PyPI/HTTP-git supply-chain source detection) ported. Step 0: Hook Pipeline
+                        Health section added (WARN-only smoke-test check before Step 1).
   v3.5.0 (2026-07-07) — 6-IOC→9-IOC expansion: dependency confusion / missing pinned version / post-install
                         hook network calls. MCP tool poisoning 3 patterns (hidden instructions/Unicode
                         deception/parameter injection) ported.
@@ -51,6 +54,24 @@ Does the secrets scanner run without exception — a single skip permanently rec
 2. **git staged files exist** — if broken: inform user and halt.
 3. **Agent tools (code-reviewer, etc.) dispatchable** — if broken: skip AI review, run lint/test only.
 
+## Step 0: Hook Pipeline Health (Fast, WARN-only)
+
+Before scanning the diff, confirm your PreToolUse/Stop hook pipeline itself hasn't silently regressed — a broken hook is invisible until something it should have caught gets through.
+
+If your setup has a hook smoke-test script (a script that exercises your hooks end-to-end and reports pass/fail), run it here:
+
+```bash
+SMOKE_SCRIPT=$(find ~/.claude -maxdepth 3 -iname "hook_smoke_test*" -type f 2>/dev/null | head -1)
+if [ -n "$SMOKE_SCRIPT" ]; then
+  "$SMOKE_SCRIPT" full 2>&1 | tail -20
+  SMOKE_EXIT=$?
+  [ $SMOKE_EXIT -ne 0 ] && echo "⚠️ hook smoke test FAIL — hook pipeline regression suspected, recommend investigating before Step 7 Gate Check (does not block)"
+else
+  echo "➖ No hook smoke-test script found — skipping Step 0 (optional check)"
+fi
+```
+
+WARN-only — a smoke failure does not block push (avoids introducing a new hard gate outside design scope), but MUST be surfaced in the Step 8 report.
 
 ## Step 1: Assess & Scan
 

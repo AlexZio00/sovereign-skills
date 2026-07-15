@@ -85,8 +85,20 @@ Mark result 1 line before Section 11: `[Delivery intensity: Direct / Calibrated]
 
 **Important**: Changing delivery intensity does not change blind spot content (accuracy). Only adjusts temperature.
 
+### Step 0.6: Source Hygiene Filter (deterministic-first measurement)
+When multiple observation sources exist (e.g. session JSONLs), determine deterministically — before analysis — whether **each source is an organic user session or an automation byproduct**. A qualitative caveat alone (the old Step 1 approach) is not enough; automated sessions can be mistaken for user behavior.
+
+**Detection criteria** (any one qualifies a session as an exclusion candidate):
+- Session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`
+- Directory/cwd matches a recurring automated-experiment harness naming pattern (e.g. pair-run, A/B arm, pipeline)
+- `originator` is an SDK/bot/exec-type process, and no direct user-input signal (natural conversational opening message) is present
+
+**Exclusion**: sessions flagged this way are removed from the analysis population; report the exclusion count and reason in 1 line (e.g. "16 of 16 sessions excluded — all were thread_spawn subagent sessions"). Do not substitute a qualitative impression ("seems skewed toward one type") for an explicit denominator.
+
+Skip condition: if the only observation source is the current conversation (no multi-session file access), this filter does not apply — proceed to the next step.
+
 ### Step 1: Data Collection
-Collect all available observation sources:
+Collect all available observation sources, restricted to **organic sessions surviving Step 0.6**:
 - Current session conversation history (message length, frequency, content)
 - MEMORY.md, session-handoff files (if present, Read access)
 - User-created artifacts (code, documents, config files — if present, Read)
@@ -447,6 +459,7 @@ Based on previous development direction + current patterns, one next focus point
 | "Add general principles to advice for utility" | Observation-pattern-only allowed. Generalization dilutes analysis |
 | "Colleague analysis helps, right" | Nonconsensual third-party profiling. Self-request only |
 | "Quoting MEMORY.md direct = more accurate" | Raw data output = sensitive info exposed. Interpretation only |
+| "Some sessions look automated but let's just include them all" | Violates Step 0.6. Mixing in automated sessions misattributes subagent behavior to the user |
 | "User mentioned it first, so self-report OK" | Self-report does not supplement observation. Bias contamination |
 
 ---

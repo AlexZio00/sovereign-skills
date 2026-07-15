@@ -97,3 +97,11 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 - **no mock deception**: before reporting "generation complete," actually read `OVERVIEW.md` to confirm project entries landed in the AUTO block.
 - **no silent brokenness**: a parsing failure for a specific project's handoff is never silently skipped — it's shown explicitly as "no snapshot".
 - Final status label: `WORKING` (generated normally) / `PARTIAL` (some projects show no snapshot) / `BLOCKED` (registry missing/empty).
+
+## Rationalization Table
+
+| Rationalization | Rebuttal |
+|--------|------|
+| "Even if it's not in the registry, scanning every directory to find projects would be more convenient" | Violates Invariant 2. Auto directory-discovery risks leaking information about unowned projects into the map — only explicitly opt-in registered projects are in scope. |
+| "Reading STATE.md too and surfacing cross-project blockers on the map would be useful" | Violates Invariant 3. Never touching STATE.md at all is itself the Scope Boundary — it prevents contaminating the cross-project blocker list. |
+| "If parsing fails for some projects, just quietly drop them and show the rest" | Violates no-silent-brokenness. A failure must be shown explicitly as "no snapshot" so the user knows what was missed, not silently omitted. |

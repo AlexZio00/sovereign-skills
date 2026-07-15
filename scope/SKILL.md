@@ -141,6 +141,20 @@ Meta / Goal / Non-goals / Confirmed Goal / Research / Decisions / Constraints / 
 
 ---
 
+## Mid-Task Scope Drift — 10x-Discovery Rule
+
+> Quick and Full modes both lock IN/OUT only at write time — neither covers what to do when scope explodes mid-execution.
+
+Even for scope locked in BRIEF.md/spec.md, if evidence found during implementation (hidden coupling, a required migration, a stopgap carrying far more load than expected) shows the work is a multiple of what was originally understood, **stop immediately and surface it**:
+- What was discovered
+- The honest new scale
+- 2-3 costed options (full fix / narrow workaround / defer)
+- A recommendation
+
+**Two things are forbidden**: (a) silently absorbing the explosion (the user ends up waiting 5x longer than promised) (b) quietly shrinking the deliverable to fit the original budget (the user only discovers later they got less than expected). Both are worse than a plain "here's what I found."
+
+---
+
 ## Scope Boundary
 
 | Does | Does NOT |

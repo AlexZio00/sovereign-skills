@@ -340,6 +340,13 @@ DONE EVIDENCE: All existing tests PASS (same test count) + before/after diff sco
 SCOPE Exclude: No new features, no API signature changes
 ```
 
+### migration
+```
+GOAL: Migrate [target]
+DONE EVIDENCE: Migration succeeds both up and down + all existing tests PASS
+CONSTRAINTS: Existing data must be preserved, destructive changes require approval
+```
+
 ---
 
 ## Scope Boundary

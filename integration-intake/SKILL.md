@@ -141,6 +141,22 @@ If skipped when it should have fired: mark the report `Phase 1.6: not run` — t
 2. **Overlap with existing assets** — state explicitly if the philosophy is already absorbed elsewhere (e.g. "same axis as our X pattern's Y approach"). If it's a genuinely new insight, flag it as a candidate to record separately.
 3. **Record even on REJECT** — output this as a separate field in the Phase 3 report regardless of verdict.
 
+### Phase 1.8: M-axis Surface Judgment + Stage V→T Ordering
+
+**Fires: after Phase 1.2 (Value) passes, before entering Phase 2 (5-category routing).**
+
+**Why**: Phase 2's 5-category routing (agent/skill/rule/plugin/validation asset) decides "where to place it," but "which surface must this pattern actually fire on for its value to survive" is a separate question. Skipping the surface judgment and routing straight to a category lets a pattern land on a mismatched surface (e.g. something that needs to be an always-loaded rule instead gets placed as an explicitly-triggered skill), killing its value. (Adapted from an internal surface-selection methodology: direct prompt-surface transplants of external patterns tend to fail outright, while hook- and skill-surface placements survive.)
+
+**M-axis, 4 questions** (answer all before proceeding to Phase 2 routing):
+1. **M1 — Is this a prompt surface?** Does the value only hold if it fires inside a user-visible conversational instruction or dispatch prompt?
+2. **M2 — Is this a rule surface?** Does it need to go into an always-loaded constraint (`rules/*.md`) so it applies automatically every time?
+3. **M3 — Is this a hook surface?** Does it need to be enforced at a physical gate (PreToolUse/Stop) to make it un-bypassable?
+4. **M4 — Is this a skill surface?** Is this a multi-step workflow requiring judgment, with an explicit trigger?
+
+If two or more answer "yes," place it on the surface with the strongest enforcement (hook > rule > skill > prompt), keeping the others as references only. If all answer "no," the surface itself is unclear — return to Phase 1.
+
+**Stage V→T ordering enforced**: Stage V (Value — confirmed in Phase 1.2) must always finish before Stage T (Trigger — designing what phrase/condition should invoke it). Reversing the order — designing an appealing trigger phrase first — lets a pattern with no real value pass simply because its trigger sounds compelling. Do not start designing trigger phrasing before Phase 1.2 has passed.
+
 ### Phase 2: Route to One of 5 Categories
 
 An approved pattern routes to exactly one of these. An ambiguous category is itself a sign of poor fit → go back to Phase 1.
@@ -235,6 +251,19 @@ Grounding: [✅ README+source actually confirmed / ⚠️ summary only, shallow 
 | "3 of 5 items are clear enough" | Violates Invariant 1. "Mostly OK" = hold. The one ambiguous item is usually where the real problem hides. |
 | "Don't need to Glob, I already know what exists" | Violates Invariant 2. Memory is a hint, not a fact. Verification is mandatory. |
 | "The user already said they'd adopt it, so skip the gate" | Discard If already covers this — but confirm the decision itself actually came after a gate, not before one. |
+
+---
+
+## Safety Layers
+
+| Risky Action | Reversibility | Applied Layers |
+|-------------|:-------------:|----------------|
+| APPROVE verdict → delegate to skill-creation | medium | L1+L3 (all 5 items pass + explicit user approval) |
+| Adopting a skill that ships an external executable body (injection risk) | medium | L1+L3+L4 (Phase 1.6 manual read-through + provenance check) |
+
+- **L1 (Invariants)**: no APPROVE without all 5 screening items passing.
+- **L3 (User Approval)**: implementation only proceeds after explicit user approval of the APPROVE verdict.
+- **L4 (Independent Verification)**: Phase 1.6's body read-through is a manual judgment call, never an automated scanner.
 
 ---
 

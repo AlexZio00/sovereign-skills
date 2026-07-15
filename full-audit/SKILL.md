@@ -89,6 +89,16 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 | Record the coverage map | Declare "100% done" while hiding remaining gaps |
 | Read the prior coverage map and diff | Silently include areas the user excluded |
 
+## Safety Layers
+
+| Risky Action | Reversibility | Applied Layers |
+|-------------|:-------------:|----------------|
+| Fix-bucket edit (existing file) | high (git) | L1 |
+| Delete/move a file (addition bucket) | medium | L1+L3 (explicit user approval required) |
+| Editing a protected config/rules path (deny-listed) | medium | L1+L2+L3 (temporarily lift the deny → edit → restore immediately) |
+
+**Guard-degradation observability**: if a Phase 1 checker can't run, don't silently skip it — record `⚠️ check unavailable: [reason]` on the coverage map.
+
 ## Invariants (never violate)
 1. **Two-layer exhaustiveness**: never report "exhaustive" from structural checks alone. Areas without a content review get labeled "[deterministic] only — content not close-read" on the map. Violation → overstated coverage; the user trusts an area that was never actually reviewed.
 2. **Deterministic wins**: when an LLM's count/existence claim conflicts with a script's result, the script wins. Violation → hallucinated numbers get written into the source of truth.

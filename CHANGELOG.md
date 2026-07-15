@@ -6,6 +6,43 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5 — 2026-07-15
+
+### Added
+- **eval-leakage-audit**: audits whether an eval/metric/holdout actually
+  secures independent external ground truth vs circular self-confirmation,
+  using an 8-pattern taxonomy. Read-only. Use before trusting any "how we'll
+  know it worked" — A/B tests, holdouts, scores, validation — especially
+  when a result feels too clean or self-confirming.
+- **doc-drift**: audits the memory/docs Claude Code loads into context
+  (CLAUDE.md/MEMORY.md/skills/agents/commands, plus @imports and installed
+  plugins) for three issue kinds — outdated claims, mutually contradictory
+  statements, and risky/ambiguous wording. Produces a prioritized fix list
+  at `.drift-reports/`. Zero config.
+
+### Changed
+- **project-init**: fixed a filename-casing bug (`skill.md` → `SKILL.md`,
+  which could fail skill loading on case-sensitive filesystems) and
+  externalized the Phase 3 templates into `references/templates.md`
+  (progressive disclosure).
+- **pre-push** → v3.6: added two secret-scanner patterns — f11
+  (prompt-injection strings found in diffs) and f12 (non-PyPI supply-chain
+  index URLs) — plus a Step 0 Hook Pipeline Health check.
+- **scope**: added the Mid-Task Scope Drift (10x-Discovery Rule) — stop and
+  surface when scope balloons to a multiple of the original understanding.
+- **collab-audit**: added Step 0.6 Source Hygiene Filter, excluding
+  auto-derived subagent/thread sessions from being mistaken for organic
+  user sessions.
+- **full-audit**: added a Safety Layers section (risky-action/reversibility
+  /applied-layers table).
+- **integration-intake**: added a Safety Layers section.
+- **goal-lock**: added a `migration` task template (up+down both succeed,
+  data preserved, destructive change needs approval).
+- **project-overview**: added a Rationalization Table.
+- **stepback**: added a Dominant Variable section + frontmatter fields.
+
+---
+
 ## v6.4 — 2026-07-10
 
 ### Added

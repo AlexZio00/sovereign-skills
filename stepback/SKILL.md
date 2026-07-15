@@ -1,5 +1,23 @@
 ---
+skill_type: utility
+tools: Read
 name: stepback
+description: "One-shot perspective reset. Scans current work context, generates 1 abstract reframing question + 3 quick checks (scope drift, side effects, better approach) in under 10 lines. No dialogue, no code, no agents."
+depends_on:
+  skills: []
+  agents: []
+  files: []
+tags: [meta, analysis]
+version: "1.0.0"
+source: "team-attention/hoyeon pattern"
+triggers:
+  - "/stepback"
+  - "step back"
+  - "zoom out"
+  - "blind spot"
+  - "am I on track"
+  - "big picture"
+  - "what am I even doing"
 user_invocable: true
 not_for:
   - "Next action recommendation -> next-action skill"
@@ -17,6 +35,10 @@ see_also:
 Scan the current work context, generate 1 abstract reframing question + 3 quick checks (scope drift, side effects, better approach) in under 10 lines. No dialogue, no code, no agents.
 
 Use when you're deep in implementation and need to check if you're solving the right problem at the right level.
+
+## Dominant Variable
+
+Whether the work direction is solving the right problem at the right level — if this is off, even flawless implementation produces the wrong outcome.
 
 ## Key Assumptions
 
