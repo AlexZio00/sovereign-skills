@@ -1,6 +1,6 @@
 [English](../README.md) | 🌐 **한국어** | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5
+# sovereign-skills v6.5.5
 
 Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
 

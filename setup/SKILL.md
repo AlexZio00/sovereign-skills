@@ -4,19 +4,21 @@ tools: Read, Write, Edit, Bash, WebFetch
 triggers:
   - "/setup"
   - "setup"
-  - "/setup"
   - "rules 만들어"
   - "harness 설정"
   - "harness setup"
 name: setup
-description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Triggers: /setup, setup, harness setup, agent team setup."
+description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Not project scaffolding (CLAUDE.md/ROADMAP/.gitignore/.env.example) — use project-init for that. Triggers: /setup, setup, harness setup, agent team setup."
 user_invocable: true
 not_for:
   - "Existing harness audit -> project-check"
   - "Single rule addition -> edit the rule file directly"
+  - "Project scaffolding (CLAUDE.md/ROADMAP/.gitignore/.env.example) -> project-init"
 see_also:
   - skill: project-check
     relation: "setup=new project, project-check=existing audit"
+  - skill: project-init
+    relation: "setup=AI harness/agent team setup, project-init=project scaffolding (separate skill)"
 ---
 
 # Setup — Claude Code Infrastructure + Agent Team

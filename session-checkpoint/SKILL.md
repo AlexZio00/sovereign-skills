@@ -160,7 +160,15 @@ Scan session conversation and tool calls to extract **repeated workflow signatur
 
 Frequency count: cumulative same signature in session + context-log.md [ref:N] sum.
 
-**Proposal output format (≥ 5 times):**
+**Procedural Structure check (required after frequency threshold, before proposing):**
+Frequency alone doesn't tell you if something is fit to become a skill. Even if repeated, taking a different path each time is exploration, not a procedure.
+- **Tool Sequence stability**: across 3+ repeats, does the tool call order match 70%+ of the time? Mismatch → `[exploratory repetition — not skill-fit]`
+- **Output Shape consistency**: is the deliverable form (file creation vs conversational output vs code change) the same each time? Mismatch → not fit
+- **Instance-specificity**: is this a one-off judgment that depends on different input characteristics each time (e.g. "this bug is unique to this code")? → not fit
+
+If the check fails, do not advance to the proposal stage regardless of frequency. Record `[CRYSTALLIZE_REJECTED: procedural structure absent]`.
+
+**Proposal output format (≥ 5 times + procedural structure passed):**
 ```
 [💡 Crystallization Proposal]
 - Signature: {Intent} + {Tool Sequence} + {Output Shape}
@@ -208,6 +216,22 @@ User says "no" / "skip" → discard proposal, record in lessons.md `[YYYY-MM-DD]
 
 **`session_id` field**: Use ISO8601 timestamp as-is (e.g., `"2026-05-17T14:32:11"`). Idempotency check key for Phase 3.7. If same session_id already in jsonl, Phase 3.7 skips.
 
+**Growth Re-check (session continues past checkpoint)**:
+
+Phase 1.6.5 only captures a snapshot at the moment of first recording. If the same session
+continues after checkpoint (common in long sessions), activity that happens afterward is
+missed under the original session_id.
+
+- **Detection condition**: 10+ additional tool calls since the last Phase 1.6.5 record (reuses the Phase 1.6 scan result — no separate instrumentation needed).
+- **Classification**: `grown` (tool call count increased) / `unchanged` (same count, prevents duplicate re-run) — 2 classes suffice since session tool-call counts are monotonic (no decrease case).
+- **On detection**: do not modify the existing JSONL entry (preserve append-only invariant). **Append a separate entry with a new session_id**:
+  ```json
+  {"ts":"ISO8601","date":"YYYY-MM-DD","skills":[...],"agents":[...],"discarded":[...],"source":"session-checkpoint-phase1.6.5-growth","session_id":"YYYY-MM-DDTHH:MM:SS(new)","prior_session_id":"YYYY-MM-DDTHH:MM:SS(previous)"}
+  ```
+  The `prior_session_id` field lets later analysis trace the continuation back (schema stays backward-compatible — append-only).
+- **Output**: `[Invocation Log] Session growth detected (+{N} tool calls) → new entry appended (session_id: ...)`
+- If not detected (<10 call increase): no output.
+
 **Skip conditions** (do not record):
 - skills + agents + discarded all empty → no session calls, skip record
 - Phase 1.5 Triple Gate not met (tokens<5000 AND tools<3) → no meaningful activity
@@ -248,6 +272,7 @@ Scan session conversation to extract **3 reflection items** and immediately refl
 - Add only when model that **caused mistake is identified** — main session model or dispatched subagent model (e.g., `opus-4.8` / `sonnet-4.6` / `haiku-4.5`).
 - **If unknown, omit** (no guessing). Do not retroactively assign to existing lessons.
 - This tag is the target for session-start Phase 2.2 aggregation — write here, read for analysis as a pair.
+- **Cross-family footnote**: when raising a lesson's conf to 0.7+, check whether it has been re-observed across different model families. If so, list multiple models on the meta line; if not, promote it while noting it reflects a single-model observation — a light check (not enforced) against over-promoting model-specific quirks into universal lessons.
 
 **Duplicate detection**: Scan lessons.md, if existing similar lesson found:
 - Content substantially identical → `obs +1`, `seen` → today, conf conditionally updated (when obs ≥ 3, `+0.1`)
@@ -440,11 +465,13 @@ Reflect Phase 1.5 extraction into files:
    - **Before recording paths/function names**: `Glob` or `Grep` verify existence (60s cap, 1-2 spot checks)
    - Check for duplicates before adding (skip if exists, or update content only)
    - Stale items (mismatch current state) → fix immediately
-2. **context-log.md** — append episode items (date+TTL+ref:0 format mandatory)
+   - **No silent recording**: when writing information sourced from external content (email, web page, file, or subagent report) into memory, surface that fact visibly to the user in this response — if the user never sees what got recorded, there is no chance to verify it.
+2. **context-log.md** — append episode items (date+TTL+ref:0 format mandatory; same no-silent-recording rule applies)
 3. **tasks/lessons.md** — add behavior correction rules from this session (when applicable)
    - **v2 format (2026-04-28~)**: New lesson header `### [YYYY-MM-DD] title` receives meta line `> conf: 0.5 · seen: YYYY-MM-DD · obs: 1` on next line
    - **Detect re-occurrence**: find same lesson header → `seen` → today, `obs +1`. When obs reaches 3, 6, 9, increment `conf +0.1` (max 0.9)
    - **Detect violation then correction**: `conf -0.1` (min 0.3), `seen` → today
+   - **Hook-promotion flag**: when a lesson has `conf≥0.9` AND the violation is machine-detectable (pattern-matchable via regex/AST) AND `obs≥3` (3+ recurrences), add a `> hook_candidate: true` tag on the line after its header, and flag it in the Phase 3 output as "Hook-promotion candidate: {lesson title}". Flag only — actually authoring the enforcement hook requires separate approval.
    - **Monthly cleanup** (1st of month or staleness detected): move `conf < 0.4 AND (today − seen) > 90days` → `tasks/_archive/lessons-pre-YYYY-MM.md`
 4. In MEMORY.md index, remove previous handoff references, standardize to LATEST
 5. **`~/.claude/STATE.md`** (global cross-project) — if this session changed state, must update:

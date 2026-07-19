@@ -6,6 +6,24 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.5 — 2026-07-18
+
+Refinement release — no skills added or removed; existing skills sharpened.
+
+### Changed
+- **eval-leakage-audit**: 8→13-pattern taxonomy (dual-fail-flag, asymmetric-baseline self-falsification, evidence-burn, ungraded-grader 4-gate check, ceiling-task detection) + a stratification-claim substantiation checklist + an honest reviewer-independence 4-label verdict (independent / same_vendor / unverified / unavailable).
+- **goal-lock**: order gate (blocks completion when no verification ran after the last edit), evidence-channel branching (non-exit-code deliverables get a valid channel instead of auto-FAIL), comprehension check, adversarial-criteria design, post-hoc-abstention masquerade pattern, capability-spillover flag-don't-fix.
+- **pre-push** → v3.7: cross-bundle joint pass, three-state false-positive gate, deterministic claim-verification (conceptual, degrades gracefully without a script).
+- **integration-intake**: headroom pre-classification, trait-vs-procedure termination, triple-check effectiveness claims, independent-source floor, 4-axis adoption status.
+- **session-start**: added `claude-sonnet-5` to the model-ID allowlist — fixed a false "invalid model" warning for the current default model.
+- **setup**: removed a duplicate `/setup` trigger.
+- **full-audit**: rule-dry-run verification layer + kill-test anchor injection.
+- **clean-room**: reconciled with upstream autobahn v0.14.0 — independent re-sweep capped at N=1 (not open-ended fan-out).
+- **code-autopsy**: Q10 oracle-redefinition detection; report header v7.0 → v7.1.
+- Smaller refinements: `session-checkpoint`, `skill-ops`, `collab-audit`, `scope`.
+
+---
+
 ## v6.5 — 2026-07-15
 
 ### Added

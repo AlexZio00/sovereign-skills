@@ -58,8 +58,8 @@ Does the handoff document **what to do next**, or **what was done**? If it lists
 - Confirm `"model"` field value → warn if outside this list:
   ```
   ["opus", "sonnet", "haiku", "fable",
-   "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5",
-   "claude-opus-4-5", "claude-sonnet-4-5", "claude-fable-5"]
+   "claude-sonnet-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6",
+   "claude-haiku-4-5", "claude-opus-4-5", "claude-sonnet-4-5", "claude-fable-5"]
   # Context suffixes like [1m]/[200k] are stripped before comparison (e.g., claude-fable-5[1m] → claude-fable-5)
   ```
 - Message: `⚠️ settings.json model ID invalid: "{value}" — please update`
@@ -69,6 +69,8 @@ Does the handoff document **what to do next**, or **what was done**? If it lists
 - Count `permissions.allow` array items
 - If count > 5 → `⚠️ settings.local.json allow: N entries`
 - If file missing: skip silently
+
+**Note — session-scoped authorization does not carry over**: one-time approvals for risky actions, temporarily-enabled high-risk feature flags, and other session-scoped permissions granted in a previous session are not restored automatically in a new session. If the handoff notes something as "approved" or "enabled," treat that as historical context only — ask the user to re-confirm before relying on it this session.
 
 **Output rule**: Both clean → **no output** (omit environment-alerts line in Phase 5). If warnings present, display in Phase 5 `**Environment alerts:**` line.
 

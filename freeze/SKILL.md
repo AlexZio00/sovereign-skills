@@ -5,7 +5,7 @@ name: freeze
 description: "Scope lock for current task. Declares editable zone — everything outside is frozen (read-only). Call before starting implementation to prevent scope creep."
 tags: [meta, safety]
 version: "1.0.0"
-source: "freeze pattern"
+source: "garrytan/gstack freeze pattern"
 triggers:
   - "/freeze"
   - "freeze this"
@@ -220,6 +220,6 @@ Rules:
 
 ## Design Note
 
-This version uses task-level declaration (not session-global file lists) because Claude Code cannot persist state across sessions — the declaration block itself serves as in-context state.
+This skill adapts the freeze pattern from garrytan/gstack. The original uses session-global file lists; this version uses task-level declaration instead, because Claude Code cannot persist state across sessions — the declaration block itself serves as in-context state.
 
 See `scenarios/case-1.md`, `scenarios/case-2.md` for regression test scenarios.

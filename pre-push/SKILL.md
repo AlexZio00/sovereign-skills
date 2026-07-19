@@ -9,7 +9,7 @@ name: "pre-push"
 description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.6.0"
+  version: "3.7.0"
   author: "coinangel"
 user_invocable: true
 not_for:
@@ -20,6 +20,10 @@ see_also:
 ---
 
 <!--
+  v3.7.0 (2026-07-18) — Step 6: cross-bundle joint pass (catches changes fragmented across bundles that
+                        look safe in isolation) + deterministic claim verification (optional, checks
+                        finding citations against the actual diff) added. Step 7: three-state false-positive
+                        gate for high-FP pattern classes (PII/name-like matches) added.
   v3.6.0 (2026-07-15) — scan_secrets.pl synced to v2.1.0: f11 (prompt-injection string detection) + f12
                         (non-PyPI/HTTP-git supply-chain source detection) ported. Step 0: Hook Pipeline
                         Health section added (WARN-only smoke-test check before Step 1).
@@ -259,7 +263,9 @@ In large changesets, agents choosing which files to read on their own leads to c
 1. **Deterministic bundle split**: group `$STAGED_FILES` by top-level directory/module. Natural pairs (source+test, implementation+config) go in the same bundle. Bundle size guide: diff ≤ ~300 lines or ≤ 5 files; if larger, re-split.
 2. **One reviewer per bundle**: dispatch code-reviewer once per bundle — each agent receives **only its bundle's diff** (isolated context, never send full diff). Parallel cap 5 — if 6+ bundles, batch in groups of 5.
 3. **Coverage validation (deterministic)**: before dispatch, verify `union of bundle files == all of $STAGED_FILES` by count. Mismatch → add missing files to final bundle. Never dispatch without this check.
-4. **Conditional agents** (security/database/refactor): follow existing trigger rules, but only pass diff for bundles matching those triggers.
+4. **Cross-bundle joint pass**: after all per-bundle reviews complete, forward the union of each bundle's finding-list summary to a single reviewer (code-reviewer) for one final pass across bundle boundaries. This catches fragmentation — a change deliberately or accidentally split across bundles can look safe in each isolated review but be unsafe once combined. Do not declare a large-diff review complete without this joint pass.
+5. **Deterministic claim verification** (optional, if your setup has a claim-verification script): save the joint-pass output (finding list with file/line-range citations) to a file, then run the script against it. It should check, per finding: (a) the cited file exists in the staged diff, (b) the cited line range overlaps the diff hunk, and (c) an optional grep cross-check passes — labeling each finding `CONFIRMED` or `UNVERIFIED-CLAIM`. Keep `UNVERIFIED-CLAIM` findings open for re-review before Step 7 Gate Check — do not auto-downgrade them. No such script → skip this sub-step, prose-only claims stand as reported.
+6. **Conditional agents** (security/database/refactor): follow existing trigger rules, but only pass diff for bundles matching those triggers.
 
 Small diff (≤500 lines AND ≤10 files): use existing approach, send full diff to each agent. Bundling overhead not needed.
 
@@ -313,6 +319,8 @@ The <intent> above is the user's goal. If diff deviates from intent, flag it —
 | **Low / Info** | Report to user. Push allowed. |
 
 **Test file exceptions**: Findings in `**/__tests__/**`, `**/*.test.*`, `**/*.spec.*`, or `**/fixtures/**` are likely test fixtures, not real secrets. Downgrade to Medium severity and note in report.
+
+**Three-state false-positive gate**: for pattern classes prone to false positives (e.g. PII/name-like matches), don't force a binary hard-block/skip decision — present each hit to the user individually. If the user confirms it's a false positive or non-sensitive, record a one-line reason and let it through (stays auditable in the report). If it's real, require removal. Blanket bypass without a stated reason is not allowed. Low-false-positive hard-block classes (the 12 credential patterns) remain immediate-block as before — this gate does not soften those.
 
 **Fix loop** (Critical/High found):
 1. Apply fixes with the Edit tool

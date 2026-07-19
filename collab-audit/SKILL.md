@@ -40,7 +40,7 @@ Whether the analysis infers reasons behind observed patterns, not just lists fac
 
 - Fewer than 2 observed sessions AND fewer than 100 messages — insufficient sample to extract patterns
 - Simple code review request → use code-reviewer instead
-- Only quantitative session metrics needed → use separate analysis tool
+- Only quantitative session metrics needed → use project-check instead
 
 ---
 

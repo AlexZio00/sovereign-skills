@@ -111,6 +111,10 @@ Per-skill rollup from JSONL over the last 30 days (default):
 
 Unused + no recent edits is a retire-candidate signal.
 
+**Skill-bank alignment signal**: a skill bank that has drifted out of alignment with your current goals or workflow can underperform having no skill bank at all. Treat Unused *and* clearly-misaligned skills as a stronger retire-candidate signal than either alone.
+
+**Retirement-judge audit gate**: before wiring Health mode's Dead/Unused/Discard classifications into any automated delete/archive pipeline, validate the classifier itself — deliberately include a few known-good (still-needed) skills in the candidate pool and check whether the classifier still flags them (false positives). A high false-positive rate means the retirement mechanism looks like it's working but silently isn't. Until that validation exists, this mode stays report-only — deletion is always the user's call (Invariant 5).
+
 ### Phase 3: Generate + Save Report
 ```
 📊 Skill Health — {YYYY-MM-DD}
@@ -147,6 +151,8 @@ Zero-invocation: [never-invoked list — SHARPEN candidates]
 
 ### Purpose
 Calculate a per-skill quality score (S_Q) and identify the bottom quartile as optimization targets.
+
+> ⚠️ Boundary: S_Q is an **operational signal** for "keep vs. retire this skill" — not a quality oracle. It measures usage plus a handful of structural checklist items, not whether the skill's content is actually good. Don't read a low S_Q as "this skill is badly written" — it may simply be under-used. Deep content-quality review of a skill's actual reasoning/instructions is a separate activity outside this skill's scope (see `not_for` above).
 
 ### Phase 8: Quality Score Scan
 

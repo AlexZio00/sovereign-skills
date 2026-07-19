@@ -2,7 +2,7 @@
 name: eval-leakage-audit
 skill_type: analysis
 tools: Read, Grep, Glob
-description: "Audits whether a verification (eval/metric/experiment/holdout) actually secures independent external ground truth, or whether the designer, the model, and the scorer are just confirming each other in a circle — via an 8-pattern taxonomy. Read-only. Use before trusting any 'how we'll know it worked' — A/B tests, holdouts, scores, validation — especially when a result feels too clean or self-confirming. 한국어: '이 검증 순환논리 아닌지 봐줘', '이 평가 편파적이야?', '이 벤치마크 셀프체크야?'."
+description: "Audits whether a verification (eval/metric/experiment/holdout) actually secures independent external ground truth, or whether the designer, the model, and the scorer are just confirming each other in a circle — via a 13-pattern taxonomy. Read-only. Use before trusting any 'how we'll know it worked' — A/B tests, holdouts, scores, validation — especially when a result feels too clean or self-confirming. 한국어: '이 검증 순환논리 아닌지 봐줘', '이 평가 편파적이야?', '이 벤치마크 셀프체크야?'."
 user_invocable: true
 concurrency_profile:
   read_only: true
@@ -19,7 +19,7 @@ see_also:
 # Eval Leakage Audit — Verification Circularity Audit
 
 ## Purpose
-When some verification (eval/metric/experiment/holdout) gives you confidence that something "worked," this skill checks whether that confidence actually comes from independent external evidence, or whether the people who designed the verification and the model that scores it are just confirming each other (circularity) — via 8 concrete patterns. The Gate≠Oracle principle establishes that a gate should not be read as a quality oracle, but only as a general guideline; this skill is the executable tool that actually tests that principle in practice.
+When some verification (eval/metric/experiment/holdout) gives you confidence that something "worked," this skill checks whether that confidence actually comes from independent external evidence, or whether the people who designed the verification and the model that scores it are just confirming each other (circularity) — via 13 concrete patterns. A passing gate is not proof of quality — it only proves what it was designed to check, and this skill is the executable tool that actually tests that principle in practice.
 
 **Dominant variable**: does this verification actually receive independent external ground truth, or are the designer, the model, and the scorer mistaking self-confirmation for a result?
 
@@ -35,7 +35,7 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 
 1. Identify the target verification (eval/metric/experiment/holdout/"how will we know it worked"). Name its components — what plays the model role, what plays the scorer role, what plays the designer role, and which dataset is involved.
 2. Ask the core question: does independent external ground truth actually enter the loop?
-3. Apply all 8 patterns below to the target and report only the ones that actually fire (don't list patterns that didn't fire):
+3. Apply all 13 patterns below to the target and report only the ones that actually fire (don't list patterns that didn't fire):
    1. **Recall, not reason** — the answer was replayed from something already known, not actually derived
    2. **Wrong null hypothesis** — the ablation only strips the surface label while the actual leaking signal stays in place
    3. **Shared hallucination** — two components confirm each other and dress up the circularity as a number
@@ -44,13 +44,20 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
    6. **Shared-pool bias** — train/holdout come from the same labeler pool, so the same bias enters both sides
    7. **Frame injection** — the question itself hints at the answer
    8. **Demand characteristics** — the subject being measured knows it's being measured and behaves differently as a result
+   9. **Dual-fail-flag** — when two independent subjects (models/implementations) fail on exactly the same hidden case, suspect a defect in the scorer itself before blaming the subjects. Independent failures coinciding by chance is unlikely — a match more likely points to a shared cause (a scorer bug, or an error in the hidden case itself)
+   10. **Asymmetric-baseline self-falsification** — if the metric itself uses a biased, asymmetric baseline statistic, the null expectation isn't 50%, producing false positives. Before reporting a result, self-falsify the metric with a symmetric check
+   11. **Evidence-burn** — a fixture a model arm has already observed is spent: don't reuse it afterward as independent evidence, a holdout, or a replication fixture. Generate a new variant for the next round, or retire the fixture
+   12. **Ungraded grader** — trusting the scorer/answer-key/rubric itself without self-verifying it first. Before trusting it, run 4 gates: (1) reference-pass — a known-correct implementation scores full marks; (2) buggy-baseline-fail — a deliberately flawed implementation scores in the expected low-to-mid band (too low or too high signals a miscalibrated grader); (3) mutation-kill — the grader actually catches ≥3 plausible wrong answers; (4) dual-fail-flag — if both arms of a comparison fail on the exact same case, treat it as a grader/fixture defect signal, not a candidate failure
+   13. **Ceiling task** — misreading a benchmark saturated at full marks for every candidate (zero discriminative power) as "no difference." If a k=1 pilot shows both arms scoring ≥95%, flag `ceiling_detected` — adding more fixtures of the same kind won't recover discriminative power. Respond by switching task families, promoting process-layer metrics (cost, verification cadence), or adding 1-2 decisive branching probes. Post-hoc discriminative-power indicators: `ceiling_rate`, `score_sd`, `bucket_entropy`, `winner_flip_rate`
 4. For every pattern that fires, propose a concrete fix aimed at restoring independence.
 5. Self-check this audit itself against patterns 3–5: is this auditor grading a bucket it drew itself? Is the verifier actually the designer?
+
+**Stratification-claim substantiation check**: when the target claims it "compared stratified" (to guard against Simpson's-paradox-style aggregation bias, where a pooled comparison can reverse the direction seen within each subgroup), don't accept that claim as substantiated until 6 fields are recorded — (1) overall effect, (2) per-stratum effect, (3) direction consistency (same sign across strata), (4) effect dispersion (spread across strata), (5) minimum cell count (is each stratum's sample large enough to judge), (6) multiple-comparison correction (e.g. an FDR q-value). If even one is missing, the "we stratified" claim is unverifiable — the general principle is sound, but without these substantiation fields it's an empty assertion. (This is a statistical-substantiation gate, not one of the 13 circularity patterns — a separate axis.)
 
 ## Invariants (never violate)
 
 1. **Read-only** — never redesign the verification or rewrite the experiment. Only name the leak points and the fixes. Violation → the audit and the redesign blur together and the original experiment's intent gets corrupted.
-2. **Report only patterns that fired** — don't mechanically list all 8; report only the ones actually backed by evidence. Violation → a laundry list dressed up as checklist completion, i.e. an unlabeled score dressed up as rigor.
+2. **Report only patterns that fired** — don't mechanically list all 13; report only the ones actually backed by evidence. Violation → a laundry list dressed up as checklist completion, i.e. an unlabeled score dressed up as rigor.
 3. **Blinding the output doesn't cure a leaking collection recipe** — don't report safety just because outputs are hidden. Violation → mistaking surface-level blinding for real independence.
 4. **The final report converges on one root cause, not a laundry list** — even if multiple patterns fire, converge them into a single root cause. Violation → an unprioritized list is not an actionable report.
 
@@ -59,7 +66,7 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 | Does | Does NOT |
 |---|---|
 | [READ] Identify verification components (model/scorer/designer/dataset) | Redesign the experiment/benchmark or edit code |
-| [READ] Apply the 8-pattern check and report only the ones that fired | Formally list patterns that didn't fire |
+| [READ] Apply the 13-pattern check and report only the ones that fired | Formally list patterns that didn't fire |
 | [READ] Propose an independence fix for each fired pattern | Implement the fix itself (propose only) |
 | [READ] Self-check the audit itself against patterns 3–5 | Declare "clean" without a self-check |
 
@@ -68,9 +75,10 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 | Rationalization | Counter |
 |---|---|
 | "We hid the output values, so it's independent now" | Violates Invariant 3. Output blinding and collection-recipe independence are different problems |
-| "Let's show we checked all 8" | Violates Invariant 2. Listing unfired patterns is a laundry list — completion theater without evidence |
-| "This looks independent enough" | Violates the Gate≠Oracle principle. "Looks similar" is a feeling, not evidence — judge only by which of the 8 patterns actually fired |
+| "Let's show we checked all 13" | Violates Invariant 2. Listing unfired patterns is a laundry list — completion theater without evidence |
+| "This looks independent enough" | Violates the Gate≠Oracle principle. "Looks similar" is a feeling, not evidence — judge only by which of the 13 patterns actually fired |
 | "The auditor designed this experiment too, but it's fine" | Exactly the self-check Invariant 4 calls for — this is precisely the Verifier=designer case (#5) |
+| "Both sides failed, so both implementations are bad" | Violates Dual-fail-flag (#9). If two independent implementations fail on exactly the same hidden case, check the scorer for a defect first — don't default to blaming the subjects |
 
 ## Output
 In the conversation: identify components → fired patterns (name + evidence + fix) → converge to one root cause → self-check result (applying patterns 3–5).

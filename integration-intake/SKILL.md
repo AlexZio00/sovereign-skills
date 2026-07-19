@@ -70,6 +70,8 @@ What real value does this add for the user? One sentence.
 
 Fails: reject. "Interesting" is not value.
 
+**Triple-check effectiveness claims**: an external claim that "this pattern works" (from a README, blog post, or report) should only be trusted as verified when three conditions hold — (a) injecting the pattern shows measurable improvement, (b) removing it shows measurable degradation, and (c) a placebo control (a mechanism-free instruction of similar shape/length) does not produce the same effect. Without this three-way check, treat the effectiveness claim as unverified — a marketing claim, not a fact.
+
 #### 3. Structural Fit
 Does it conflict with your existing layered rules, hard rules, or operating conventions?
 
@@ -100,6 +102,8 @@ Verdict:
 - **Under 30% covered**: new asset is justified → go to Phase 2
 
 If skipped: the verdict is invalid — memory verification was not done.
+
+**Independent-source floor**: if you're using "reproduced across multiple repos/community reports" as adoption justification, require at least 3 independent, non-dominant sources — forks and derivatives by the same original author count as a single source. This guards against mistaking one contributor's echo chamber for broad validation.
 
 ### Phase 1.55: Cross-Check Against Active Workflows (mandatory before finalizing a REJECT)
 
@@ -140,6 +144,16 @@ If skipped when it should have fired: mark the report `Phase 1.6: not run` — t
 1. **One-sentence core insight** — what problem this tool/pattern solves and the design axis of that solution, in one sentence. Not "what it does" but "what it sees differently."
 2. **Overlap with existing assets** — state explicitly if the philosophy is already absorbed elsewhere (e.g. "same axis as our X pattern's Y approach"). If it's a genuinely new insight, flag it as a candidate to record separately.
 3. **Record even on REJECT** — output this as a separate field in the Phase 3 report regardless of verdict.
+
+### Phase 1.75: Quadrant Pre-Classification + Headroom Check
+
+**Fires**: before committing real effort to piloting an approved pattern.
+
+Before piloting, label the target failure the pattern addresses on a 2x2 grid:
+- **Coverage gap vs. capability entanglement** — is this a coverage gap (the system can already do this but doesn't — recoverable with better instructions), or capability entanglement (not reproducible via a procedural instruction; the gap is structural, not a wording problem)?
+- **Headroom** — does the target actually have room to improve (a measurable baseline failure/violation rate), or is the baseline already at the behavior you'd be enforcing?
+
+If there's no headroom — the baseline already does what the pattern would enforce — reject the candidate. A guard with nothing left to correct produces no improvement no matter how well it's built. This is a predictive check run *before* piloting; it's the forward-looking counterpart to Phase 2.6's retrospective abandonment check below.
 
 ### Phase 1.8: M-axis Surface Judgment + Stage V→T Ordering
 
@@ -182,8 +196,17 @@ If Phase 2 is "APPROVE → where does the new artifact go," this is "APPROVE →
 5. **Graft** — surgically edit + **inline source tag** (e.g. `[borrowed from X]`)
 6. **Regression gate** — if a maturity/quality score drops after the change, roll back to the snapshot
 7. **Frequency gate** — never evolve for a one-off pattern. Only for a pattern **observed 3+ times** (or a high-confidence recurring lesson)
+8. **Four-axis status, not a single label** — after adoption, don't report a single "ported" status. Track four separate axes: **value** (the benefit is verified), **transfer** (the model actually adopts it from the prompt/instruction alone, with no extra enforcement), **deployment** (a hook/rule enforces it mechanically), and **real_use** (it measurably improves real usage). A transfer failure is not grounds to discard the pattern — it's a signal to move it to a stronger enforcement surface (e.g. skill → hook).
 
 > **Forbids**: editing without a snapshot / adding without a delta check (= bloat) / missing the source tag / declaring completion without a regression check.
+
+### Phase 2.6: Trait-vs-Procedure Reclassification
+
+**Fires when**: adoption attempts for the same target behavior have failed across 3+ distinct surfaces (e.g. direct prompt transplant, rule reformulation, skill-ification).
+
+If the same target behavior fails across 3+ heterogeneous surfaces, stop treating each new failure as a "formulation defect" (just needs better wording next time). Reclassify it as a **non-transplantable trait** — a property intrinsic to the underlying model/system that no surface reformulation will instill — and stop further adoption attempts.
+
+**Exit condition**: once reclassified as a trait, record it as observed-but-not-adopted and do not retry a 4th surface.
 
 ### Phase 3: Output Report
 
@@ -215,7 +238,7 @@ Grounding: [✅ README+source actually confirmed / ⚠️ summary only, shallow 
 **Next step**:
   - APPROVE → create new (agent/skill) / sharpen existing / write directly
   - REVISE → simple missing info: ask the user once / a design decision is needed (new vs. sharpen-existing, architectural placement): route to a design/planning step first
-  - REJECT → reason + alternative (sharpen existing / split into separate work / hold)
+  - REJECT → reason + alternative (sharpen existing / split into separate work / hold) + **state a retry path**: distinguish whether this specific approach failed or the pattern itself is dead, and record which other surface could still work (e.g. hook instead of skill, rule instead of trigger). Don't discard without naming a retry path, or explicitly stating there is none.
 ```
 
 ---

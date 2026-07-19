@@ -67,7 +67,7 @@ Q6. Duplication — DRY violations, similar functions, scattered validation. Wro
 Q7. Performance — O(n²)+, unnecessary copies, N+1 queries, memory leaks. DB/API calls inside loops (N+1) + unnecessary full-table loads.
 Q8. Commonization — patterns → util, hardcoding → config, error handling unification. Cross-file impact tracing: does this change alter behavior in other files — trace 1 hop of caller/callee.
 Q9. Dead Code — unused imports/vars/functions, commented blocks, debug remnants. Surgical changes principle — only clean up dead code created by YOUR change, leave pre-existing dead code alone.
-**Q10. Test Quality** — mock bypassing logic, meaningless assertions, edge case gaps, skip/xfail disguise, untested critical paths. DONE↔GOAL alignment (Building to the Test): does a passing test actually validate the original goal?
+**Q10. Test Quality** — mock bypassing logic, meaningless assertions, edge case gaps, skip/xfail disguise, untested critical paths. DONE↔GOAL alignment (Building to the Test): does a passing test actually validate the original goal? Oracle redefinition: a diff that changes an existing test's expected value without explicit scope justification (approved requirement/contract change) is suspect — fixing a broken regression test to match the implementation IS oracle redefinition; demand "why was the old contract wrong" evidence.
 **Q11. Error Resilience** — empty catch, no retry, missing timeout, no circuit breaker, no graceful degradation, hidden fallbacks. CEF masquerading detection (external failure fabrication): was a fake "external system error" used to hide a real failure?
 **Q12. Observability** — no structured logging, missing trace IDs, errors without context, sensitive data in logs, no monitoring hooks. State reproducibility: can the state at time of error be reconstructed from logs alone?
 
@@ -118,7 +118,7 @@ LLMs facing unsolvable constraints **fabricate fake external failures** (system 
 [STEP 3] Summary Report
 
 ```
-🔬 CODE AUTOPSY v7.0 REPORT
+🔬 CODE AUTOPSY v7.1 REPORT
 
 Project: [name] | Stack: [detected] | Files: [N]
 Dominant Variable: [key factor]
@@ -176,4 +176,4 @@ Input: git diff or changed file list. Apply 12Q to **changed lines + blast radiu
 Label each finding: `new (this change)` vs `pre-existing`.
 Same hard cap + reachability gate.
 
-END OF CODE AUTOPSY v7.0
+END OF CODE AUTOPSY v7.1

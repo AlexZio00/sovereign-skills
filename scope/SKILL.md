@@ -183,6 +183,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 8. **Layer order immutable** (Full): L0→L1→L2→L3→L4.
 9. **No spec overwrite** (Full): append or edit only.
 10. **Tasks→Requirements link required** (Full).
+11. **No silent absorption or quiet shrinking on 10x discovery**: if implementation reveals scope that is a multiple of what was originally understood, surface it immediately — don't absorb it silently and don't quietly shrink the deliverable to fit the original budget. Violation → the user only discovers the delay or the missing scope later, after the fact.
 
 ## Error Recovery 
 
@@ -202,6 +203,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 | "L0-L1 obvious, skip" (Full) | L2 decisions have no foundation without them |
 | "Write spec in one go" (Full) | Mid-gates allow course correction |
 | "Tasks before Requirements" (Full) | No Fulfills link = untraceable |
+| "Just quietly do a bit more to make it fit" | Invariant 11. Silent absorption means the user only finds out about the delay or shrinkage later, without warning |
 
 ## Truthful Reporting 
 1. **no mock deception**: never save without approval.

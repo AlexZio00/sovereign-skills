@@ -1,6 +1,6 @@
 [English](../README.md) | [한국어](README.ko.md) | 🌐 **日本語** | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5
+# sovereign-skills v6.5.5
 
 Claude Codeプロジェクトのライフサイクル全体をカバーする20個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
 

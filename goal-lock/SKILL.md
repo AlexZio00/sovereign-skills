@@ -72,6 +72,12 @@ User specifies `/goal-lock quick`, or change fits Quick criteria. When unsure, u
 e.g.: `pytest tests/test_X.py -v` → 5 passed
 e.g.: `curl localhost:3000/api/health` → 200 OK
 
+**Adversarial criteria design**: when setting DONE EVIDENCE, ask first "how
+could an agent game this criterion." An unblocked loophole tends to get
+found eventually — threshold relaxation, mock wrapping, hardcoding all
+exploit a DONE EVIDENCE that was underspecified to begin with. Check for
+loopholes at design time, especially on long-running or repeated tasks.
+
 ### 3. CONTEXT
 [Current state · existing structure · prior decisions · dependencies · known constraints]
 
@@ -81,6 +87,11 @@ e.g.: `curl localhost:3000/api/health` → 200 OK
 ### 5. SCOPE
 - **Include**: [Editable area + required work]
 - **Exclude**: [Out of bounds · unrelated refactors · new features · production behavior changes]
+  - **Capability-spillover (flag, don't fix)**: other bugs, design/structural
+    improvement ideas, or similar edge cases noticed mid-task all stay in
+    Exclude. Report them separately (one inline line, or a follow-up task)
+    and return to the current GOAL. Stronger models trend toward "fixing it
+    all while I'm in here" — scope is a lock, not a ceiling.
 
 ### 6. CONSTRAINTS
 - New dependencies: allow/forbid
@@ -153,6 +164,7 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 | Structural fix reported as upgrade | Report boilerplate additions as "substantive improvements" |
 | Ralph Wiggum (early completion) | Skip VERIFY or run it partially, then jump to OUTPUT. Emit completion signal from an incomplete state |
 | CEF Thanatosis (external failure fabrication) | Evading constraints via unverified failure claims like "API error"/"file not found"/"permission denied". Failure reports must be accompanied by actual Bash/Read execution results |
+| Post-hoc abstention | Execute an irreversible action first, then declare "failed"/"on hold" after the fact. Abstention judgment is only valid before the commit-point gate — declaring it after the action has already landed is still success masquerading |
 
 **Language-specific patterns**:
 - Python: `@pytest.mark.skip`, `@pytest.mark.xfail`, `mock.return_value` abuse
@@ -223,6 +235,12 @@ Items not verified: `NOT RUN: [reason]`. Never "it should be fine."
 
 **GroundEval**: verify that verification tool calls **actually executed**. If the OUTPUT claims "tests passed" but no `pytest`/`npm test` Bash call exists in the tool history, the claim is ungrounded. Every verification claim in OUTPUT must trace back to an actual tool invocation.
 
+**Evidence channel branching**: not every DONE EVIDENCE produces an exit
+code. If DONE EVIDENCE is a visual artifact, confirm via rendered output
+(screenshot / extracted page text); if it's a read-only analysis, confirm
+via artifact comparison. Absence of an exit code is not an automatic FAIL —
+but regardless of channel, "no evidence produced" is still NOT RUN.
+
 **Non-code artifacts** (writing, analysis, reports, designs, prompts, spec
 docs) → REFINE: artifacts without an executable verification command are
 validated through a self-review loop.
@@ -252,6 +270,9 @@ validated through a self-review loop.
 - After goal achieved, **no additional refactoring.**
 - Clean up: temp code, debug prints, failed experiments, junk files.
 - Before reporting: **re-check scope + verification** — didn't touch Exclude, met DONE EVIDENCE.
+- **Comprehension check**: can the key change be explained in one sentence?
+  If not, flag `⚠️ High complexity — review recommended` in OUTPUT. Code you
+  can't explain is debt.
 
 #### OUTPUT
 ```markdown
@@ -310,6 +331,21 @@ per session if so (cap=1, to avoid infinite re-blocking).
   it blocks session termination itself even if the model forgets the discipline.
 - **On failure**: fail-open — if the progress file can't be read or the block-count
   file can't be written, let termination proceed without blocking (avoid false blocks).
+
+**Order gate (loophole closure)**: even when the check above passes (progress
+file's current step is empty), a second pass can reconstruct the
+deterministic order of tool calls from the session transcript — if no
+verification-class command (test runner / linter / typechecker / diff)
+appears *after* the last file-modifying edit, block once as
+UNVERIFIED-CHANGE. This closes the loophole where verification passes, the
+agent makes one more edit, and then declares completion without
+re-verifying. Shares the same per-session cap as the check above. Known
+limitation (document it, don't silently claim full coverage): file changes
+made through shell text-editing commands (e.g. `sed -i`) or custom
+verification scripts outside the standard test/lint/typecheck vocabulary
+aren't detected. A gate like this should carry a small self-test suite that
+is re-run whenever the gate itself is modified, to confirm the change didn't
+silently disable detection.
 
 This pattern implements the L2 (no tool provided / physical block) layer of a
 4-level safety framework: prompt rules alone (L1) can be forgotten by the
