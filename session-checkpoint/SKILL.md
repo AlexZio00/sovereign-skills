@@ -97,6 +97,7 @@ Scan session conversation to extract 4 entity types:
 - User-stated insights, judgments, frustrations
 - lessons.md candidates (repeated mistakes → behavior correction rules)
 - **lessons.md v2 metadata**: New lessons receive `> conf: 0.5 · seen: today · obs: 1` on next line after header. Existing lesson re-occurrence/application detected → `seen` → today, `obs +1`. When obs ≥ 3 accumulated → `conf +0.1` (max 0.9). User correction detected after violation → `conf -0.1` (min 0.3), `seen` → today
+- **regime/escalate_if optional fields** [borrowed from Governance Artifact Schema, arXiv 2607.16130]: If a lesson has been observed 3+ times under differing conditions (project / file type / session), append a one-line summary of that observed diversity to a `regime:` field. If a lesson has a clear re-evaluation trigger, append a one-line condition to an `escalate_if:` field. Both are appended after obs/conf/seen using a middle-dot separator — the parser is position-independent (regex-based). Both fields are optional (backward compatible with legacy lessons that lack them).
 
 **④ Staleness detection** → force MEMORY.md promotion
 - Items from context-log.md with `[ref:N]` ≥ 3 → review if permanent fact
@@ -215,6 +216,17 @@ User says "no" / "skip" → discard proposal, record in lessons.md `[YYYY-MM-DD]
 ```
 
 **`session_id` field**: Use ISO8601 timestamp as-is (e.g., `"2026-05-17T14:32:11"`). Idempotency check key for Phase 3.7. If same session_id already in jsonl, Phase 3.7 skips.
+
+**`outcomes` field (optional)** [borrowed from ultraprompt]: If the session invoked the goal-lock loop or the verification agent, record it to the extent traceable (if not traceable, omit the field entirely — not mandatory):
+```json
+"outcomes": [
+  {"target": "goal-lock|verification etc.", "firstAttemptPass": true, "reworkRounds": 0, "resolvedBy": "self|build-error-resolver|brainstorming|user"}
+]
+```
+- `firstAttemptPass`: whether VERIFY/VERDICT passed on the very first execution.
+- `reworkRounds`: how many times the Quality Flywheel (verification.md) or the goal-lock B4 retry loop ran.
+- `resolvedBy`: who ultimately resolved it — self / the escalated-to agent name / user.
+If no tracking info exists (e.g. goal-lock/verification were never invoked this session), omit the `outcomes` field entirely — an empty array is not required; this preserves append-only backward compatibility.
 
 **Growth Re-check (session continues past checkpoint)**:
 
@@ -472,7 +484,7 @@ Reflect Phase 1.5 extraction into files:
    - **Detect re-occurrence**: find same lesson header → `seen` → today, `obs +1`. When obs reaches 3, 6, 9, increment `conf +0.1` (max 0.9)
    - **Detect violation then correction**: `conf -0.1` (min 0.3), `seen` → today
    - **Hook-promotion flag**: when a lesson has `conf≥0.9` AND the violation is machine-detectable (pattern-matchable via regex/AST) AND `obs≥3` (3+ recurrences), add a `> hook_candidate: true` tag on the line after its header, and flag it in the Phase 3 output as "Hook-promotion candidate: {lesson title}". Flag only — actually authoring the enforcement hook requires separate approval.
-   - **Monthly cleanup** (1st of month or staleness detected): move `conf < 0.4 AND (today − seen) > 90days` → `tasks/_archive/lessons-pre-YYYY-MM.md`
+   - **Monthly cleanup** (1st of month or staleness detected): archive when EITHER condition holds — `conf < 0.4 AND (today − seen) > 90 days` (existing) **OR** `obs = 1 AND (today − seen) > 90 days` (added 2026-07-23 — for a lesson that sat untouched for 90+ days without a single confirmed recurrence; added because conf almost never drops below 0.4 in practice — it starts at 0.5-0.9 and rarely falls, so the conf-only condition essentially never fires). **Cross-reference check mandatory before archiving**: if the candidate lesson is currently cited as completion evidence in a document such as STATE.md, a handoff file, CLAUDE.md, or a roadmap, preserve it until that document is cleaned up first — real example (2026-07-23): of 5 archival candidates, 3 were preserved because `docs/DEVELOPMENT_ROADMAP.md` cited them as completion checkmarks, and only 2 were actually archived. → move to `tasks/_archive/lessons-pre-YYYY-MM.md`
 4. In MEMORY.md index, remove previous handoff references, standardize to LATEST
 5. **`~/.claude/STATE.md`** (global cross-project) — if this session changed state, must update:
    - PENDING item trigger satisfied / completed → delete line
@@ -506,6 +518,7 @@ Reflect Phase 1.5 extraction into files:
      {"ts":"ISO8601","date":"YYYY-MM-DD","skills":["skill1","skill2"],"agents":["subagent_type1"],"discarded":[{"skill":"X","reason":"discard_if"}],"source":"session-checkpoint-phase3.7-fallback","session_id":"YYYY-MM-DDTHH:MM:SS"}
      ```
    - `source` field distinguishes Phase 1.6.5 normal record vs Phase 3.7 fallback (useful for analysis)
+   - **`outcomes` field**: same as Phase 1.6.5 — see definition above.
    - **Skip condition**: skills + agents + discarded all empty → skip record (no session calls)
    - Create directory if missing: `mkdir -p ~/.claude/.harness/invocations/`
 

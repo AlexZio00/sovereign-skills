@@ -9,7 +9,7 @@ name: "pre-push"
 description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.7.0"
+  version: "3.8.0"
   author: "coinangel"
 user_invocable: true
 not_for:
@@ -20,6 +20,14 @@ see_also:
 ---
 
 <!--
+  v3.8.0 (2026-07-24) — dual scanner support: scripts/scan_secrets.py added alongside scan_secrets.pl
+                        (Python preferred when a Python runtime is available, Perl kept as fallback —
+                        both are maintained). Step 6 deterministic claim-verification sub-step (generic
+                        since v3.7.0) now cites a concrete example script/invocation, still optional and
+                        environment-specific. LICENSE.txt added for upstream (coinangel/claude-pre-push-skill)
+                        attribution. Note: scan_secrets.py's pattern coverage has diverged from
+                        scan_secrets.pl since Python-side v2.2.0/v2.3.0 evasion-hardening (see Step 1
+                        parity note) — reported, not reconciled, in this release.
   v3.7.0 (2026-07-18) — Step 6: cross-bundle joint pass (catches changes fragmented across bundles that
                         look safe in isolation) + deterministic claim verification (optional, checks
                         finding citations against the actual diff) added. Step 7: three-state false-positive
@@ -81,6 +89,8 @@ WARN-only — a smoke failure does not block push (avoids introducing a new hard
 
 Run everything in **one bash call** — variables share the same shell session, so `$STAGED_DIFF` is reused for the secrets scan without a second `git diff` invocation.
 
+**Scanner selection**: prefer `scan_secrets.py` when a Python runtime is available, otherwise fall back to `scan_secrets.pl` — both are maintained. Python needs no extra runtime install in most environments, but this package started as a Perl-based scanner, so both implementations are kept for compatibility.
+
 ```bash
 STAGED_FILES=$(git diff --staged --name-only)
 STAGED_DIFF=$(git diff --staged)
@@ -88,9 +98,18 @@ DIFF_LINES=$(echo "$STAGED_DIFF" | wc -l | tr -d ' ')
 FILE_COUNT=$(echo "$STAGED_FILES" | grep -c . || echo 0)
 CURRENT_BRANCH=$(git branch --show-current)
 SCAN_START=$(date +%s)
-SCAN_SCRIPT=$(find ~/.claude -name "scan_secrets.pl" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
-SECRETS_OUTPUT=$(echo "$STAGED_DIFF" | perl "$SCAN_SCRIPT")
-SECRETS_EXIT=$?
+SCAN_SCRIPT_PY=$(find ~/.claude -name "scan_secrets.py" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
+SCAN_SCRIPT_PL=$(find ~/.claude -name "scan_secrets.pl" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
+if [ -n "$SCAN_SCRIPT_PY" ] && command -v python >/dev/null 2>&1; then
+  SECRETS_OUTPUT=$(echo "$STAGED_DIFF" | python "$SCAN_SCRIPT_PY")
+  SECRETS_EXIT=$?
+elif [ -n "$SCAN_SCRIPT_PL" ]; then
+  SECRETS_OUTPUT=$(echo "$STAGED_DIFF" | perl "$SCAN_SCRIPT_PL")
+  SECRETS_EXIT=$?
+else
+  echo "🚨 No scanner found (scan_secrets.py or scan_secrets.pl) — secrets scan unavailable, push blocked"
+  SECRETS_EXIT=1
+fi
 SCAN_TIME=$(($(date +%s) - SCAN_START))
 echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | Scan: ${SCAN_TIME}s"
 [ $SECRETS_EXIT -ne 0 ] && echo "$SECRETS_OUTPUT"
@@ -99,6 +118,8 @@ echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | S
 The scanner (`scripts/scan_secrets.pl`) covers **12 patterns** across two categories:
 - **Credentials** (f1–f10): AWS keys, private keys, connection-string passwords, hardcoded assignments (quoted/unquoted), platform tokens (Slack, GitHub 6 types, Stripe live), Dockerfile ENV secrets, Google/Gemini API keys, npm auth tokens, LLM provider keys (Anthropic/OpenAI/HuggingFace/Replicate/Groq), Azure Storage/SAS/connection strings.
 - **Code integrity** (f_merge): unresolved merge conflict markers.
+
+**Parity note**: `scripts/scan_secrets.py` began as a straight port of this scanner but has since received independent anti-evasion hardening (Unicode/homoglyph normalization, reversed-line re-scan, additional coverage such as Slack webhook URLs) not yet back-ported to the Perl version — the two implementations are **not** guaranteed to have identical pattern coverage. Treat `scan_secrets.py` as the more complete/current scanner where they diverge.
 
 **Design note**: the scanner intentionally scans only **added (`+`) lines**, not removed (`-`) lines — this avoids blocking commits that are *removing* a secret. Merge conflict markers are an exception and checked on all lines.
 
@@ -264,7 +285,7 @@ In large changesets, agents choosing which files to read on their own leads to c
 2. **One reviewer per bundle**: dispatch code-reviewer once per bundle — each agent receives **only its bundle's diff** (isolated context, never send full diff). Parallel cap 5 — if 6+ bundles, batch in groups of 5.
 3. **Coverage validation (deterministic)**: before dispatch, verify `union of bundle files == all of $STAGED_FILES` by count. Mismatch → add missing files to final bundle. Never dispatch without this check.
 4. **Cross-bundle joint pass**: after all per-bundle reviews complete, forward the union of each bundle's finding-list summary to a single reviewer (code-reviewer) for one final pass across bundle boundaries. This catches fragmentation — a change deliberately or accidentally split across bundles can look safe in each isolated review but be unsafe once combined. Do not declare a large-diff review complete without this joint pass.
-5. **Deterministic claim verification** (optional, if your setup has a claim-verification script): save the joint-pass output (finding list with file/line-range citations) to a file, then run the script against it. It should check, per finding: (a) the cited file exists in the staged diff, (b) the cited line range overlaps the diff hunk, and (c) an optional grep cross-check passes — labeling each finding `CONFIRMED` or `UNVERIFIED-CLAIM`. Keep `UNVERIFIED-CLAIM` findings open for re-review before Step 7 Gate Check — do not auto-downgrade them. No such script → skip this sub-step, prose-only claims stand as reported.
+5. **Deterministic claim verification** (optional, environment-specific): save the joint-pass output (finding list with file/line-range citations — e.g. `【F:path†Lstart-Lend】`-style anchors) to a file, then run a claim-verification script against it if your setup has one — for example `python "$HOME/.claude/scripts/verify_review_claims.py" --review <finding-list-file> --repo-root .`. It should check, per finding: (a) the cited file exists in the staged diff, (b) the cited line range overlaps the diff hunk, and (c) an optional grep cross-check passes — labeling each finding `CONFIRMED` or `UNVERIFIED-CLAIM`. Keep `UNVERIFIED-CLAIM` findings open for re-review before Step 7 Gate Check — do not auto-downgrade them. This script is optional and environment-specific: if `~/.claude/scripts/verify_review_claims.py` (or your own equivalent) is not present, skip this sub-step and proceed with the cross-bundle joint pass alone; note the skip in the Step 8 report.
 6. **Conditional agents** (security/database/refactor): follow existing trigger rules, but only pass diff for bundles matching those triggers.
 
 Small diff (≤500 lines AND ≤10 files): use existing approach, send full diff to each agent. Bundling overhead not needed.

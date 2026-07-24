@@ -6,6 +6,18 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.6 — 2026-07-24
+
+Refinement release — no skills added or removed; existing skills sharpened.
+
+### Changed
+- **eval-leakage-audit**: 13→17-pattern taxonomy — respawn masking (state-snapshot scoring lets a respawn/reset hide a failure), pseudo-replication (probe cells from the same arm miscounted as independent n), stimulus-calibration gap (the grader is fine but the test stimulus never elicits the target behavior), unaudited cost-saving skips (skipped checks left unaudited indefinitely).
+- **goal-lock**: an S7 stop rule — STOP before forcing an implementation through when execution evidence (a failing test, a broken existing contract) already contradicts an explicit user instruction, with no post-hoc autonomous "fix" allowed afterward; a B1.1 5-tier evidence-rigor ladder (executed > integration-tested > unit-tested > typed > reasoned) with mandatory `verified:`/`unverified:` tagging, failure-first reporting order, and banned hedge phrases; a "layer laundering" success-masquerade pattern (narrating a unit-test pass as if the user-facing feature works); an evidence-rigor pre-spec note for DONE EVIDENCE involving concurrency/benchmark/long-running claims.
+- **full-audit**: a composite-accumulation-gate — flags death-by-thousand-cuts risk when the same file/module accumulates 3+ UNCERTAIN or 5+ combined UNCERTAIN+NIT findings even though each was individually dismissed; an Assumption Ledger for coverage maps whose CONFIRMED verdicts rest on an unverified assumption (5-state table, downgrades to PARTIAL when a high-materiality assumption is unresolved).
+- **session-checkpoint**: optional `regime`/`escalate_if` lesson metadata fields; an optional `outcomes` field tracking first-attempt-pass rate, rework rounds, and resolvedBy for goal-lock/verification loops; a second lessons-archival OR-condition (`obs=1 AND >90 days idle`, since `conf<0.4` almost never fires in practice) plus a mandatory cross-reference check before archiving a lesson still cited as completion evidence elsewhere.
+- **code-autopsy** → v7.2: a preferred code-smell vocabulary for Q1 findings (Long Method, Feature Envy, Data Clump, etc.); a concrete-failure-scenario requirement (a finding without one is a style opinion, not a defect); object-level authorization added to Q5; expanded network/DB/streaming/async/cache checks added to Q7; a shallow-module deletion-test + ADR-conflict check added to Q8; a numeric confidence-threshold system (security ≥60, other categories <80 excluded from the verdict, Quick Mode lowers the non-security floor to 70); an outcome-ceiling-to-process-metric switch for when compared implementations tie on outcome.
+- **pre-push** → v3.8.0: ships `scan_secrets.py` alongside the existing `scan_secrets.pl` (Python preferred when a Python runtime is present, Perl as fallback), plus `LICENSE.txt` restored for upstream (coinangel/claude-pre-push-skill) attribution. Known gap surfaced by this release: the two scanners' pattern coverage is not identical — the Python port adds an f13 Slack-incoming-webhook check the Perl version lacks, and several shared patterns (f1/f2/f4a/f4b/f6/f8/f9/f10) cover a narrower or wider set of variants depending on which implementation runs. Not yet reconciled — tracked as follow-up.
+
 ## v6.5.5 — 2026-07-18
 
 Refinement release — no skills added or removed; existing skills sharpened.

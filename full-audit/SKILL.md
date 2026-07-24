@@ -66,6 +66,7 @@ Personally re-verify every reviewer report before classifying. Common false-posi
 - **"Already exists but reported missing"**: any reported "gap" must be re-confirmed to actually be missing via grep before being accepted
 - **Historical notation mistaken for staleness**: an original-version marker or changelog entry is history, not staleness — don't "fix" it
 - **Number conflicts**: reviewer's number vs. the Phase 1 deterministic number → deterministic wins
+- **Composite-accumulation-gate (death-by-thousand-cuts guard)** ([borrowed from PHP-AIO, arXiv 2607.15944v1]): even when every individual finding is separately dismissed as FALSE-POSITIVE/UNCERTAIN/NIT, if the same area (same file/module/component) accumulates 3+ UNCERTAIN findings, or 5+ combined (UNCERTAIN+NIT) findings, flag it separately as an "individually-passed, cumulatively-risky" signal — passing each individual threshold does not mean the composite threshold is also safe (structurally identical to the CRITICAL hard-cap principle in `agents/code-reviewer.md`). A flagged area is not promoted to CONFIRMED, but must be listed at least once in the Phase 4 addition bucket so the user sees it. [The 3/5 thresholds are initial estimates, subject to recalibration once operational data accumulates.]
 
 ## Phase 4: Apply Fixes and Additions Separately
 - **Fix bucket** (apply immediately): stale numbers, dead references, policy violations, broken parsing — plain factual corrections
@@ -76,6 +77,7 @@ Personally re-verify every reviewer report before classifying. Common false-posi
 Create or update a coverage-map file (same-day re-run = append a pass section):
 - Table: `Area | Method label | Findings/actions` — three method labels required: **[deterministic]** / **[LLM judgment]** / **[close read]**
 - **State remaining gaps explicitly** (what wasn't reviewed, bounded checks, intentional exclusions) — a map with zero remaining gaps deserves suspicion
+- **Assumption Ledger** ([borrowed from Uncertainty Ledger, arXiv 2607.16112], conditional addition): if a Phase 3 CONFIRMED verdict depends on an unverified assumption, add a separate table to the map — `Assumption/Parameter | Status | Evidence needed | Materiality (would it flip the verdict?) | Owner`. Five status values: **externally-anchored** (verified by a third party) / **author-calibrated-prior** (an adjusted assumption) / **assertion-only** (unsupported claim) / **open-proposal** (a TODO) / **open-question**. If one or more rows are assertion-only, open-proposal, or open-question AND materiality is High (flipping it changes the verdict), downgrade the final label to `PARTIAL` and name the owner who must resolve it (user / follow-up investigation / tooling). If the CONFIRMED conclusion does not depend on any unverified assumption, the Assumption Ledger may be omitted — if omitted, state "Assumption ledger: N/A (reason)" as one line.
 - End with 1-3 lines on what methodology was established or fixed during this audit
 
 ---
@@ -126,7 +128,8 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 | "I checked this area last week, skip it this time" | Diff-based scope reduction is fine; silently skipping with no label is coverage inflation |
 | "It's a small addition, let's just fix it along the way" | Violates fix/addition separation (Invariant 3). Batch additions and propose them together |
 | "I'll do the map later if there's time" | An audit with no map resets to zero for the next session (Invariant 4) |
+| "A few UNCERTAINs here and there do not matter" | Individual passes do not hide accumulated risk — 3+ in the same area triggers the composite-accumulation-gate flag (Phase 3) |
 
 ## Output
 - Updated **coverage map** file
-- Chat report: list of applied fixes (with line anchors) / list of proposed additions / verification results (✅⚠️❌) / final status label / remaining gaps
+- Chat report: list of applied fixes (with line anchors) / list of proposed additions / verification results (✅⚠️❌) / final status label / remaining gaps / Assumption ledger (if applicable)

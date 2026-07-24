@@ -78,6 +78,14 @@ found eventually — threshold relaxation, mock wrapping, hardcoding all
 exploit a DONE EVIDENCE that was underspecified to begin with. Check for
 loopholes at design time, especially on long-running or repeated tasks.
 
+**Evidence-Rigor Pre-spec** [borrowed from ultraprompt]: when DONE EVIDENCE
+includes concurrency, benchmark, p99-style statistics, or long-running-process
+claims, pre-check the verification agent's evidence-rigor rules (N≥5 repeats,
+before/after symmetry, evidence-scope matching, flaky-means-new-bug,
+positive-signal-required) and write DONE EVIDENCE to already satisfy them —
+this prevents a later insufficient-evidence rejection at the verify step by
+fixing the design at spec time instead.
+
 ### 3. CONTEXT
 [Current state · existing structure · prior decisions · dependencies · known constraints]
 
@@ -165,12 +173,29 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 | Ralph Wiggum (early completion) | Skip VERIFY or run it partially, then jump to OUTPUT. Emit completion signal from an incomplete state |
 | CEF Thanatosis (external failure fabrication) | Evading constraints via unverified failure claims like "API error"/"file not found"/"permission denied". Failure reports must be accompanied by actual Bash/Read execution results |
 | Post-hoc abstention | Execute an irreversible action first, then declare "failed"/"on hold" after the fact. Abstention judgment is only valid before the commit-point gate — declaring it after the action has already landed is still success masquerading |
+| Layer laundering | Narrating a unit-test pass as if it proves the user-facing feature actually works — laundering one evidence layer as a higher one |
 
 **Language-specific patterns**:
 - Python: `@pytest.mark.skip`, `@pytest.mark.xfail`, `mock.return_value` abuse
 - JavaScript: `test.skip`, `.only` left in, `jest.fn()` chains bypassing real logic
 - Go: `t.Skip()`, `//go:build ignore`
 - Rust: `#[ignore]`, `#[should_panic]` misuse
+
+### B1.1 Evidence-Rigor Ladder + Reporting Order [borrowed from ultraprompt]
+
+**5-tier evidence ladder** — no claim can outrank this ladder:
+`executed (actually observed running) > integration-tested > unit-tested > typed (type-checked only) > reasoned (reasoning only)`
+
+Every claim must state its tier: `verified: {concrete evidence}` or
+`unverified: {reason}`. An unlabeled "it's done"-type claim is not allowed.
+
+**Failure-first reporting order**: describing successes first and only
+mentioning failures afterward is itself an anti-pattern ("burying the
+failure") — report failed/unverified items first, successes after.
+
+**Banned hedge phrases**: "should work", "probably fine", "this looks right"
+and similar are explicitly banned. If unverified, write `unverified: {reason}`
+instead.
 
 ### B2. PRIORITY (on conflict)
 
@@ -304,6 +329,14 @@ validated through a self-review loop.
 | S4 | Destructive / external side effect needed | "DB deletion/API call/push needed. Proceed?" |
 | S5 | Insufficient confidence in root cause | "Not sure if cause is A or B" |
 | S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | "Same problem repeating. Need a different approach" — no auto-retry, escalate to human here |
+| S7 | Already aware that execution evidence (a deterministic oracle — a failing test, a broken existing contract) contradicts an explicit user instruction — an awareness-is-not-resistance response [borrowed from Blind Obedience 07385] | STOP before forcing the implementation through: "The instruction contradicts execution evidence: [evidence]. Proceed anyway?" Even after approval, do not paper over it with a later self-directed autonomous fix (a Ghost Error cannot be recovered by iterative post-hoc correction) — report the outcome exactly as it is |
+
+> **S7 scope**: "execution evidence" applies only to a code context where a
+> deterministic oracle exists (tests, type checker, an existing API/contract).
+> The REFINE path (non-code deliverables — prose, analysis, design docs) is
+> out of scope, since there is no objective answer to contradict. S7 is the
+> epistemic opposite of S5 (uncertain root cause) — S7 blocks a model that is
+> confident yet wrong from complying anyway.
 
 ### B5. Long-running Tasks
 
