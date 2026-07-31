@@ -90,6 +90,30 @@ This skill runs on the following assumptions (per reasoning-standard principles)
 
 ## Workflow
 
+### Step 0 — Deterministic pre-filter
+
+Before the LLM read, run two grep-based scans over the same starting-point
+files Step 1 targets (CLAUDE.md, MEMORY.md, skills/agents/commands) — a
+lightweight Glob/Grep pass that doesn't need Step 1's full `@import`
+expansion to run first. No new tools, same Read/Glob/Grep this skill already
+uses. Sorting "what can be counted mechanically" from "what needs a judgment
+call" keeps the model's read in Step 2 focused and cheap.
+
+1. **Ambiguous-wording density scan** — grep for a fixed hedge-phrase list
+   ("use your judgment", "as appropriate", "depending on the situation", "if
+   needed", "generally", open-ended delete/override instructions with no
+   explicit scope) and count hits per file. Files above the density threshold
+   become pre-flagged Risky/Ambiguous candidates.
+2. **CLAUDE.md-as-machine-prompt linter** — CLAUDE.md is a machine prompt, not
+   documentation prose. Flag paragraphs that read as background/rationale with
+   no attached actionable instruction (no imperative verb, no explicit scope,
+   nothing a model could act on) — that shape is itself Risky/Ambiguous.
+
+Both scans produce **supporting evidence only** for the Risky/Ambiguous row in
+Step 2 — a high hit-count raises suspicion, it doesn't decide inclusion. The
+confidence ≥80% gate stays the actual gate (see Invariants); Step 0 output
+without a corroborating LLM read is not a finding on its own.
+
 ### Step 1 — Gather what gets loaded
 
 Collect every file Claude Code actually loads or can reference in this
@@ -132,7 +156,9 @@ Read every audited file and look for **only** these three things:
 | **Risky / Ambiguous** | An instruction that's open to multiple readings, or dangerous if followed the wrong way (e.g. "use your judgment", "depending on the situation", delete/override instructions with no explicit scope) |
 
 Every finding needs **evidence**: where the claim was made (`file:line`) and
-the counter-evidence (`file:line` or a quote of the current code).
+the counter-evidence (`file:line` or a quote of the current code). No
+resolvable anchor → label it `asserted_without_anchor` and cut it (see
+Invariants).
 
 **If confidence is low, drop it. False positives are this tool's biggest
 enemy.**
@@ -202,8 +228,11 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 
 1. **Evidence required**: every finding cites both sides — `file:line` for the
    claim and `file:line` for the counter-evidence. No finding without
-   evidence. Violation → impossible to trace what the tool actually based its
-   judgment on, so a human can't decide whether to fix it.
+   evidence. A candidate that can't produce a resolvable anchor is labeled
+   `asserted_without_anchor` and cut before the report is written — the label
+   makes the cut auditable instead of a silent drop. Violation → impossible to
+   trace what the tool actually based its judgment on, so a human can't decide
+   whether to fix it.
 
 2. **Exclude confidence < 80%**: items that are merely suspected, not
    confirmed, are left out of the report. Violation → false positives

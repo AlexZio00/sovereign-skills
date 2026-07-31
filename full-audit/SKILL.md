@@ -1,7 +1,26 @@
 ---
 name: full-audit
-description: "Exhaustive audit of an entire area (codebase, docs, memory, skills, DB, config). Triggers: '/full-audit', 'audit everything', 'full audit', 'find every gap'."
+description: "Exhaustive, denominator-driven audit of an entire area (codebase, docs, memory, skills, DB, config). Runs a 6-phase pipeline: scope agreement + prior-map diff -> deterministic sweep (counts/versions/paths/parsing plus cross-index reconciliation) -> parallel read-only content review (citations forced, rule dry-run) -> judgment (false-positive/UNCERTAIN triage) -> fix-vs-addition split (fixes applied immediately, additions proposed only) -> coverage-map recording. NOT for single-file or single-question checks (use a regular code review instead) or harness-maturity scoring against a fixed checklist (use a dedicated scoring tool instead). Triggers: '/full-audit', 'audit everything', 'full audit', 'find every gap'."
+skill_type: audit-orchestrator
 user_invocable: true
+triggers:
+  - "/full-audit"
+  - "audit everything"
+  - "exhaustive audit"
+  - "full audit"
+  - "double-check everything"
+  - "find every gap"
+depends_on:
+  skills: []
+  agents: []
+  files: []
+  # self-contained: Phase 2 spawns ad-hoc read-only reviewer subagents rather than
+  # calling a fixed named skill/agent, and this skill ships with no bundled files of
+  # its own — nothing environment-specific to declare here.
+concurrency_profile:
+  parallel_safe: true
+  parallel_phase: "Phase 2 content review only (read-only reviewers, unlimited fan-out)"
+  serialized_phases: "Phase 1 sweep and Phase 4 fix-bucket edits run sequentially, not concurrently with Phase 2"
 not_for:
   - "Single-file or single-question checks (use a code review instead)"
   - "Harness maturity scoring with a fixed checklist (that's a different, narrower tool)"
@@ -86,11 +105,11 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 
 | Does | Does NOT |
 |------|----------|
-| Deterministic sweep (counts/versions/paths/parsing) | Compute a harness maturity score (a different tool's job) |
-| Dispatch parallel content review (read-only) | Grant reviewers edit access |
-| Apply fix-bucket edits immediately (stale/dead-refs/violations) | Execute addition-bucket changes without approval (propose-only) |
-| Record the coverage map | Declare "100% done" while hiding remaining gaps |
-| Read the prior coverage map and diff | Silently include areas the user excluded |
+| [BASH] Deterministic sweep (counts/versions/paths/parsing) | Compute a harness maturity score (a different tool's job) |
+| [AGENT] Dispatch parallel content review (read-only) | Grant reviewers edit access |
+| [EDIT] Apply fix-bucket edits immediately (stale/dead-refs/violations) | Execute addition-bucket changes without approval (propose-only) |
+| [WRITE] Record the coverage map | Declare "100% done" while hiding remaining gaps |
+| [READ] Read the prior coverage map and diff | Silently include areas the user excluded |
 
 ## Safety Layers
 

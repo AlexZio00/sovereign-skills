@@ -14,6 +14,7 @@ depends_on:
   files:
     - ~/.claude/projects-registry.md
     - ~/.claude/OVERVIEW.md
+    - "scripts/generate_overview.py"
 concurrency_profile:
   read_only: false
   concurrency_safe: false
@@ -35,7 +36,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 
 1. **`session-handoff-LATEST.md` is a hint, not a fact** — parsed results (ts/ctx) are carried over as-is without fact-checking. The generated overview reflects "what each project last reported," not "current ground truth."
 2. **Registry is opt-in** — never pull in unowned projects or auto-scanned directories. Only projects explicitly listed in `projects-registry.md` are in scope.
-3. **AUTO block generation is fully deterministic** — a regex-based script (`generate_overview.py`) does all the parsing/rendering. The model only triggers execution and reports the result — no LLM inference in the parsing/rendering logic itself.
+3. **AUTO block generation is fully deterministic** — a regex-based script (`scripts/generate_overview.py`) does all the parsing/rendering, including neutralizing markdown-table-breaking characters in the text it pulls from other projects' handoffs and recovering cleanly from a mangled/missing marker pair instead of crashing. The model only triggers execution and reports the result — no LLM inference in the parsing/rendering logic itself.
 
 ## Trigger
 - `/project-overview`
@@ -49,15 +50,25 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 ## Workflow
 
 1. Confirm `~/.claude/projects-registry.md` exists. If missing, return BLOCKED: "registry missing — create it first."
-2. Run `python ~/.claude/skills/project-overview/scripts/generate_overview.py` (no arguments — uses default paths).
+2. Locate and run this skill's own script (`scripts/generate_overview.py`, no arguments — it uses the default registry/output paths on its own):
+   ```bash
+   OVERVIEW_SCRIPT=$(find ~/.claude -name "generate_overview.py" -path "*/project-overview/scripts/*" -type f 2>/dev/null | head -1)
+   if [ -n "$OVERVIEW_SCRIPT" ]; then
+     python "$OVERVIEW_SCRIPT"
+   else
+     echo "BLOCKED: generate_overview.py not found under ~/.claude"
+   fi
+   ```
 3. Check the exit code:
    - `0` → report the stdout `WORKING: N project(s) -> <output>` line verbatim to the user.
    - `1` → report the stderr `BLOCKED: ...` message verbatim to the user. Never proceed on assumption.
 4. On success, tell the user the `~/.claude/OVERVIEW.md` path.
 
-> ⚠️ This SKILL.md documents the workflow only. The `generate_overview.py`
-> deterministic parsing script is out of scope for this initial port — flag
-> to the user separately if scripting it is needed.
+## Output
+
+- **Chat report**: relay the script's own stdout/stderr line verbatim (`WORKING: N project(s) -> <path>` or `BLOCKED: ...`) — don't paraphrase it or invent a project count of your own.
+- **Disk write**: the script writes exactly one file, and only the `AUTO:START`~`AUTO:END` region inside it — `~/.claude/OVERVIEW.md`. Nothing else on disk is touched, and text outside the markers in that file is never rewritten.
+- **Final status label**: state one of `WORKING` / `PARTIAL` / `BLOCKED` (definitions in Truthful Reporting below) at the end of every run — never leave it implicit.
 
 ## Scope Boundary
 
@@ -83,6 +94,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 2. **Only scan explicitly registered projects**: never add auto directory-discovery logic to this script. Violation → information about unowned projects leaks into the map (Output Disclosure Boundary violation).
 3. **STATE.md is absolutely untouched**: no code path in this skill reads or writes `STATE.md`. Violation → direct Scope Boundary violation, risk of contaminating the cross-project blocker list.
 4. **Idempotency**: re-running with identical input (unchanged registry + handoff files) must produce a byte-identical AUTO block. Violation → undermines the entire "deterministic auto-generation" design goal.
+5. **Cross-project text is data, not markup**: `ts`/`ctx` values come from another project's handoff file and are untrusted — a stray `|` or newline in there must not be allowed to split table columns or break rows. Violation → a single malformed handoff field corrupts the whole table for every other project listed in it.
 
 ## Error Recovery
 
@@ -90,6 +102,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 |---------|---------|--------|
 | `missing_data` | `projects-registry.md` missing or empty | Return BLOCKED, instruct user to create/add to the registry |
 | `tool_failure` | Failed to read a specific project's handoff file (permissions/path) | Mark only that project as "no snapshot", continue the rest (partial failure doesn't block the whole run — explicit "no snapshot" labeling keeps it transparent per no-silent-brokenness) |
+| `input_error` | `OVERVIEW.md` has a mangled marker pair (`AUTO:END` appears before `AUTO:START`, or either is missing/orphaned from a manual edit) | Don't crash and don't guess at a splice point — treat it as no markers present: re-append a fresh `AUTO:START`/`AUTO:END` pair at the end of the file, with all existing content preserved above it untouched |
 | `logic_inconsistency` | Integration test finds AUTO block mismatch on re-run | Script regression — revert the commit and re-review the implementation |
 
 ## Truthful Reporting

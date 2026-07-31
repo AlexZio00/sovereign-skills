@@ -2,6 +2,7 @@
 ---
 name: clean-room
 description: "Use when a task mixes safety-adjacent material (stealth, scraping, privacy, IP, licensing, security) with genuinely safe work, or the moment you notice yourself about to hedge, dilute, silently drop, or brace for a refusal on part of a request. Triggers: 'strip the risky part out', 'just the safe part', 'carve this out', 'clean-room this'."
+tools: Read, Grep, Glob, Write, Agent
 user_invocable: true
 ---
 
@@ -56,11 +57,11 @@ Report the output together with a **descope ledger** — for every carved-out it
 
 | Does | Does NOT |
 |------|----------|
-| Scan the request and adjacent inputs for safety-adjacent elements | Control model routing/fallback/fixed-model selection (harness territory) |
-| Write a descope ledger (after RUN completes; user-facing version states high-level reasons only) | Explain operational detail of a descoping technique |
-| Dispatch a fresh-context subagent with the carved prompt only | Give the subagent the original risky request or the carving reasoning, or allow it to access archive files / session-transcript search tools |
-| Run an adversarial VERIFY pass (both the output and the CARVE judgment) | Enter RUN with an unapproved gray-zone item |
-| Route a bright-line dispute to a fresh-context CARVE-appeal | Let the same pressured session reconsider itself |
+| [READ] Scan the request and adjacent inputs for safety-adjacent elements | Control model routing/fallback/fixed-model selection (harness territory) |
+| [WRITE] Write a descope ledger (after RUN completes; user-facing version states high-level reasons only) | Explain operational detail of a descoping technique |
+| [AGENT] Dispatch a fresh-context subagent with the carved prompt only | Give the subagent the original risky request or the carving reasoning, or allow it to access archive files / session-transcript search tools |
+| [READ][AGENT] Run an adversarial VERIFY pass (both the output and the CARVE judgment, the latter via an independent fresh-context re-sweep) | Enter RUN with an unapproved gray-zone item |
+| [AGENT] Route a bright-line dispute to a fresh-context CARVE-appeal | Let the same pressured session reconsider itself |
 
 ## Rationalization Table
 

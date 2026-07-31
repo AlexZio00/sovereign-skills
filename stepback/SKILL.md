@@ -7,6 +7,9 @@ depends_on:
   skills: []
   agents: []
   files: []
+concurrency_profile:
+  read_only: true
+  parallel_safe: true
 tags: [meta, analysis]
 version: "1.0.0"
 source: "team-attention/hoyeon pattern"

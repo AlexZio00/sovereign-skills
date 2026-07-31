@@ -2,6 +2,7 @@
 name: next-action
 description: "Use when the user wants a next-action recommendation based on current state — reads handoff/git/lessons/STATE and proposes top-3 by impact. Trigger: '/next', 'what should I do next', 'next action'. Proposes only, never executes."
 user_invocable: true
+tools: Read, Bash, Glob
 not_for:
   - "Right after session start (session-start already outputs state)"
   - "User already gave a specific task"
@@ -100,16 +101,16 @@ Output and stop immediately. If the user picks a number, start that work.
 
 | Failure Type | Recovery |
 |---------|--------|
-| `tool_failure` | Skip the source that failed to read, propose from the rest |
-| `missing_data` | If both handoff and STATE are absent, propose from git status alone (minimal mode) |
+| `tool_failure` | Skip the source that failed to read, propose from the rest (note: partial_read) |
+| `missing_data` | If both handoff and STATE are absent, propose from git status alone (note: minimal_mode) |
 
 ## Rationalization Table
 
 | Rationalization | Rebuttal |
 |--------|------|
-| "5 recommendations would be more useful" | Beyond 3 is choice overload. 3 is the optimal number for action conversion |
-| "Just executing right away is faster" | Violates Invariant 1. Proposal and execution are different skills' jobs |
-| "Handoff alone is enough, why check git too?" | Handoff is a past snapshot. Current git status is the real state |
+| "5 recommendations would be more useful" | Beyond 3 is choice overload. 3 is the optimal number for action conversion (note: cap_violation) |
+| "Just executing right away is faster" | Violates Invariant 1. Proposal and execution are different skills' jobs (note: scope_creep) |
+| "Handoff alone is enough, why check git too?" | Handoff is a past snapshot. Current git status is the real state (note: stale_source) |
 
 ## Truthful Reporting
 

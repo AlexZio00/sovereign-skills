@@ -7,9 +7,17 @@ not_for:
   - "Deep quality scoring/audit of a skill's content — this tracks usage, not quality"
 see_also:
   []
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - "scripts/skill_health_bucket.py"
+concurrency_profile:
+  read_only: false
+  concurrency_safe: false
 ---
 
-# /skill-ops v1.1
+# /skill-ops v1.2
 
 > Skill/agent ops hub — 3 modes: snapshot, usage, frequency. Merges skill-versioning + skill-health-report.
 
@@ -98,7 +106,13 @@ Per-skill rollup from JSONL over the last 30 days (default):
 - `last_seen` → last invocation date
 - **Correction count**: number of snapshots under `~/.claude/.harness/snapshots/{skill}/` = cumulative edit count for that skill. High edit frequency is a stability-watch signal
 
-### Phase 2: Classify Status
+### Phase 2: Classify Status (deterministic)
+
+Don't eyeball this against the criteria table — call the bucket classifier per skill instead:
+```bash
+python scripts/skill_health_bucket.py bucket --count {invocation_count_30d} --last-seen {last_seen_date} --discard-rate {discard_rate}
+```
+`--last-seen` and `--discard-rate` come from the Phase 1 rollup. The script is the source of truth for the label; the table below is reference only, for reading the output — not for manually re-deriving it.
 
 | Status | Criterion | Label |
 |------|------|------|
@@ -154,21 +168,26 @@ Calculate a per-skill quality score (S_Q) and identify the bottom quartile as op
 
 > ⚠️ Boundary: S_Q is an **operational signal** for "keep vs. retire this skill" — not a quality oracle. It measures usage plus a handful of structural checklist items, not whether the skill's content is actually good. Don't read a low S_Q as "this skill is badly written" — it may simply be under-used. Deep content-quality review of a skill's actual reasoning/instructions is a separate activity outside this skill's scope (see `not_for` above).
 
-### Phase 8: Quality Score Scan
+### Phase 8: Quality Score Scan (deterministic)
+
+Structure score, usage score, and their sum are computed by the script — never re-derive them by reading the checklist and eyeballing points. The bullets below are what each score *means*, not steps to apply by hand.
 
 1. **Load skill list**: `~/.claude/skills/*/SKILL.md` + `SKILLS_INVENTORY.md`
-2. **Structure score (0-5)**: based on Phase 3.5 Structural Checklist items
-   - Dominant Variable present (+1)
-   - Discard If present (+1)
-   - Invariants + violation consequence (+1)
-   - Scope Boundary has 2+ rows on each side (+1)
-   - Rationalization Table has 3+ rows (+1)
-3. **Usage score (0-5)**: based on invocations JSONL
-   - 5+ invocations in 30 days (+2) / 1-4 (+1) / 0 (0)
-   - Discard If trigger rate < 30% (+1) / ≥ 30% (0)
-   - Last modified within 30 days (+1) / within 90 days (+0.5) / older (0)
-   - Related lesson exists (correction history = usage evidence) (+0.5)
-4. **S_Q = structure + usage (0-10)**
+2. **Structure score (0-5)**:
+   ```bash
+   python scripts/skill_health_bucket.py structural --file <path to SKILL.md>
+   ```
+   Checks, +1 each: Dominant Variable present · Discard If present · Invariants has a violation-consequence clause · Scope Boundary has 2+ rows on each side · Rationalization Table has 3+ rows.
+3. **Usage score (0-5)**:
+   ```bash
+   python scripts/skill_health_bucket.py usage --invocation-count-30d {N} --discard-rate {F} \
+       --days-since-modified {N} [--has-related-lesson]
+   ```
+   Weights: 5+ invocations in 30 days (+2) / 1-4 (+1) / 0 (0) · Discard If trigger rate < 30% (+1) · last modified within 30 days (+1) or within 90 days (+0.5) · related lesson exists (correction history = usage evidence) (+0.5).
+4. **S_Q = structure + usage (0-10)**:
+   ```bash
+   python scripts/skill_health_bucket.py sq --structural {F} --usage {F}
+   ```
 5. **Bottom 25%** = optimization targets. Top 75% = keep as-is.
 
 ### Output
@@ -195,6 +214,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 | [READ] Parse invocations JSONL (tool_use only) | Read session prompt text |
 | [WRITE] health report / invocations JSON | Judge skill quality or decide deletion |
 | [BASH] Scan session JSONL for frequency rollup | Access project code or databases |
+| [BASH] Call `scripts/skill_health_bucket.py` for bucket/structural/usage/S_Q scoring | Manually re-derive those scores by eye |
 
 > Targets only `~/.claude/` global skills/agents. Project code version control is git's job.
 
@@ -226,6 +246,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 5. **No automatic deletion (Health)**: never delete/move files even at 0 usage. Report only. Violation → No Action default violation.
 6. **No logs ≠ unused (Health)**: sessions that skipped session-checkpoint may still have been used despite missing logs. Treat as Unknown. Violation → truthful-reporting violation.
 7. **Below threshold ≠ Dead (Health)**: Low (below threshold) and Dead (0x for 90+ days) are distinct. Violation → misclassifying an in-use skill.
+8. **Bucket/structure/usage/S_Q scores are computed via `scripts/skill_health_bucket.py`, never eyeballed**: counting is a job for the script, judgment (retire or not) stays with the user/LLM. Violation → scores drift silently between runs and stop being comparable.
 
 ## Truthful Reporting
 
@@ -243,3 +264,4 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 | "Skills at 0 usage can be auto-deleted" | Violates Invariant 5. Could be emergency-only, seasonal, or recently added. User decides |
 | "Months with no logs can just be treated as 0 invocations" | Violates Invariant 6. Must be treated as Unknown |
 | "High Discard If ratio → recommend immediate retirement" | Related to Invariant 7. The safeguard may simply be working correctly. Propose re-review only |
+| "The criteria table is simple enough to just eyeball" | Violates Invariant 8. Manual application drifts from the script's exact thresholds and regex logic — the same skill can score differently run to run |

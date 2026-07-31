@@ -1,6 +1,6 @@
 ---
 skill_type: lifecycle
-tools: Read
+tools: Read, Write
 triggers:
   - "/session-start"
   - "세션 시작"
@@ -10,6 +10,23 @@ triggers:
 name: session-start
 description: "Load handoff on session start, review lessons, output readiness signal. Triggers: '/session-start', 'start session'. Skip if: first session (no handoff), user requests 'start fresh', or standalone question unrelated to project context."
 user_invocable: true
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - memory/session-handoff-LATEST.md
+    - tasks/lessons.md
+    - memory/MEMORY.md
+    - memory/context-log.md
+    - ~/.claude/STATE.md
+    - ~/.claude/settings.json
+    - ~/.claude/settings.local.json
+    - ~/.claude/.harness/interventions/
+    - ~/.claude/memory/model-diff-ledger.md
+concurrency_profile:
+  read_only: true
+  concurrency_safe: true
+  destructive: none
 # (removed 2026-06-10) context: !cat — non-standard YAML tag, breaks parser. Handoff injection is handled by SessionStart hook
 not_for:
   - "First session (no handoff exists) -> start directly"
@@ -122,17 +139,20 @@ Flag one line per matching rule. Skip silently if file missing.
 
 > Trigger for converting accumulated model-tagged behavior observations into rules. Periodic reminder to digest model tag backlog into patterns → rules.
 
-Deterministic rollup (counting is mechanical):
-- Count `model:` field-bearing lessons in `tasks/lessons.md` + count `"model"` field-bearing entries in `~/.claude/.harness/interventions/*.jsonl`
-- Read `last-analysis: YYYY-MM-DD` header in `~/.claude/memory/model-diff-ledger.md` (if absent, use oldest model tag date as baseline)
-- **New tags** = count of tags with `seen`/`date` recorded after `last-analysis`
+Deterministic commands (run in order — each is a single grep/read, no manual scanning):
+1. `grep -c "model:" tasks/lessons.md` → `lessons_tagged` (0 if file missing)
+2. `grep -c '"model"' <each file in ~/.claude/.harness/interventions/*.jsonl>`, summed across files → `jsonl_tagged` (0 if directory missing)
+3. `grep "^last-analysis:" ~/.claude/memory/model-diff-ledger.md` → `baseline_date` (if the header or file is absent, fall back to the earliest `seen:`/`date:` value found in the two counts above)
+4. Count `seen:`/`date:` values dated after `baseline_date` across the same two sources → `new_tags`
+
+Fixed stdout format: `model_tags: total=N new=M days_elapsed=D` (`N` = `lessons_tagged` + `jsonl_tagged`; `D` = today − `baseline_date`; if `baseline_date` cannot be established, `days_elapsed=N/A`)
 
 Remind condition (both must be true):
-- `(today − last-analysis) ≥ 14 days` **AND** new model tags ≥ 5
-- → In Phase 5 `**Model analysis:**` line, output: `💡 Model-difference analysis recommended (N new tags / M days elapsed) — call "model analysis" to aggregate + promotion candidates`
+- `days_elapsed ≥ 14` **AND** `new_tags ≥ 5`
+- → In Phase 5 `**Model analysis:**` line, output: `💡 Model-difference analysis recommended (new=M / days_elapsed=D) — call "model analysis" to aggregate + promotion candidates`
 - If unmet (elapsed too short OR tag count too low) → **no output** (prevent premature analysis, avoid noise)
 
-Skip entirely if files/fields missing. If model tags still 0, entire Phase 2.2 produces no output (Phase 0 never ran = normal).
+Skip entirely if both source files/directories are missing. If `total=0`, Phase 2.2 produces no output (no model tags recorded yet — normal).
 
 ---
 
@@ -143,6 +163,13 @@ When loading handoff + lessons, apply a **sliding window** to prevent stale cont
 - **Older entries**: 1-line summary only (title + date + outcome)
 - **context-log.md**: entries older than 90 days with `ref:0` → skip (no one referenced them)
 
+Deterministic commands:
+1. `grep -c "^## " memory/context-log.md` → `total_entries` (0 if file missing)
+2. `grep -c "\[ref:0\]" memory/context-log.md` → `ref0_entries` (skip candidates; grep alone cannot test the 90-day age cutoff, so confirm age only on entries actually surfaced, not the whole file)
+3. `skipped` = `ref0_entries` that also pass the 90-day age check
+
+Fixed stdout format: `context_rot: total=N skipped=M rate=X%` (`X` = `M`/`N` × 100, 1 decimal; `rate=N/A` if `total_entries=0`)
+
 This prevents the "memory keeps growing but quality keeps dropping" pattern where old context dilutes recent priorities.
 
 ### 2.4 Autoimmunity Rate
@@ -151,17 +178,18 @@ The rate at which harness gates (verification/pre-push/goal-lock) incorrectly
 block normal behavior. Excessive intervention is a signal that the harness
 itself is a net negative (the harness paradox).
 
-Deterministic rollup:
-- Scan `~/.claude/.harness/interventions/*.jsonl` entries from the last 30 days
-- Count `rejection`-type entries = false-positive candidates
-- Count all intervention entries = total gate firings
-- **Autoimmunity rate** = rejection / total × 100%
+Deterministic commands:
+1. `find ~/.claude/.harness/interventions/ -name "*.jsonl" -mtime -30` → `recent_files` (empty if directory missing)
+2. `grep -c '"type": *"rejection"'` on each file in `recent_files`, summed → `rejection_count`
+3. `grep -c '"type"'` on each file in `recent_files`, summed → `total_count`
+
+Fixed stdout format: `autoimmunity: rejection=N total=M rate=X%` (`X` = `N`/`M` × 100, 1 decimal; `rate=N/A` if `total_count=0`)
 
 Output conditions:
-- interventions directory missing or 0 entries → no output
-- Autoimmunity rate ≤ 5% → no output (normal range)
-- Autoimmunity rate > 5% → Phase 5 `**Immune rate:**` line: `⚠️ Autoimmunity rate X% (rejection N/total M) — review gate over-intervention`
-- Autoimmunity rate > 15% → `🚨 Autoimmunity rate X% — recommend gate reduction or redesign`
+- `recent_files` empty or `total_count=0` → no output
+- `rate ≤ 5%` → no output (normal range)
+- `rate > 5%` → Phase 5 `**Immune rate:**` line: `⚠️ Autoimmunity rate X% (rejection N/total M) — review gate over-intervention`
+- `rate > 15%` → `🚨 Autoimmunity rate X% — recommend gate reduction or redesign`
 
 ---
 
@@ -275,7 +303,7 @@ Next: `Ready. Where should we start?`
 | MEMORY.md promotion write (ref≥3 items) | high (git) | L1 (Invariant 1: only exception) |
 
 - **L1 (Invariants)**: read-only by default. Promotion write is sole exception.
-- **L2 (Tool Restriction)**: Read tool only (frontmatter).
+- **L2 (Tool Restriction)**: Read + Write in frontmatter — Write is physically scoped to the MEMORY.md promotion exception only (Invariant 1); no other file may be modified.
 
 ## Error Recovery
 

@@ -103,6 +103,8 @@ Severity Anchor Table:
 
 **CRITICAL Reachability Gate**: Before 🔴 CRITICAL — (a) reachable (b) realistic trigger. Either fails → downgrade + `[theoretical]`.
 
+**Deterministic scoring recommendation**: the Severity formula above (Impact×0.4 + Probability×0.3 + FixCost×0.2 + Detectability×0.1) and the Composite Score formula in [STEP 3] are pure arithmetic — mental math on these is an avoidable error source. If your environment supports running a small script, compute both through one instead of doing the arithmetic by hand; the formulas themselves don't change, only where they're evaluated.
+
 [META-DETECTION GATES]
 
 **CapCode Ceiling Metric**:
@@ -123,6 +125,18 @@ LLMs facing unsolvable constraints **fabricate fake external failures** (system 
 - "System error, cannot process" catch-all → verify error path is reproducible
 - Constraint conflict detected → check if code structure encourages honest impasse over fabrication
 - Severity: HIGH on detection (distinguish from legitimate error handling — watch false positives)
+
+[RATIONALIZATION TABLE] — common reviewer self-talk that erodes rigor, and the rebuttal
+| Rationalization | Rebuttal |
+|---|---|
+| "I found the issue, why not just fix it myself — faster that way?" | Reviewer and implementer must stay independent. A reviewer who edits directly removes the verification layer. |
+| "No Critical found, so it's SHIP IT — do I really need all 12 questions?" | Even without Critical, an accumulation of High/Medium determines deployment risk. Skipping 12Q + Severity scoring + verdict collapses this into a surface-level review. |
+| "The file name is enough, the fixer can find the line themselves?" | Feedback without a line anchor forces the fixer to guess at context — leads to fixing the wrong spot or missing the fix entirely. |
+| "IMPROVES came back, so the remaining issues don't matter?" | No. IMPROVES only confirms a net-positive effect — it doesn't exempt CRITICAL/HIGH. P0/P1 still need fixing. |
+| "Isn't the Overall Health Gate just a compliment?" | The opposite — its main purpose is blocking net-neutral-or-worse changes via a DEGRADES verdict. Even IMPROVES requires 1-2 lines of justification. |
+| "Won't checking Q10 test quality slow the review down too much?" | Mock-only assertions and disguised skips are a direct cause of production incidents. A false pass is more dangerous than no test at all. |
+| "Q12 observability isn't a feature — does it need reviewing?" | Code without logs is a black box during an incident. An unobservable system is an unoperable system (Brendan Gregg). |
+| "The score is high, so it's fine, right?" | The score itself can be gamed (CapCode). Exceeding the ceiling is a gaming signal, not proof of quality. |
 
 [STEP 3] Summary Report
 

@@ -2,7 +2,7 @@
 name: eval-leakage-audit
 skill_type: analysis
 tools: Read, Grep, Glob
-description: "Audits whether a verification (eval/metric/experiment/holdout) actually secures independent external ground truth, or whether the designer, the model, and the scorer are just confirming each other in a circle — via a 17-pattern taxonomy. Read-only. Use before trusting any 'how we'll know it worked' — A/B tests, holdouts, scores, validation — especially when a result feels too clean or self-confirming. 한국어: '이 검증 순환논리 아닌지 봐줘', '이 평가 편파적이야?', '이 벤치마크 셀프체크야?'."
+description: "Audits whether a verification (eval/metric/experiment/holdout) actually secures independent external ground truth, or whether the designer, the model, and the scorer are just confirming each other in a circle — via an 18-pattern taxonomy. Read-only. Use before trusting any 'how we'll know it worked' — A/B tests, holdouts, scores, validation — especially when a result feels too clean or self-confirming. 한국어: '이 검증 순환논리 아닌지 봐줘', '이 평가 편파적이야?', '이 벤치마크 셀프체크야?'."
 user_invocable: true
 concurrency_profile:
   read_only: true
@@ -19,7 +19,7 @@ see_also:
 # Eval Leakage Audit — Verification Circularity Audit
 
 ## Purpose
-When some verification (eval/metric/experiment/holdout) gives you confidence that something "worked," this skill checks whether that confidence actually comes from independent external evidence, or whether the people who designed the verification and the model that scores it are just confirming each other (circularity) — via 17 concrete patterns. A passing gate is not proof of quality — it only proves what it was designed to check, and this skill is the executable tool that actually tests that principle in practice.
+When some verification (eval/metric/experiment/holdout) gives you confidence that something "worked," this skill checks whether that confidence actually comes from independent external evidence, or whether the people who designed the verification and the model that scores it are just confirming each other (circularity) — via 18 concrete patterns. A passing gate is not proof of quality — it only proves what it was designed to check, and this skill is the executable tool that actually tests that principle in practice.
 
 **Dominant variable**: does this verification actually receive independent external ground truth, or are the designer, the model, and the scorer mistaking self-confirmation for a result?
 
@@ -35,7 +35,7 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 
 1. Identify the target verification (eval/metric/experiment/holdout/"how will we know it worked"). Name its components — what plays the model role, what plays the scorer role, what plays the designer role, and which dataset is involved.
 2. Ask the core question: does independent external ground truth actually enter the loop?
-3. Apply all 17 patterns below to the target and report only the ones that actually fire (don't list patterns that didn't fire):
+3. Apply all 18 patterns below to the target and report only the ones that actually fire (don't list patterns that didn't fire):
    1. **Recall, not reason** — the answer was replayed from something already known, not actually derived
    2. **Wrong null hypothesis** — the ablation only strips the surface label while the actual leaking signal stays in place
    3. **Shared hallucination** — two components confirm each other and dress up the circularity as a number
@@ -53,15 +53,18 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
    15. **Pseudo-replication** — counting multiple probe cells drawn from the same arm as independent sample size n artificially inflates the sample and overstates statistical significance. Distinguish effective independent units (true independent observations) from raw probe cells (repeated measures within the same arm) and do not count the latter toward n. [borrowed from fabulous HC3-5]
    16. **Stimulus calibration gap** — the counterpart to pattern #12 (ungraded grader): even a perfect grader produces meaningless results if the test stimulus itself (question, scenario, prompt) never actually elicits the intended behavior. Run a calibration pass beforehand confirming the reference implementation actually triggers the target behavior for that stimulus. [borrowed from fabulous HC3-7]
    17. **Unaudited cost-saving skips** — leaving cost/time-saving skipped checks unaudited indefinitely lets not-checked quietly harden into no-problem. Even without full re-verification, periodically audit the skipped set via a deterministic minority sample (for example: sha256-minimum hashing). [borrowed from fabulous HC3-9]
+   18. **Goodhart co-evolution in self-improving loops** — in a self-improving harness, if the loop designs the very scorer that grades its own improvements, the gate can drift lenient across iterations with no single discrete failure to point to — the loop is quietly reshaping the measure around its own output rather than the measure holding still. Guard with two layers together: fixed anchor tasks the loop never designed and never sees in advance (user-picked, undisclosed), plus a judge the loop doesn't control. Periodically re-check the self-improvement gate for lenient drift instead of trusting a one-time calibration. Ship a deliberately-broken fixture alongside every new capability so the gate's ability to actually fail something stays exercised, not assumed. Credit a harness improvement only against a fresh held-out task, never against the task that produced the improvement in the first place.
 4. For every pattern that fires, propose a concrete fix aimed at restoring independence.
 5. Self-check this audit itself against patterns 3–5: is this auditor grading a bucket it drew itself? Is the verifier actually the designer?
 
-**Stratification-claim substantiation check**: when the target claims it "compared stratified" (to guard against Simpson's-paradox-style aggregation bias, where a pooled comparison can reverse the direction seen within each subgroup), don't accept that claim as substantiated until 6 fields are recorded — (1) overall effect, (2) per-stratum effect, (3) direction consistency (same sign across strata), (4) effect dispersion (spread across strata), (5) minimum cell count (is each stratum's sample large enough to judge), (6) multiple-comparison correction (e.g. an FDR q-value). If even one is missing, the "we stratified" claim is unverifiable — the general principle is sound, but without these substantiation fields it's an empty assertion. (This is a statistical-substantiation gate, not one of the 17 circularity patterns — a separate axis.)
+**Stratification-claim substantiation check**: when the target claims it "compared stratified" (to guard against Simpson's-paradox-style aggregation bias, where a pooled comparison can reverse the direction seen within each subgroup), don't accept that claim as substantiated until 6 fields are recorded — (1) overall effect, (2) per-stratum effect, (3) direction consistency (same sign across strata), (4) effect dispersion (spread across strata), (5) minimum cell count (is each stratum's sample large enough to judge), (6) multiple-comparison correction (e.g. an FDR q-value). If even one is missing, the "we stratified" claim is unverifiable — the general principle is sound, but without these substantiation fields it's an empty assertion. (This is a statistical-substantiation gate, not one of the 18 circularity patterns — a separate axis.)
+
+**Reviewer Independence Honest 4-Label check**: when the target verification leans on multiple reviewers/judges to claim independence, don't accept "independently reviewed" at face value — label the actual state as one of 4: `independent` (at least one reviewer confirmed to run on a different vendor/model family than the subject being judged), `same_vendor` (every reviewer shares the subject's vendor/model family — a same-family reviewer isn't an independent check, it's the same mind reviewing itself), `unverified` (the reviewer's vendor/model identity can't be proven either way — don't default this to `independent`), or `unavailable` (no reviewer was actually present). If the reviewer pool falls short of quorum and only same-vendor reviewers remain, keep them rather than reporting no signal at all — but the `same_vendor` label has to stay attached and visible; quorum survives on honest labeling, not on quietly upgrading the label to look cleaner than it is. (This is a source-diversity honesty gate, not one of the 18 circularity patterns — a separate axis, closest in spirit to pattern #9's dual-fail-flag.)
 
 ## Invariants (never violate)
 
 1. **Read-only** — never redesign the verification or rewrite the experiment. Only name the leak points and the fixes. Violation → the audit and the redesign blur together and the original experiment's intent gets corrupted.
-2. **Report only patterns that fired** — don't mechanically list all 17; report only the ones actually backed by evidence. Violation → a laundry list dressed up as checklist completion, i.e. an unlabeled score dressed up as rigor.
+2. **Report only patterns that fired** — don't mechanically list all 18; report only the ones actually backed by evidence. Violation → a laundry list dressed up as checklist completion, i.e. an unlabeled score dressed up as rigor.
 3. **Blinding the output doesn't cure a leaking collection recipe** — don't report safety just because outputs are hidden. Violation → mistaking surface-level blinding for real independence.
 4. **The final report converges on one root cause, not a laundry list** — even if multiple patterns fire, converge them into a single root cause. Violation → an unprioritized list is not an actionable report.
 
@@ -70,7 +73,7 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 | Does | Does NOT |
 |---|---|
 | [READ] Identify verification components (model/scorer/designer/dataset) | Redesign the experiment/benchmark or edit code |
-| [READ] Apply the 17-pattern check and report only the ones that fired | Formally list patterns that didn't fire |
+| [READ] Apply the 18-pattern check and report only the ones that fired | Formally list patterns that didn't fire |
 | [READ] Propose an independence fix for each fired pattern | Implement the fix itself (propose only) |
 | [READ] Self-check the audit itself against patterns 3–5 | Declare "clean" without a self-check |
 
@@ -79,8 +82,8 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 | Rationalization | Counter |
 |---|---|
 | "We hid the output values, so it's independent now" | Violates Invariant 3. Output blinding and collection-recipe independence are different problems |
-| "Let's show we checked all 17" | Violates Invariant 2. Listing unfired patterns is a laundry list — completion theater without evidence |
-| "This looks independent enough" | Violates the Gate≠Oracle principle. "Looks similar" is a feeling, not evidence — judge only by which of the 17 patterns actually fired |
+| "Let's show we checked all 18" | Violates Invariant 2. Listing unfired patterns is a laundry list — completion theater without evidence |
+| "This looks independent enough" | Violates the Gate≠Oracle principle. "Looks similar" is a feeling, not evidence — judge only by which of the 18 patterns actually fired |
 | "The auditor designed this experiment too, but it's fine" | Exactly the self-check Invariant 4 calls for — this is precisely the Verifier=designer case (#5) |
 | "Both sides failed, so both implementations are bad" | Violates Dual-fail-flag (#9). If two independent implementations fail on exactly the same hidden case, check the scorer for a defect first — don't default to blaming the subjects |
 

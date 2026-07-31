@@ -8,12 +8,25 @@ name: project-check
 description: "Existing project health scan — audits Infrastructure, Security, Quality, and Harness setup. Read-only. Use when: '/project-check', 'project health check', 'project audit', 'what\\'s missing', 'analyze my project', 'check setup'. Ends with /project-init and /setup recommendations. NOT for new projects (use /project-init); project-check = shallow health scan."
 user_invocable: true
 tools: Read, Bash, Glob, Grep
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - CLAUDE.md
+    - ~/.claude/rules/project rules
+    - .project-check-history.json
+concurrency_profile:
+  read_only: true
+  concurrency_safe: true
+  destructive: none
 not_for:
   - "New project setup -> setup skill"
-  - "Deep, scored harness audit — this is a shallow 4-dimension scan, not a full quantitative score"
+  - "Deep, scored harness-maturity audit against a fixed multi-axis checklist -> check-harness (project-check is a shallow one-pass scan, not a maturity score)"
 see_also:
   - skill: setup
     relation: "project-check=existing audit, setup=new project"
+  - skill: check-harness
+    relation: "project-check=shallow one-time 4-dimension scan with no persistent scoring model, check-harness=deep multi-axis maturity scoring with trend tracking"
 ---
 
 # Project Check — Existing Project Health Scan
@@ -34,8 +47,10 @@ Scan an existing project against setup best practices across 4 dimensions: Infra
 
 Empty directory or newly initialized project (`git init` with no code yet) — nothing to audit. Use `/project-init`.
 This skill audits code, infrastructure, security, and quality only.
+Need a persistent, weighted maturity score with cross-axis trend tracking instead of a one-time 4-dimension pass/fail scan — use `/check-harness`, not this skill.
 
 ## Key Assumptions 
+
 1. **Project root contains CLAUDE.md or .claude/ directory** — if missing: recommend `/project-init`.
 2. **Git repository** — if not a repo: skip some Infrastructure checks.
 
@@ -199,7 +214,11 @@ Always end with next steps:
 
 ### Step 6.5: Score Delta Tracking
 
-If a previous check result exists (`.project-check-history.json` in project root), compare:
+Look for a previous check result in two places, project-root first:
+1. `.project-check-history.json` in project root.
+2. If that's absent, fall back to the user-level persistent cache before concluding there's no prior result: `~/.claude/.harness/project-check/<project-name>.json` (keyed by the detected project name from Step 0). This survives the project-root file being gone after a fresh clone or a `.gitignore`'d local file getting wiped.
+
+If either is found, compare against it:
 
 ```
 ── Score Delta ──
@@ -211,13 +230,13 @@ New gaps: [items not flagged before]
 Unresolved: [items still failing]
 ```
 
-If no previous result exists, suggest saving current result:
+If neither exists, suggest saving current result — project-root file by default, user-level cache path as the fallback option if the project doesn't want history checked into (or gitignored within) the repo:
 ```json
 {"date":"YYYY-MM-DD","score":N,"gaps":{"critical":N,"fail":N,"warn":N}}
 ```
 `"Next /project-check will show score delta."` — one line.
 
-**No auto-save** — suggest only. User must approve before writing.
+**No auto-save** — suggest only. User must approve before writing, at either location.
 
 ---
 

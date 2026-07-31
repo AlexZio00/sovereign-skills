@@ -1,9 +1,15 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.5
+# sovereign-skills v6.5.7
 
 覆盖 Claude Code 项目完整生命周期的 20 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
+> **v6.5.7 变更：** 精炼版本 — 未新增或移除任何技能；多个技能用可运行的确定性脚本取代了LLM自我评分。`project-overview`（`generate_overview.py` 不再是占位符 — 完整实现了注册表解析、状态快照提取和AUTO区块渲染/替换，新增不可信输入的表格单元格转义与畸形标记恢复，并配有单元测试+集成测试）、`scope`（Quick/Full 模糊性判定门和 BRIEF.md 最少条目校验现在通过移植的 `ambiguity_gate.py` 运行，并新增回归测试锁定一个"粗体文本误判为标题"的计数bug）、`skill-ops` → v1.2（Health Mode 分桶分类与 Quality Mode 的 S/U/S_Q 评分现在通过 `skill_health_bucket.py` 运行，取代手工算术）、`collab-audit`（Step 0.6 来源卫生过滤现在通过 `session_hygiene_scan.py` 运行）、`session-checkpoint`（新增 Discoverability Check 步骤，标记没有索引反向链接的记忆写入；新增超时/强制终止时的部分输出防护；新增两个 Reflexion 教训质量门；新增原始观察记录的 PII 脱敏规则；Key Files 验证迁移到 `validate_memory_claims.py` 脚本）、`goal-lock`（范围检查覆盖面从"已改动文件"扩展到接口/API变更；新增有基准数据支撑的链长主导变量说明；Stop-hook 顺序门升级为经验证的四条件实现；新增 Safety Layers 章节；VERIFY 失败标签改为枚举式；REFINE 的 DELTA CHECK 新增自我判断警示；新增后台任务终止握手机制）、`code-autopsy`（新增一张收录8种常见审查者自我辩解及其反驳的 Rationalization Table，并新增建议用脚本而非心算计算严重性分数的说明）、`eval-leakage-audit`（17→18种模式分类法 — 新增自我改进循环中的 Goodhart 协同演化模式 — 并新增 Reviewer Independence 诚实四标签检查）、`integration-intake`（新增只读的 `tools:` frontmatter、重定向风格的 `not_for` 条目、每阶段7个固定的误判枚举标签）、`pre-push`（新增显式的 `depends_on`/`concurrency_profile` frontmatter、区分只读git命令与受门控的 `git push` 的 Autonomy Boundary 说明、外部安全目录参考链接）、`session-start`（新增 `depends_on`/`concurrency_profile` frontmatter，Phase 2.2-2.4 重写为带固定stdout约定的确定性命令，新增一个未编号的 L0 Inheritance 章节）、`doc-drift`（新增 Step 0 确定性预过滤器，将 Risky/Ambiguous 类别仅作为辅助证据输入），以及 `full-audit`、`project-check`、`project-init`、`freeze`、`stepback`、`next-action`、`clean-room` 全部采用了 `depends_on`/`concurrency_profile` frontmatter，其中多个还新增了按工具类别标注的 Scope Boundary 表格。**本版本暴露的已知缺口**：`project-check`（及少数同类技能）在 Safety Layers/Error Recovery 标题下新增了未编号的"继承原则"说明 — 而此前某个版本曾在全部10个技能中特意删除了这些同一标题下带编号的 `(L0 §N)` 引用；本版本的说明是未编号/泛化的，并非被删除的引用本身，但标题注释这一模式又回来了。在下一版本继续在此基础上构建之前，值得有意识地做一次判断。
+>
+> **v6.5.6 变更：** 精炼版本 — 未新增或移除任何技能。`eval-leakage-audit`（13→17种模式分类法 — 新增respawn掩盖、伪重复、刺激校准缺口、未审计的省成本跳过）、`goal-lock`（新增 S7 停止规则 — 当执行证据与明确指令相矛盾时阻止强行推进实现；新增五级证据严谨度阶梯 + 失败优先报告顺序 + 禁用的模糊措辞；新增"层间洗白"成功伪装模式；新增证据严谨度预设说明）、`full-audit`（新增复合累积门 — 当 UNCERTAIN/NIT 发现在同一区域堆积时标记"千刀万剐"式风险，即便每一项单独看都被判定可忽略；新增针对依赖未验证假设的 CONFIRMED 判定的 Assumption Ledger）、`session-checkpoint`（新增可选的 `regime`/`escalate_if` 教训字段；新增可选的 `outcomes` 字段追踪首次尝试通过/返工/解决方式；新增第二个教训归档OR条件，以及归档前的强制交叉引用检查）、`code-autopsy` → v7.2（为 Q1 新增代码异味词汇表；新增具体失败场景要求；Q5 下新增对象级授权检查；Q7 下扩展网络/数据库/流式/缓存检查；Q8 下新增浅模块+ADR冲突检查；新增数值化置信度阈值体系；新增平局比较时"结果上限切换为过程指标"的机制）、`pre-push` → v3.8.0（在原有 `scan_secrets.pl` 基础上新增 `scan_secrets.py` — 存在时优先用Python，Perl作为后备 — 并新增 `LICENSE.txt` 标注上游来源；注：本版本发现两个扫描器的模式覆盖存在差异，例如Python移植版新增了Perl版没有的f13 Slack-webhook检查，且部分既有模式在两侧覆盖的变体范围有窄有宽 — 已记录为已知缺口，尚未统一）。
+>
+> **v6.5.5 变更：** 精炼版本 — 未新增或移除任何技能。`eval-leakage-audit`（8→13种模式分类法 — 新增双失败标志、非对称基线自证伪、证据耗竭、未评分裁判四门检查、天花板任务检测 — 并新增分层论证清单和诚实的审查者独立性四标签判定）、`goal-lock`（新增顺序门 — 最后一次编辑后未运行验证则阻止完成；新增针对非退出码类交付物的证据通道分支；新增理解力检查；新增三种成功伪装防护）、`pre-push` → v3.7（新增跨捆绑联合通过检查 + 三态误报门）、`integration-intake`（新增余量预分类、特质vs流程终止判定、三重核查有效性声明）、`session-start`（在模型ID允许列表中新增 `claude-sonnet-5` — 修复了一个"无效模型"误报警告）、`setup`（移除了重复的 `/setup` 触发器）、`full-audit`（新增规则空跑验证层）、`clean-room`（与上游 autobahn v0.14.0 版本对齐 — 独立复查新增N=1上限）、`code-autopsy`（新增 Q10 判据重新定义检测），以及对 `session-checkpoint`、`skill-ops`、`collab-audit`、`scope` 的一些小幅改进。
+>
 > **v6.5 变更：** 新增：`eval-leakage-audit`（通过8种模式的分类法，审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认 — 只读）、`doc-drift`（审计Claude Code加载到上下文中的记忆/文档 — CLAUDE.md/MEMORY.md/skills/agents/commands — 发现过时声明、相互矛盾和风险/模糊措辞三类问题，生成优先级修复清单）。更新：`project-init`（修复了在区分大小写的文件系统上可能导致技能加载失败的`skill.md`→`SKILL.md`命名错误，并将Phase 3模板外部化到`references/templates.md`）、`pre-push` → v3.6（新增两种密钥扫描模式 — f11 diff中的提示注入字符串、f12非PyPI供应链索引URL — 以及Step 0 Hook流水线健康检查）、`scope`（新增Mid-Task Scope Drift十倍发现规则）、`collab-audit`（新增Step 0.6来源卫生过滤器，排除自动派生的子智能体/线程会话，避免被误认为有机用户会话）、`full-audit`/`integration-intake`（均新增Safety Layers章节；`integration-intake`还新增了Phase 1.8 M轴表面选择步骤 — 在路由前判断某个模式应归属哪个表面（提示词/规则/钩子/技能）），`goal-lock`（新增`migration`任务模板）、`project-overview`（新增Rationalization Table）、`stepback`（新增Dominant Variable章节 + frontmatter字段）。
 >
 > **v6.4 变更：** 新增：`full-audit`（对整个区域的详尽审计 — 确定性扫描+内容审查、持久化覆盖图、防误报kill-test）、`integration-intake`（外部技能/智能体/规则/插件采纳的5项筛选闸门，含provenance/注入检查）、`clean-room`（将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 改编自LilMGenius/paperthin的"autobahn"技能（MIT许可），新增文件系统层隔离与ledger记录时机升级）。更新：`goal-lock`（长任务检查点处重新回显CONSTRAINTS/SCOPE-Exclude）、`session-checkpoint`（新增Attestation阶段 — 内置`handoff_attestation.py`的证据链收据日志，供下次会话SessionStart钩子检测交接文件篡改）。
@@ -70,7 +76,7 @@
 
 | 技能 | 功能 |
 |------|------|
-| [code-autopsy](../code-autopsy/) | **更新 v7.1。** 12Q量化代码审查 — 4轴评分（Security/Stability/Robustness/Operability）、严重性锚定表、部署判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate、CapCode评分gaming检测、CEF伪装错误检测。作为独立提示词可在任何LLM中使用 |
+| [code-autopsy](../code-autopsy/) | **更新 v7.2。** 12Q量化代码审查 — 4轴评分（Security/Stability/Robustness/Operability）、严重性锚定表、部署判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate、CapCode评分gaming检测、CEF伪装错误检测。作为独立提示词可在任何LLM中使用 |
 
 ### 视角转换
 
@@ -107,7 +113,7 @@
 | [full-audit](../full-audit/) | **新增。** 对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 — 确定性扫描+内容审查双层方法、防误报kill-test、持久化覆盖图 |
 | [integration-intake](../integration-intake/) | **新增。** 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查 + 引入内容的provenance/注入检查 |
 | [clean-room](../clean-room/) | **新增。** 将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 对抗性验证通过 + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | **新增。** 通过8种模式的分类法，审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认。只读 |
+| [eval-leakage-audit](../eval-leakage-audit/) | **新增。** 通过18种模式的分类法，审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认。只读 |
 | [doc-drift](../doc-drift/) | **新增。** 审计Claude Code加载到上下文中的记忆/文档(CLAUDE.md/MEMORY.md/skills/agents/commands)，发现过时声明、相互矛盾和风险/模糊措辞 — 生成优先级修复清单 |
 
 ---

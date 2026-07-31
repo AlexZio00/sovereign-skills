@@ -10,6 +10,8 @@ see_also:
     relation: "scope=planning lock, goal-lock=execution lock"
   - skill: freeze
     relation: "freeze=zone freeze, goal-lock=goal loop"
+  - skill: verification
+    relation: "goal-lock's VERIFY/REFINE loop is implementer self-check, not independent verification — route non-trivial code changes through a separate independent verification pass after FINALIZE"
 ---
 
 # /goal-lock — Agent Discipline Engine v1.0
@@ -128,6 +130,16 @@ fixing the design at spec time instead.
 - **Exclude**: [Don't touch]
 ```
 
+### Scope Check Surface
+
+SCOPE Include naming a file is not blanket permission for everything inside
+it. The scope check surface is **file changes + interface/functionality
+surface** — an unrequested CLI flag, a new public API parameter, or a test
+scenario broader than what was asked for is scope creep even when the file
+it lives in sits squarely inside SCOPE Include. Applies to both Quick and
+Full mode: "the file is in scope" answers a different question than "was
+this specific change asked for."
+
 ### Auto-fill Rules
 
 Fields extractable from conversation context are **auto-filled and shown for user confirmation**:
@@ -228,6 +240,15 @@ PLAN → DO → VERIFY(code) → FINALIZE → OUTPUT
 | Security | Input validation, permissions, secret exposure? |
 | Perf regression | O(n²) introduction? |
 | Backward compat | Existing API/interface changing? |
+| Chain length | Can the total number of steps/tool calls be cut before optimizing any single step? |
+
+**Chain length as a dominant variable**: reliability tracks step count, not
+just each step's individual correctness. Benchmarks show tool-chain accuracy
+falling from roughly 39% to 13% as chains lengthen, and sequential-turn-depth
+scores dropping from 82.3 to 51.2 over comparable depth increases — longer
+chains fail more often even when every individual step looks reasonable.
+Before tuning how a step is done, ask whether it needs to exist at all;
+fewer, more consequential steps beat more, smaller ones.
 
 Risk detected → return to PLAN with avoidance strategy.
 
@@ -256,9 +277,17 @@ EVIDENCE while GOAL remains unmet is still a FAIL.
 | Rust | `cargo test` + `cargo clippy` |
 | General | `git diff --stat` (verify change scope) |
 
-Items not verified: `NOT RUN: [reason]`. Never "it should be fine."
+Items not verified: `NOT RUN: {label}` using the failure-label enum below,
+plus a one-line detail. Never "it should be fine."
 
 **GroundEval**: verify that verification tool calls **actually executed**. If the OUTPUT claims "tests passed" but no `pytest`/`npm test` Bash call exists in the tool history, the claim is ungrounded. Every verification claim in OUTPUT must trace back to an actual tool invocation.
+
+**Failure-label enum**: when a verification claim can't be grounded,
+classify it with one of these fixed labels instead of a free-text reason —
+labels are greppable and comparable across runs, prose isn't:
+- `no_fetch` — no verification tool call exists in the tool history at all
+- `irrelevant_fetch` — a tool call happened, but it checked something other than DONE EVIDENCE
+- `checker_overfit` — the check ran, passed, and traces back to a real tool call, but is narrow enough that a broken implementation would pass it too
 
 **Evidence channel branching**: not every DONE EVIDENCE produces an exit
 code. If DONE EVIDENCE is a visual artifact, confirm via rendered output
@@ -281,6 +310,12 @@ validated through a self-review loop.
    - improved → adopt rewrite → FINALIZE
    - negligible difference or worse → keep original → FINALIZE
    - can't tell → note "REFINE performed, improvement uncertain" → FINALIZE
+   - **Self-judgment caveat**: CRITIQUE → REWRITE → DELTA CHECK is the same
+     agent grading its own work — a self-report, not an independent check.
+     Treat "improved" as a working judgment, not proof. For high-stakes
+     artifacts (specs, published content, anything a real decision gets
+     made from), route the result through a separate reviewer pass after
+     FINALIZE instead of trusting DELTA CHECK alone.
 4. **1-round limit** — REFINE runs at most once. A second round has
    diminishing returns. No infinite self-correction loops.
 
@@ -372,17 +407,67 @@ verification-class command (test runner / linter / typechecker / diff)
 appears *after* the last file-modifying edit, block once as
 UNVERIFIED-CHANGE. This closes the loophole where verification passes, the
 agent makes one more edit, and then declares completion without
-re-verifying. Shares the same per-session cap as the check above. Known
+re-verifying.
+
+This is a verified implementation, not a description of intended behavior —
+the hook blocks termination only when **all four** of the following hold
+(AND, not OR):
+1. A Stop event has actually fired for this session.
+2. The re-entrancy flag (e.g. `stop_hook_active`) is not already true —
+   **infinite-loop guard**: without this, the hook's own block can trigger
+   another Stop event and re-block itself forever.
+3. The per-session block cap (cap=1) has not already been spent.
+4. Transcript reconstruction shows no verification-class command after the
+   last file-modifying edit.
+
+If any one of the four is false, termination proceeds unblocked. Known
 limitation (document it, don't silently claim full coverage): file changes
 made through shell text-editing commands (e.g. `sed -i`) or custom
 verification scripts outside the standard test/lint/typecheck vocabulary
-aren't detected. A gate like this should carry a small self-test suite that
-is re-run whenever the gate itself is modified, to confirm the change didn't
-silently disable detection.
+aren't detected. A gate like this must carry a small self-test suite
+(synthetic transcripts exercising each of the 4 conditions, pass and fail
+cases both) that is re-run whenever the gate's logic is modified, to confirm
+the change didn't silently disable detection.
 
 This pattern implements the L2 (no tool provided / physical block) layer of a
 4-level safety framework: prompt rules alone (L1) can be forgotten by the
 model; a hook enforced at the tool/session layer (L2) cannot.
+
+### B5.2 Termination Handshake
+
+Before force-terminating a long-running background task (timeout budget
+hit, user cancel-and-restart, a hung sub-step), look for a safe stop point
+first — a place where state is consistent and resumable, such as the last
+successful VERIFY or the last checkpoint written to
+`.goal-lock-progress.md`. If one is reachable within a short grace window,
+stop there instead of mid-step.
+
+If no safe stop point is reachable and termination can't wait (runaway
+loop, explicit kill request), terminate anyway — but immediately notify the
+user that termination happened mid-step, naming whatever state is now known
+to be inconsistent. A silent force-kill with no notification is a B1
+honesty violation: it hides an interrupted, unverified result behind
+apparent completion.
+
+---
+
+## Safety Layers
+
+goal-lock's own actions differ in how reversible they are. Match the
+defense to the reversibility tier, and never let a single layer carry
+anything above "trivially reversible" alone:
+
+| Reversibility | Example goal-lock action | Required defense |
+|---|---|---|
+| Easy — local, no external effect | Local file edit, `.goal-lock-progress.md` checkpoint write | Loop discipline (B1–B3) is sufficient |
+| Costly — local but expensive to redo | Local deletion, force-terminating a stalled sub-step (see B5.2) | Loop discipline + explicit stop-and-ask (S3/S4) |
+| Hard — touches external/shared history | `git push`, remote branch changes, migrations | Loop discipline + STOP RULE + explicit user confirmation before executing |
+| Unrecoverable — external side effect, no undo | DB DROP/TRUNCATE, a live API call with real-world effect, secret exposure | Loop discipline + STOP RULE + user confirmation + an independent post-hoc review pass |
+
+Layers stack upward only — moving to a higher tier adds a layer, it never
+drops a lower one. An action dressed up as "just this once, low risk" is
+still evaluated at its actual reversibility tier, not the tier that's
+convenient for the agent in the moment.
 
 ---
 

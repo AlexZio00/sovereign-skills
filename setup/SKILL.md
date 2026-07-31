@@ -1,6 +1,6 @@
 ---
 skill_type: infrastructure
-tools: Read, Write, Edit, Bash, WebFetch
+tools: Read, Write, Edit, Bash, WebFetch, Agent
 triggers:
   - "/setup"
   - "setup"
@@ -10,6 +10,10 @@ triggers:
 name: setup
 description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Not project scaffolding (CLAUDE.md/ROADMAP/.gitignore/.env.example) — use project-init for that. Triggers: /setup, setup, harness setup, agent team setup."
 user_invocable: true
+concurrency_profile:
+  read_only: false
+  concurrency_safe: false
+  destructive: low
 not_for:
   - "Existing harness audit -> project-check"
   - "Single rule addition -> edit the rule file directly"

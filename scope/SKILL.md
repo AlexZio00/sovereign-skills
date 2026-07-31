@@ -19,6 +19,13 @@ see_also:
     relation: "scope=planning, goal-lock=execution"
   - skill: freeze
     relation: "scope=define boundaries, freeze=enforce boundaries"
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - "CLAUDE.md"
+    - "scripts/ambiguity_gate.py"
+concurrency_profile: sequential
 ---
 
 # /scope — Scope Definition Engine v1.0
@@ -65,7 +72,7 @@ Unsure? Start Quick → if user wants more detail: "Shall we switch to full mode
 - New project: skip
 
 ### Step 2: Ambiguity score gating
-Score clarity across 4 dimensions (0-10 each). Target the lowest-scoring dimension with questions.
+Score clarity across 4 dimensions (0-10 each), by judgment.
 
 | Dimension | Check |
 |-----------|-------|
@@ -74,8 +81,14 @@ Score clarity across 4 dimensions (0-10 each). Target the lowest-scoring dimensi
 | **Verification** | How is "done" verified — is there a measurable criterion? |
 | **Assumptions** | Any hidden assumptions — dependencies on existing system/data/environment? |
 
-**Gating**: proceed if the average across 4 dimensions is ≥ 7. Below threshold,
-target the weakest dimension with clarifying questions (max 3).
+**Gating (deterministic)**: hand the 4 scores to the gate script and read its stdout — don't average them by eye.
+
+```bash
+python scope/scripts/ambiguity_gate.py quick --scores '{"function":8,"boundary":7,"verification":6,"assumptions":9}'
+# -> {"ok": true, "avg": 7.5, "weakest": "verification"}
+```
+
+`ok: false` → target the dimension the script names as `weakest` with clarifying questions (max 3).
 Exceeds question limit → conservative minimum scope + `[assumed]` tag.
 
 ### Step 3: Generate Brief
@@ -105,7 +118,17 @@ Exceeds question limit → conservative minimum scope + `[assumed]` tag.
 - Example: "If data > 100K rows, this design has performance issues", "If team > 2 people, API contract first"
 ```
 
-### Step 4: Approval → Save BRIEF.md
+### Step 4: Min-item validation → Approval → Save BRIEF.md
+Before requesting approval, validate the drafted brief against the minimum-item requirements — don't count bullets by eye. A bolded aside inside a section (e.g. `**Note**: ...`) can look like a new section header on a human skim and silently truncate a manual count; a regression test locks this exact failure mode closed in the script.
+
+```bash
+python scope/scripts/ambiguity_gate.py min-items --file <path-to-drafted-brief>
+# -> {"scope_out": 2, "risk_flags": 1, "contraindication": 1, "constraints": 1, "ok": true}
+```
+
+Pass `--new-project` for new projects (Invariant 6 waives the Constraints requirement). `ok: false` → the per-field counts in the JSON show which section is short; add items there and re-run before moving to approval.
+
+Request approval only once the script reports `ok: true`. Save BRIEF.md only after explicit user approval (Invariant 5).
 
 ---
 
@@ -133,7 +156,14 @@ Each Decision gets clarity score (0-5):
 - 3: Needs 1-2 clarifying questions
 - 1: Completely ambiguous
 
-Average < 3.5 → warn "Decisions are ambiguous" + suggest rewrite.
+**Gating (deterministic)**: hand the per-Decision scores to the gate script — don't average them by eye.
+
+```bash
+python scope/scripts/ambiguity_gate.py full --scores "5,3,4,5"
+# -> {"ok": true, "avg": 4.25}
+```
+
+`ok: false` → warn "Decisions are ambiguous" + suggest rewrite.
 
 ### Deliverable
 `specs/{kebab-name}/spec.md` — required sections:
@@ -173,16 +203,16 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 
 ## Invariants (never violate)
 
-1. **No implementation during scope**: no code changes during/after scope writing.
-2. **Scope OUT mandatory**: min 2 items. Write even if user says unnecessary.
-3. **Exit Criteria = observable + measurable**: auto-reject vague items like "works correctly".
-4. **Question limit 3** (Quick): exceed → conservative minimum scope.
-5. **Approval gate required**: save file only after explicit user approval.
-6. **Constraints mandatory** (existing project): 0 items → rescan.
-7. **Risk Flags min 1**.
-8. **Layer order immutable** (Full): L0→L1→L2→L3→L4.
-9. **No spec overwrite** (Full): append or edit only.
-10. **Tasks→Requirements link required** (Full).
+1. **No implementation during scope**: no code changes during/after scope writing. Violation → scope becomes a post-hoc rationalization for code already written instead of a constraint that shapes it, and the OUT section stops meaning anything.
+2. **Scope OUT mandatory**: min 2 items. Write even if user says unnecessary. Violation → only IN is recorded, so anything not explicitly listed becomes fair game during implementation — scope creep with no written boundary to point back to.
+3. **Exit Criteria = observable + measurable**: auto-reject vague items like "works correctly". Violation → "done" becomes a matter of opinion at handoff time, and disagreement about completion surfaces only after the work is finished.
+4. **Question limit 3** (Quick): exceed → conservative minimum scope. Violation → interrogation replaces scoping and the user abandons the flow instead of getting a usable brief.
+5. **Approval gate required**: save file only after explicit user approval. Violation → an unreviewed draft becomes the working spec, and errors in it propagate into implementation before anyone caught them.
+6. **Constraints mandatory** (existing project): 0 items → rescan. Violation → the brief looks complete but omits the existing system's real limits, so implementation collides with constraints nobody wrote down.
+7. **Risk Flags min 1**. Violation → a known failure mode goes unrecorded, so the same risk resurfaces later as a surprise instead of a tracked flag.
+8. **Layer order immutable** (Full): L0→L1→L2→L3→L4. Violation → decisions (L2) get made on a foundation (L0/L1) that was never confirmed, so the spec inherits an unvalidated goal.
+9. **No spec overwrite** (Full): append or edit only. Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
+10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills.
 11. **No silent absorption or quiet shrinking on 10x discovery**: if implementation reveals scope that is a multiple of what was originally understood, surface it immediately — don't absorb it silently and don't quietly shrink the deliverable to fit the original budget. Violation → the user only discovers the delay or the missing scope later, after the fact.
 
 ## Error Recovery 
@@ -209,6 +239,16 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 1. **no mock deception**: never save without approval.
 2. **no test façade**: missing OUT = `⚠️ Scope OUT not written`.
 3. **no silent brokenness**: unmeasurable Exit Criteria = PARTIAL.
+
+## Output
+
+**Before approval**: the brief (Quick) or the current layer's draft (Full) is emitted into the conversation only — no file is written yet. This is the review surface; catch problems here, not after the file exists.
+
+**After approval**:
+- Quick → `BRIEF.md` written to disk (Step 4, gated by the min-items script above).
+- Full → `specs/{kebab-name}/spec.md` written/appended per layer (L0→L4), each layer gated by its own user-approval checkpoint.
+
+**Final status label** (required on completion): `WORKING` (brief/spec saved, all gates passed) / `PARTIAL` (saved with a documented gap — e.g. `[assumed]` tags from a question-limit exit, or a section marked `⚠️`) / `BROKEN` (approval never reached, or the save itself failed). Conditions per label are the same as Truthful Reporting above.
 
 ## Principles
 - **OUT matters more than IN** — people say what to do but skip what NOT to do.

@@ -3,6 +3,14 @@ skill_type: utility
 tools: Read
 name: freeze
 description: "Scope lock for current task. Declares editable zone — everything outside is frozen (read-only). Call before starting implementation to prevent scope creep."
+depends_on:
+  skills: []
+  agents: []
+  files: []
+concurrency_profile:
+  read_only: true
+  concurrency_safe: true
+  destructive: none
 tags: [meta, safety]
 version: "1.0.0"
 source: "garrytan/gstack freeze pattern"
@@ -112,6 +120,12 @@ Emit FROZEN SCOPE block, then exit immediately.
 No code generation, no agent spawning, no implementation start.
 
 All implementation work in this session follows this declared scope.
+
+---
+
+## Output
+
+The only artifact this skill produces is the FROZEN SCOPE block itself, emitted straight into the conversation — nothing is written to disk. The block is the state (see Design Note below): there is no external file to persist or reload, so "declared" means "visible in this reply," not "saved somewhere."
 
 ---
 

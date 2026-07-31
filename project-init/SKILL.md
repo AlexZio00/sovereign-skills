@@ -9,6 +9,14 @@ triggers:
 name: project-init
 description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', 'new project', 'project creation', 'project setup', 'project setup', 'new project', 'create project'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
 user_invocable: true
+depends_on:
+  skills: []
+  agents: []
+  files: []
+concurrency_profile:
+  read_only: false
+  concurrency_safe: false
+  destructive: medium
 not_for:
   - "AI agent/harness setup -> setup skill"
   - "Existing project audit -> project-check"

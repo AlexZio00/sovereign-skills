@@ -2,10 +2,24 @@
 name: integration-intake
 description: "Gate for deciding whether to adopt an external pattern (skill/agent/rule/plugin/MCP/prompt) into your system. Triggers: '/integration-intake [name]', 'should I integrate this', 'is this worth adopting', or sharing a GitHub repo link and asking what to do with it."
 user_invocable: true
+tools: Read, Glob, Grep, WebFetch, WebSearch
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - ~/.claude/skills/
+    - ~/.claude/agents/
+    - ~/.claude/rules/
+    - SKILLS_INVENTORY.md
+concurrency_profile:
+  read_only: true
+  concurrency_safe: true
+  destructive: none
+  state_footprint: stateless
 not_for:
-  - "A decision that's already been made (re-litigating a done deal)"
-  - "A 1-2 minute trivial application (the gate costs more than the decision)"
-  - "A pure internal code change with zero external dependency (not an external-pattern adoption)"
+  - "A decision that's already been made (re-litigating a done deal) -> proceed directly, no gate needed"
+  - "A 1-2 minute trivial application, where the gate costs more than the decision -> just apply it"
+  - "A pure internal code change with zero external dependency (not an external-pattern adoption) -> normal implementation flow"
 see_also: []
 ---
 
@@ -274,6 +288,24 @@ Grounding: [✅ README+source actually confirmed / ⚠️ summary only, shallow 
 | "3 of 5 items are clear enough" | Violates Invariant 1. "Mostly OK" = hold. The one ambiguous item is usually where the real problem hides. |
 | "Don't need to Glob, I already know what exists" | Violates Invariant 2. Memory is a hint, not a fact. Verification is mandatory. |
 | "The user already said they'd adopt it, so skip the gate" | Discard If already covers this — but confirm the decision itself actually came after a gate, not before one. |
+
+---
+
+## Misjudgment Labels
+
+Each phase has one characteristic way its judgment goes wrong. Tag it with the fixed enum below instead of free text — a labeled miss is searchable across past reports, a prose miss isn't.
+
+| Phase | Enum | Characteristic Misjudgment |
+|-------|------|-----------------------------|
+| 0.5 Grounding | `wrong_source` | Verdict formed from a summary/marketing copy, never the actual README/source |
+| 1.2 Value | `asserted_without_anchor` | Effectiveness claimed without running the injection/removal/placebo three-way check |
+| 1.5 Redundancy | `redundancy_assumed` | Glob/Grep skipped; "probably doesn't exist yet" stood in for verification |
+| 1.6 Provenance | `scanner_substituted` | An automated pattern/LLM scanner replaced the mandatory manual body read-through |
+| 1.75 Headroom | `headroom_skipped` | Piloted without confirming a measurable baseline gap actually exists |
+| 2 Routing | `category_forced` | An ambiguous fit was pushed into one of the 5 categories instead of returning to Phase 1 |
+| 2.5 Evolution | `bloat_added` | New content landed without the net-token pruning guard, growing the target skill |
+
+Use these in the Phase 3 report, and in any retrospective review of a past verdict.
 
 ---
 

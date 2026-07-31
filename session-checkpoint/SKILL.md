@@ -11,6 +11,22 @@ triggers:
 name: session-checkpoint
 description: "Use when saving session state before context compaction, switching tasks, or ending a session. Runs 5-phase pipeline: context extraction → handoff write → memory save → preservation check → compact guidance."
 user_invocable: true
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - memory/session-handoff-LATEST.md
+    - memory/MEMORY.md
+    - memory/context-log.md
+    - tasks/lessons.md
+    - ~/.claude/STATE.md
+    - ~/.claude/.harness/invocations/
+    - ~/.claude/.harness/interventions/
+    - ~/.claude/.harness/receipts/
+concurrency_profile:
+  read_only: false
+  concurrency_safe: false
+  destructive: medium
 not_for:
   - "No code changes and no pending decisions in session"
   - "Simple handoff update only -> edit directly"
@@ -33,6 +49,7 @@ Has it been clearly identified in this session **what the next session absolutel
 2. **MEMORY.md / context-log.md exist** — Phase 3 storage targets. If broken: create files then proceed. If creation fails, report to user.
 3. **Session conversation is sufficient for Phase 1 extraction** — minimum 5+ exchanges. If broken: apply Discard If (session too short) or generate minimal handoff only.
 4. **Reflexion extraction (Phase 1.7) is possible** — conversation exists with failure/dissatisfaction signals. If broken: "no new lessons" handling.
+5. **Transcript tool-call output may be truncated or terminal, not confirmed** — a timed-out or killed tool call can leave a bare terminal signal in the transcript (e.g. an exit code like `143`) with no corresponding stdout. That signal alone does not establish what actually happened. If broken: do not record it in the handoff or memory as a settled fact — tag it `[UNVERIFIED]` and name what's missing (e.g. "exit 143, no stdout captured").
 
 ## Trigger
 
@@ -96,6 +113,7 @@ Scan session conversation to extract 4 entity types:
 **③ Raw observations/patterns** → preserve user exact expressions
 - User-stated insights, judgments, frustrations
 - lessons.md candidates (repeated mistakes → behavior correction rules)
+- **Redaction before verbatim capture**: if a raw observation carries personally identifying detail or a private remark unrelated to the technical task (names, contact info, health/financial/relationship disclosures, etc.), don't store it verbatim — generalize it to the underlying behavioral pattern first (e.g. "user repeated the same correction twice, with visible frustration" rather than quoting the frustrated remark word-for-word along with whatever personal context it was embedded in).
 - **lessons.md v2 metadata**: New lessons receive `> conf: 0.5 · seen: today · obs: 1` on next line after header. Existing lesson re-occurrence/application detected → `seen` → today, `obs +1`. When obs ≥ 3 accumulated → `conf +0.1` (max 0.9). User correction detected after violation → `conf -0.1` (min 0.3), `seen` → today
 - **regime/escalate_if optional fields** [borrowed from Governance Artifact Schema, arXiv 2607.16130]: If a lesson has been observed 3+ times under differing conditions (project / file type / session), append a one-line summary of that observed diversity to a `regime:` field. If a lesson has a clear re-evaluation trigger, append a one-line condition to an `escalate_if:` field. Both are appended after obs/conf/seen using a middle-dot separator — the parser is position-independent (regex-based). Both fields are optional (backward compatible with legacy lessons that lack them).
 
@@ -271,6 +289,10 @@ Scan session conversation to extract **3 reflection items** and immediately refl
 2. **User dissatisfaction signals** — correction requests, "no", repeated explanations, frustration
 3. **How to do better next time** — concrete behavior change (no abstract "be more careful")
 4. **One judgment that worked well this session** — something user approved, efficient choice, good outcome. If only recording failures, over-defensive patterns harden. Record ≥1 success lesson to balance failure bias. Omit if none — do not force-create.
+
+**Before recording — 2 gates (run on every candidate item before it reaches lessons.md):**
+1. **Generality filter**: will this apply beyond the circumstances of this one session, or is it a one-off incident tied to today's specific context? If it doesn't generalize, don't promote it to lessons.md — instead append it to context-log.md as a `ttl:30d` episode item. lessons.md is for behavior corrections the next session should carry forward; a non-generalizing incident is just today's history.
+2. **Diagnosis completeness check**: does the item state *why* the mistake happened (root cause), not just *what* happened? A lesson that only names the symptom, with no causal mechanism, gives the next session nothing to act on differently. If the root cause isn't known yet, still record the item but tag the header line `[DIAGNOSIS_MISSING]` so it's visibly incomplete rather than silently thin — revisit once the cause surfaces.
 
 **When items exist** → add to lessons.md (v2 format):
 ```
@@ -523,11 +545,15 @@ Reflect Phase 1.5 extraction into files:
    - Create directory if missing: `mkdir -p ~/.claude/.harness/invocations/`
 
 8. **Key Files existing path verification** (conflict detection)
-   - Extract 3-5 file paths from MEMORY.md `## Key Files & Architecture` section (entry.py, app.py, key scripts, etc.)
-   - Verify each path with Glob (60s cap)
-   - **If stale found**: immediately update/delete that line in MEMORY.md + output `⚠️ STALE PATH: {path} → removed`
-   - **If OK**: `[Key Files verification] {N} checked — all OK` 1 line only
-   - Skip condition: MEMORY.md Key Files section missing or 0 path items
+   - Run the deterministic checker instead of ad-hoc Glob:
+     ```bash
+     python "scripts/validate_memory_claims.py" check-paths --file memory/MEMORY.md
+     ```
+   - Exit code contract: `0` = clean (every backtick-quoted path in MEMORY.md exists — this naturally concentrates on the `## Key Files & Architecture` section, entry.py/app.py/key scripts etc.), `1` = stale paths found (see `STALE:` lines in stdout), `2` = MEMORY.md could not be read.
+   - **Exit 1**: for each `STALE: {path}` line, immediately update/delete that line in MEMORY.md + output `⚠️ STALE PATH: {path} → removed`
+   - **Exit 0**: `[Key Files verification] {N} checked — all OK` 1 line only (N = the `total=` value from stdout)
+   - **Exit 2**: treat as `tool_failure` (Error Recovery below) — do not silently skip
+   - Skip condition: MEMORY.md missing, or the script itself isn't present at that path (fall back to manual Glob spot-check, 60s cap, and note `⚠️ deterministic checker unavailable — manual fallback used`)
 
 ### Phase 3.9: Handoff Clarity Self-Check
 
@@ -547,6 +573,13 @@ After writing the handoff, verify its quality with 2 anchor questions:
    - **Superseded docs**: Merged or new-version old files → move to graveyard/_archive (mark superseded in body).
    - ⚠️ Before delete/move, external-reference grep — if Read-by-path dependencies exist, defer.
    - Output: `[Forgetting Sweep] purged {N} / corrected {M} / superseded {K}` (if 0, then `no stale`).
+
+10. **Discoverability Check** — new-fact backlink verification
+    - For each permanent fact newly added to MEMORY.md this session (item 1 above), verify it has a **grep-verifiable backlink** somewhere a future reader would actually look — the project's index/table-of-contents file (README.md or whatever file plays that role in this project), if one exists. Run `grep` for the fact's key term or file name against that index file — don't eyeball it.
+    - **Found**: no output (silent pass).
+    - **Not found**: flag `⚠️ UNDISCOVERABLE: {fact summary}` — the fact is recorded but nothing routes a future reader to it — and add one line to the index file pointing at where the fact lives. This is the smallest edit that establishes the backlink, not a rewrite of the index.
+    - Skip condition: no new permanent facts were added this session, or the project has no index/table-of-contents convention to check against.
+    - Output: `[Discoverability Check] {N} new facts checked — {M} undiscoverable → index updated` (if 0 new facts, skip silently — no output).
 
 ## Phase 4: Preservation Verification
 
@@ -584,7 +617,8 @@ After verification passes, inform user:
 | [EDIT] tasks/lessons.md — update Monthly Synthesis section (Phase 3.6, conditional) | Delete Synthesis or modify source lessons |
 | [WRITE] `~/.claude/.harness/invocations/YYYY-MM.jsonl` — real-time Invocation Log (Phase 1.6.5) | Modify or delete existing JSONL items |
 | [WRITE] `~/.claude/.harness/invocations/YYYY-MM.jsonl` — Phase 3.7 fallback append (Phase 1.6.5 failure only) | Append with duplicate session_id (idempotency violation) |
-| [READ+EDIT] Verify MEMORY.md Key Files 3-5 paths with Glob → fix stale immediately (Phase 3.8) | Rewrite entire Key Files section |
+| [READ+EDIT] Verify MEMORY.md Key File paths via `scripts/validate_memory_claims.py check-paths` → fix stale immediately (Phase 3 item 8) | Rewrite entire Key Files section |
+| [READ+EDIT] Verify new-fact backlinks via grep, flag+add one index line if missing (Discoverability Check, Phase 3 item 10) | Rewrite the whole index file |
 | [WRITE] `~/.claude/.harness/interventions/YYYY-MM.jsonl` — Intervention Log append (Phase 1.8) | Modify or delete existing items |
 | [WRITE] `memory/.session-handoff.sha256` + `~/.claude/.harness/receipts/YYYY-MM.jsonl` — Attestation sidecar + receipt logging (Phase 2.4, write-receipt) | Sidecar/receipt verification·blocking logic (SessionStart hook only — guard/verify-receipt) |
 

@@ -15,6 +15,12 @@ not_for:
 see_also:
   - skill: project-check
     relation: "collab-audit=user collaboration patterns, project-check=project health"
+depends_on:
+  skills: []
+  agents: []
+  files:
+    - "scripts/session_hygiene_scan.py"
+concurrency_profile: sequential
 ---
 
 # /collab-audit — AI Collaboration Audit
@@ -62,6 +68,8 @@ Minimum conditions — one of:
 - 100+ messages
 - **Single-session high-density exception** → refer to Invariant 4 criteria. If exception met, mark `⚠ Single-session analysis — pattern confidence limited` then proceed.
 
+**Deterministic gate (preferred)**: if session-meta JSON files are available (one per session, with fields such as `message_count`, `artifact_count`, `originator`, `first_message`, `cwd`), run `scripts/session_hygiene_scan.py --meta-dir <DIR>` and read `meets_minimum` / `single_session_exception` straight from its JSON output — do not re-derive these booleans by eyeballing the transcripts. Fall back to manual counting only when no such metadata directory exists (e.g. a single live conversation with no file access).
+
 If all unmet:
 > "Insufficient data — minimum 2 sessions or 100 messages required. Currently [N] messages, [M] artifacts observed."
 
@@ -86,16 +94,16 @@ Mark result 1 line before Section 11: `[Delivery intensity: Direct / Calibrated]
 **Important**: Changing delivery intensity does not change blind spot content (accuracy). Only adjusts temperature.
 
 ### Step 0.6: Source Hygiene Filter (deterministic-first measurement)
-When multiple observation sources exist (e.g. session JSONLs), determine deterministically — before analysis — whether **each source is an organic user session or an automation byproduct**. A qualitative caveat alone (the old Step 1 approach) is not enough; automated sessions can be mistaken for user behavior.
+When multiple observation sources exist (e.g. session JSONLs), determine — before analysis — whether **each source is an organic user session or an automation byproduct**. A qualitative caveat alone (the old Step 1 approach) is not enough; automated sessions can be mistaken for user behavior.
 
-**Detection criteria** (any one qualifies a session as an exclusion candidate):
+**Deterministic gate**: run `scripts/session_hygiene_scan.py --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session `include`/`exclude` and returns `included_count`, `excluded_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye. Detection criteria the script applies (any one qualifies a session as `exclude`):
 - Session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`
 - Directory/cwd matches a recurring automated-experiment harness naming pattern (e.g. pair-run, A/B arm, pipeline)
 - `originator` is an SDK/bot/exec-type process, and no direct user-input signal (natural conversational opening message) is present
 
-**Exclusion**: sessions flagged this way are removed from the analysis population; report the exclusion count and reason in 1 line (e.g. "16 of 16 sessions excluded — all were thread_spawn subagent sessions"). Do not substitute a qualitative impression ("seems skewed toward one type") for an explicit denominator.
+**Exclusion**: sessions the script flags `exclude` are removed from the analysis population; report the exclusion count and reason in 1 line straight from the script output (e.g. "16 of 16 sessions excluded — all were thread_spawn subagent sessions"). Do not substitute a qualitative impression ("seems skewed toward one type") for the script's explicit denominator.
 
-Skip condition: if the only observation source is the current conversation (no multi-session file access), this filter does not apply — proceed to the next step.
+Skip condition: if the only observation source is the current conversation (no multi-session file access, no session-meta JSON available), the script cannot run — fall back to the qualitative criteria above and proceed to the next step.
 
 ### Step 1: Data Collection
 Collect all available observation sources, restricted to **organic sessions surviving Step 0.6**:
@@ -397,7 +405,8 @@ Based on previous development direction + current patterns, one next focus point
 - **Read**: MEMORY.md, artifact files, `~/.claude/collab-audits/*.md` (Compare mode)
 - **Write**: save `~/.claude/collab-audits/YYYY-MM-DD.md` and `~/.claude/.gitignore` (gitignore protection only)
 - **Glob**: list `~/.claude/collab-audits/` files (Compare mode)
-- Delete and execute tools forbidden
+- **Bash**: scoped to invoking `scripts/session_hygiene_scan.py` for the Step 0/0.6 deterministic gate only — not general-purpose execution
+- Delete and other execute tools forbidden
 
 ## Recommended Usage Times
 

@@ -1,6 +1,6 @@
 ---
 skill_type: workflow
-tools: Read, Bash, Glob, Grep
+tools: Read, Edit, Bash, Glob, Grep
 triggers:
   - "push"
   - "git push"
@@ -15,6 +15,16 @@ user_invocable: true
 not_for:
   - "Code review only -> code-reviewer agent"
   - "Lint/type check only -> code-reviewer --quick"
+depends_on:
+  - "code-reviewer"
+  - "security-reviewer"
+  - "database-reviewer"
+  - "refactor-cleaner"
+  - "build-error-resolver"
+  - "scripts/scan_secrets.py"
+concurrency_profile:
+  agents: "parallel (Step 6 review agents, cap 5 per wave; large diffs use deterministic bundling)"
+  bash: "serial (git state advances sequentially — Steps 1/4/5/8 each depend on the prior step's exit code)"
 see_also:
   []
 ---
@@ -65,6 +75,10 @@ Does the secrets scanner run without exception — a single skip permanently rec
 1. **`scan_secrets.pl` script accessible** — if broken: secrets scan unavailable → push blocked.
 2. **git staged files exist** — if broken: inform user and halt.
 3. **Agent tools (code-reviewer, etc.) dispatchable** — if broken: skip AI review, run lint/test only.
+
+## Autonomy Boundary
+
+Every step through Step 6 only *inspects* state — `git diff`, `git status`, `git branch --show-current`, `git log`, linters, test runners, and the parallel review agents all read without mutating the repo or its remote, so none of them need a per-command confirmation to run. `git push` is the one write action in this entire pipeline, and it's exactly where the gates apply: it only fires after Step 8's Overall verdict is READY TO PUSH, and a push to `main`/`master` additionally needs an explicit "yes" (Step 1 protected-branch block, Safety Layers L3). Treat "runs freely" and "needs approval" as following directly from read vs. write, not from step number or perceived risk.
 
 ## Step 0: Hook Pipeline Health (Fast, WARN-only)
 
@@ -176,6 +190,8 @@ fi
 ```
 
 > **Install**: `pip install pip-audit` (Python native, no Go binary needed — preferred over osv-scanner for Python projects)
+
+> **Further reading**: the 9-IOC checklist above is a lightweight, offline heuristic run inline by this skill — it is not a substitute for dedicated supply-chain tooling. For broader, actively maintained coverage (SBOM generation, provenance attestation, dependency health scoring), see the [OpenSSF Scorecard](https://github.com/ossf/scorecard) project and the [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/).
 
 ## Step 4: Build & Test (Fail Fast)
 
