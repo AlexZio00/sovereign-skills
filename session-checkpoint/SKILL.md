@@ -1,6 +1,6 @@
 ---
 skill_type: lifecycle
-tools: Read, Write, Edit
+tools: Read, Write, Edit, Bash
 triggers:
   - "/session-checkpoint"
   - "checkpoint"
@@ -95,6 +95,25 @@ Scan session conversation to extract 4 entity types:
 - New external tools / APIs / libraries (installation confirmed)
 - Hard rule changes or new constraints
 - Criterion: facts that remain true in next session
+
+**Stage 1 — CT promotion queueing** (`ct_promotion_queue.py`, opt-in, deterministic):
+This only actually queues anything when the marker file
+`~/.claude/.harness/memory-ct-autopatch.enabled` exists — the script checks
+for it itself at startup, so this phase calls it unconditionally without a
+separate existence check.
+
+```bash
+python ~/.claude/scripts/ct_promotion_queue.py scan \
+  --context-log <absolute path to this project's context-log.md> \
+  --memory-md <absolute path to this project's MEMORY.md> \
+  --scope project --project-path <absolute path to this project's root>
+```
+
+- For a pure global session with no project cwd, use `--scope global --memory-md ~/.claude/projects/<proj-id>/memory/MEMORY.md` instead and omit `--project-path`.
+- If the output is "no opt-in marker — skipping", this step ends silently (no further output needed — beyond the no-writes rule, this also keeps user-facing noise minimal when the opt-in condition isn't met).
+- If the output shows `enqueued=0`, no new T2 candidates this session — end silently.
+- If `enqueued` is 1 or more, surface a one-line summary verbatim to the user: `[CT Promotion Queue] {N} newly queued — drafts will be proposed at the next memory-dream run (queue: ~/.claude/.harness/ct-promotion-queue.jsonl)`.
+- If the output includes a `⚠️ Resurfaced: {topic}` line, surface that verbatim too (a previously-deleted fact resurfacing — never suppress this silently).
 
 **External source 3-Tier Reference Threshold** (→ `~/.claude/rules/memory-format.md` authoritative source)
 | Tier | Criterion | Storage Location |
@@ -264,7 +283,7 @@ missed under the original session_id.
 
 **Skip conditions** (do not record):
 - skills + agents + discarded all empty → no session calls, skip record
-- Phase 1.5 Triple Gate not met (tokens<5000 AND tools<3) → no meaningful activity
+- **Activity threshold not met** (reusing only the two activity-volume legs of the Phase 1.5 Triple Gate: tokens<5000 AND tools<3) → no meaningful activity, skip record. **The 24h leg is deliberately not applied here** — that leg exists to keep Phase 1.5's entity-extraction from auto-firing on every trivial checkpoint, while this skip condition is only asking "was there anything to record in this session." Applying the 24h leg here too would suppress a genuine invocation log entry (even with tokens≥5000 AND tools≥3) just because the last checkpoint happened to be recent — defeating this log's actual purpose (crash-loss protection, Discard-If-rejection-rate measurement infrastructure).
 
 **Directory guarantee**: Before recording, verify `~/.claude/.harness/invocations/` exists. Create with `mkdir -p` if needed.
 
@@ -653,7 +672,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 
 | Failure Type | Detection | Recovery Path |
 |---------|---------|--------|
-| `tool_failure` | Write/Edit fails, 0-size file, path missing | Verify path, retry once. 3 fails → report error to user + BROKEN label |
+| `tool_failure` | Write/Edit fails, 0-size file, path missing | Verify path, retry (infra retry cap: 3 attempts) → still failing → report error to user + BROKEN label |
 | `input_error` | Phase 1 extraction empty (no session data) | Check Discard If then halt, or generate minimal handoff (current state only) |
 | `missing_data` | MEMORY.md / context-log.md missing | Create files (empty template) then retry. If creation fails, report to user |
 | `logic_inconsistency` | Phase 4 checklist fails + Phase 1 complete conflict | Re-run Phase 1. If still fails after → PARTIAL label, list concrete defects |

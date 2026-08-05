@@ -74,7 +74,7 @@ Does the secrets scanner run without exception — a single skip permanently rec
 ## Key Assumptions 
 1. **`scan_secrets.pl` script accessible** — if broken: secrets scan unavailable → push blocked.
 2. **git staged files exist** — if broken: inform user and halt.
-3. **Agent tools (code-reviewer, etc.) dispatchable** — if broken: skip AI review, run lint/test only.
+3. **Agent tools (code-reviewer, etc.) dispatchable** — if broken: replace code-reviewer with an inline abbreviated review (see Error Recovery below) rather than skipping it outright — an unconditional skip trades away review quality. Conditional agents (security/database/refactor, etc.) still skip with an explicit note.
 
 ## Autonomy Boundary
 
@@ -193,6 +193,43 @@ fi
 
 > **Further reading**: the 9-IOC checklist above is a lightweight, offline heuristic run inline by this skill — it is not a substitute for dedicated supply-chain tooling. For broader, actively maintained coverage (SBOM generation, provenance attestation, dependency health scoring), see the [OpenSSF Scorecard](https://github.com/ossf/scorecard) project and the [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/).
 
+## Step 3.5: Public-Mirror Scrub (WARN — never blocks, conditional)
+
+A push-time backstop for any write-time reminders you run elsewhere (e.g. a
+pre-commit leak scanner) — different layers, so if one is bypassed the other
+still catches it (defense in depth). Useful if this repo is a curated public
+mirror of a private source (internal identifiers, section numbers, or
+internal-only tool paths can leak into a public-facing copy through
+copy-paste).
+
+**Trigger condition**: only runs when `git remote get-url origin` matches a
+repo you've configured as a known public mirror. Private/internal repos
+should skip this step entirely.
+
+```bash
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "")
+# Replace the pattern below with your own public-mirror repo name(s).
+if echo "$ORIGIN_URL" | grep -qiE "YOUR_PUBLIC_MIRROR_REPO_NAME_HERE"; then
+  # (a) org-identifier / internal-jargon term list — reuse your leak-scan
+  # script's pattern list if you have one, e.g. internal §-numbered rule
+  # citations, private absolute paths, internal-only repo names.
+  echo "$STAGED_DIFF" | grep -nE "§[0-9]+|internal-only-path-pattern" \
+    && echo "⚠️ PUBLIC_MIRROR_SCRUB: possible internal identifier/section-number string found — verify before pushing to public mirror (${ORIGIN_URL})"
+  # (b) binary sweep — staged non-text assets
+  BINARY_FILES=$(git diff --staged --name-only --diff-filter=A | while read -r f; do
+    file --mime-encoding "$f" 2>/dev/null | grep -q "binary" && echo "$f"
+  done)
+  [ -n "$BINARY_FILES" ] && echo "⚠️ PUBLIC_MIRROR_SCRUB: new binary file(s) — confirm these are intentional public assets: $BINARY_FILES"
+  # (c) a surface the diff won't catch — internal identifiers baked into the branch name itself
+  echo "$CURRENT_BRANCH" | grep -qiE "§|internal-only-path-pattern" \
+    && echo "⚠️ PUBLIC_MIRROR_SCRUB: possible internal identifier in branch name — this surface isn't visible in the diff"
+fi
+```
+
+WARN-only (advisory, never blocks) — mirrors the same explicit non-blocking
+decision as the write-time leak scanner it backstops. Adjust the grep
+patterns to whatever your own internal-only vocabulary actually is.
+
 ## Step 4: Build & Test (Fail Fast)
 
 Detect changed languages first, then run only the relevant test/build commands. Skip entirely for config, docs, or style-only commits.
@@ -302,7 +339,9 @@ In large changesets, agents choosing which files to read on their own leads to c
 3. **Coverage validation (deterministic)**: before dispatch, verify `union of bundle files == all of $STAGED_FILES` by count. Mismatch → add missing files to final bundle. Never dispatch without this check.
 4. **Cross-bundle joint pass**: after all per-bundle reviews complete, forward the union of each bundle's finding-list summary to a single reviewer (code-reviewer) for one final pass across bundle boundaries. This catches fragmentation — a change deliberately or accidentally split across bundles can look safe in each isolated review but be unsafe once combined. Do not declare a large-diff review complete without this joint pass.
 5. **Deterministic claim verification** (optional, environment-specific): save the joint-pass output (finding list with file/line-range citations — e.g. `【F:path†Lstart-Lend】`-style anchors) to a file, then run a claim-verification script against it if your setup has one — for example `python "$HOME/.claude/scripts/verify_review_claims.py" --review <finding-list-file> --repo-root .`. It should check, per finding: (a) the cited file exists in the staged diff, (b) the cited line range overlaps the diff hunk, and (c) an optional grep cross-check passes — labeling each finding `CONFIRMED` or `UNVERIFIED-CLAIM`. Keep `UNVERIFIED-CLAIM` findings open for re-review before Step 7 Gate Check — do not auto-downgrade them. This script is optional and environment-specific: if `~/.claude/scripts/verify_review_claims.py` (or your own equivalent) is not present, skip this sub-step and proceed with the cross-bundle joint pass alone; note the skip in the Step 8 report.
-6. **Conditional agents** (security/database/refactor): follow existing trigger rules, but only pass diff for bundles matching those triggers.
+6. **Opt-in high-risk gap-sweep second pass**: code-reviewer's own Resource Limits describe a single-pass principle, but categories like a guard lost during a move/extract, a dataclass default evaluated once, `hash()` non-determinism, a shrunk lock scope, a side-effecting predicate, asymmetric test setup/teardown, or a flipped config default are exactly the kind of thing a first pass tends to miss structurally. **Only when `$DIFF_LINES` > 500 OR files > 10 (same trigger as the large-diff bundling above)** — dispatch one fresh code-reviewer instance dedicated solely to this miss-category checklist (not re-checking findings already surfaced), capped at 8 new findings (empty result if none — no padding). This runs against the single-pass principle, so it's opt-in and scoped to large/high-risk diffs only — don't apply it to small diffs.
+7. **Conditional agents** (security/database/refactor): follow existing trigger rules, but only pass diff for bundles matching those triggers.
+8. **Multi-angle parallel re-attack** (opt-in, not the default): code-reviewer's 12 questions already sweep correctness/resource-management/security/design/convention in one pass, so this doesn't belong in the default pipeline. For changes that are extremely hard to reverse (a merged DB migration, payment/funds logic) — **only when the user explicitly asks for it** — dispatch 5 parallel code-reviewer instances, each pinned to one of those five lenses, to re-attack the same diff.
 
 Small diff (≤500 lines AND ≤10 files): use existing approach, send full diff to each agent. Bundling overhead not needed.
 
@@ -364,11 +403,14 @@ The <intent> above is the user's goal. If diff deviates from intent, flag it —
 2. Re-run only the agent(s) that reported the issue
 3. Max 1 retry per agent
 4. Still failing → halt and report exact issue + file location to user
+5. **Skip-reason logging**: when a finding is knowingly left unfixed (superseded by a later feature change / genuinely out of scope / judged a false positive), record `SKIP_REASON: {finding} — {feature_change|out_of_scope|false_positive} — {one-line reason}` in the Step 8 report. No silent skips without a stated reason.
 
 **Error Recovery**: if Step 6 agents or Bash tools fail:
 - Classify: `tool_failure`
-- Apply: retry same agent once → still fail → report `⚠️ TOOL_FAILURE: {agent} — manual review needed` and continue remaining steps. No silent failures.
-- Step 8 report that line: explicitly note `⚠️ SKIPPED (tool_failure — {agent})`.
+- Apply: retry same agent once → still fail:
+  - **code-reviewer (Always run)**: instead of an outright skip, fall back to an inline abbreviated review — the pre-push executor itself reads the staged diff once, applying code-reviewer's `--fast`-mode bar (runtime bugs only, max 8 findings, no padding), and merges those findings into the Step 8 report. Note `⚠️ INLINE_FALLBACK: code-reviewer subagent unavailable — replaced with inline abbreviated review`.
+  - **Conditional agents (security/database/refactor)**: as before, report `⚠️ TOOL_FAILURE: {agent} — manual review needed` and continue remaining steps. No silent failures.
+- Step 8 report that line: explicitly note `⚠️ SKIPPED (tool_failure — {agent})` or `⚠️ INLINE_FALLBACK (code-reviewer)`.
 
 **Parallel Conflict Resolution**: if Step 6 agents report conflicting verdicts on the same file:
 - security-reviewer Critical + code-reviewer Non-critical → **Critical takes priority** (weakest link principle).

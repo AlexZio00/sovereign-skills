@@ -53,18 +53,20 @@ Default: anything not allowed is blocked (fail-closed)
 [STEP 0] Preparation
 1. Map project structure (dirs + config)
 2. Run audit (Python: pip-audit / Node: npm audit / Rust: cargo audit)
-3. **Cross-file impact**: changed files → import/call Grep → blast radius
+3. **Cross-file impact**: changed files → import/call Grep → blast radius. **Function-level contract check**: a file-level import graph isn't enough — for each changed function, find its actual callers and check whether the diff broke a precondition (argument shape/order), return type, exception contract, or call-timing assumption. No caller found → skip.
 4. Read: entry point → core logic → data layer → utilities
+5. **Pin the diff scope**: run `git diff @{upstream}...HEAD` (no upstream → `git diff main...HEAD` or `git diff HEAD~1`). If there are uncommitted changes or the range diff comes back empty, also include `git diff HEAD` to bring working-tree changes into scope. A supplied PR/branch/file argument overrides this and becomes the scope instead.
+6. **Locate governing rules**: walk up the ancestor directories of each changed file looking for an applicable CLAUDE.md/AGENTS.md/`rules/*.md` and read it — this feeds the governing-rules sub-check under Q1. No such file → skip this step.
 
 [STEP 1] 12 QUESTIONS
 
-Q1. Design — SRP, dependency direction, Parnas info hiding, abstraction consistency, **API backward compat**. Deletion test: if this module were deleted, what breaks? + module boundary follows "hidden decision" principle (Parnas). Prefer this vocabulary when flagging code smells: Long Method, Feature Envy, Data Clump, Shotgun Surgery, Middle Man, Divergent Change, Primitive Obsession, Switch Statements, Lazy Class, Speculative Generality.
+Q1. Design — SRP, dependency direction, Parnas info hiding, abstraction consistency, **API backward compat**. Deletion test: if this module were deleted, what breaks? + module boundary follows "hidden decision" principle (Parnas). Prefer this vocabulary when flagging code smells: Long Method, Feature Envy, Data Clump, Shotgun Surgery, Middle Man, Divergent Change, Primitive Obsession, Switch Statements, Lazy Class, Speculative Generality, Large Class, Long Parameter List, Temporary Field, Refused Bequest, Alternative Classes with Different Interfaces, Inappropriate Intimacy, Message Chains. A dependency-direction violation (Clean Architecture Dependency Rule) gets named against the specific SOLID principle it breaks: SRP (single responsibility), OCP (open-closed), LSP (Liskov substitution), ISP (interface segregation), DIP (dependency inversion — low-level should point at high-level policy, not the reverse). **Wrapper/proxy forwarding correctness**: when a cache/proxy/decorator-shaped type changes, verify every method still faithfully delegates to the wrapped object — doesn't apply if there's no such pattern in the diff. **Governing-rules violation**: if the project has a discoverable CLAUDE.md/AGENTS.md/rules file covering the changed area (see STEP 0), flag only when you can cite the exact rule text plus the violating line — never infer from a rule's presumed "intent" or a general style preference; leave this sub-check blank if no such file exists.
 Q2. Conciseness — unnecessary vars, wrapping, naming, **nesting ≤3**, **comments = "why" only**. Kitchen-sink detection: does this module do unrelated things that should be split?
-Q3. Bugs — runtime panic, edge cases, serialization, **race conditions, deadlocks, shared state, async/await**. Type mismatch across boundaries (API/DB/UI layers). Schema/migration safety: does a column add/drop/change break existing data, is the migration reversible?
+Q3. Bugs — runtime panic, edge cases, serialization, **race conditions, deadlocks, shared state, async/await**. Type mismatch across boundaries (API/DB/UI layers). Schema/migration safety: does a column add/drop/change break existing data, is the migration reversible? Also check: off-by-one, falsy-zero (0/empty-string mistaken for null/None), copy-paste remnants (a variable name that didn't get renamed), an unescaped regex. Language-specific traps worth a dedicated look — e.g. Python's mutable default argument (`def f(x=[])`) and late-binding closures (a loop variable a closure captures by reference, not by value at creation time).
 Q4. Functionality — spec compliance, error feedback, unhappy path. Under/over-implementation + guard against "building to the test" (passes the check, doesn't do the ask). Rollback safety: what breaks if this change is reverted?
 Q5. Security — input validation, secrets, permissions, CVEs, **deprecated deps, license, supply chain**. 5-domain security: API / web app / supply chain / secrets / infrastructure. On every mutating/read path, ask: who is calling, and are they authorized to touch this specific object (object-level authorization)?
 Q6. Duplication — DRY violations, similar functions, scattered validation. Wrong abstraction warning: don't abstract on the 2nd duplicate — wait for the 3rd.
-Q7. Performance — O(n²)+, unnecessary copies, N+1 queries, memory leaks. DB/API calls inside loops (N+1) + unnecessary full-table loads. Also check: API latency/timeout/unreturned connection-pool handles (network); missing index, full-table scan, unnecessary EXPLAIN (DB); loading everything when only a slice is needed (missing streaming/LIMIT); synchronous blocking inside an async path; unbounded cache/list growth (no eviction).
+Q7. Performance — O(n²)+, unnecessary copies, N+1 queries, memory leaks (including a closure that captures a large object or outer scope and blocks it from being garbage-collected). DB/API calls inside loops (N+1) + unnecessary full-table loads. Also check: API latency/timeout/unreturned connection-pool handles (network); missing index, full-table scan, unnecessary EXPLAIN (DB); loading everything when only a slice is needed (missing streaming/LIMIT); synchronous blocking inside an async path; unbounded cache/list growth (no eviction).
 Q8. Commonization — patterns → util, hardcoding → config, error handling unification. Cross-file impact tracing: does this change alter behavior in other files — trace 1 hop of caller/callee. Also detect shallow modules (deletion test: if removed, does complexity just concentrate elsewhere?) — when a module's interface is as complex as its implementation, suggest a one-line deepening direction. Check for conflicts against any existing ADR.
 Q9. Dead Code — unused imports/vars/functions, commented blocks, debug remnants. Surgical changes principle — only clean up dead code created by YOUR change, leave pre-existing dead code alone.
 **Q10. Test Quality** — mock bypassing logic, meaningless assertions, edge case gaps, skip/xfail disguise, untested critical paths. DONE↔GOAL alignment (Building to the Test): does a passing test actually validate the original goal? Oracle redefinition: a diff that changes an existing test's expected value without explicit scope justification (approved requirement/contract change) is suspect — fixing a broken regression test to match the implementation IS oracle redefinition; demand "why was the old contract wrong" evidence.
@@ -72,6 +74,8 @@ Q9. Dead Code — unused imports/vars/functions, commented blocks, debug remnant
 **Q12. Observability** — no structured logging, missing trace IDs, errors without context, sensitive data in logs, no monitoring hooks. State reproducibility: can the state at time of error be reconstructed from logs alone?
 
 **Concrete failure scenario required**: every finding needs a concrete failure scenario — a specific input/state producing a specific wrong output/behavior. A finding you cannot attach a scenario to is a style opinion, not a defect — drop it. Findings verifiable by execution (a build, a touched test, running a snippet) outrank ones only traced by inspection.
+
+**Re-established-invariant check** (removed-behavior audit): for every line the diff **deletes or replaces**, name in one line the invariant/behavior it guaranteed (a guard condition, an error path, a validation check) and locate where the new code re-establishes it. Can't find one → file it as a Q3 (Bugs) or Q11 (Error Resilience) candidate. This generalizes the fixed 4-pattern Silent Failure Rules grep above into an open-ended check. Doesn't apply to a pure-addition (ADD-only) diff.
 
 [EMPIRICAL RULES — experiment-backed only]
 - Nesting ≤3 (Johnson 2019, N=275, d=0.48) ✅ | do-while avoidance (d=0.01) ⛔ myth
@@ -181,6 +185,19 @@ IF [condition]: [impact]
 
 Valid for: code snapshot at analysis time only.
 ```
+
+[FAST MODE] (--fast)
+A middle tier between the full 12Q pipeline (STEP 0–3) and [QUICK MODE] (lint/type only).
+
+Trigger: `--fast`, or an explicit request for something heavier than a lint pass but lighter than the full review.
+- Model: same reasoning-capable model as the full pipeline — a lint-only pass can't judge runtime logic.
+- Read the diff **once** — skip STEP 0's cross-file analysis, the Silent Failure Rules grep, and the full 12Q sweep.
+- Goal: only the **runtime bugs visible directly in the hunk** (what Q3/Q5/Q11 cover) — skip design/style/performance (Q1/Q2/Q6–Q9).
+- Cap: 8 findings max. If fewer than `min(files_changed, 4)` real findings turn up, report fewer — never invent findings to fill the quota (no padding).
+- Skip the Severity-scoring script — CRITICAL/HIGH/MEDIUM by judgment only, no composite score or deployment verdict.
+- Output: same format as [QUICK MODE] below, but with a "Summary: N findings" line instead of "Overall Health".
+
+If the diff turns up no clear runtime bug: "No clear runtime bug found — re-request without a mode flag for the full design/performance pass."
 
 [QUICK MODE]
 ```

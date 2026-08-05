@@ -215,6 +215,7 @@ Read `memory/MEMORY.md` but filter by tag.
 - `<!-- #always -->` tagged sections → load entire section (core info)
 - `<!-- #on-demand -->` tagged sections → output headers as TOC only (Grep on demand for access)
 - No tag in MEMORY.md → **load entire file** (backward compat)
+- **Query-conditional load**: individual fact files listed under On-Demand Reference (e.g. per-topic `user-profile`/`project_*` files) get Grep-loaded only after confirming this conversation is actually about that topic — surface keyword overlap between the header text and the user's message is not sufficient justification. When it's unclear, don't load; load later if it turns out to be needed.
 
 **Execute:**
 1. Grep `^##.*<!-- #always -->` → Read that section

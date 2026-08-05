@@ -86,6 +86,8 @@ Fails: reject. "Interesting" is not value.
 
 **Triple-check effectiveness claims**: an external claim that "this pattern works" (from a README, blog post, or report) should only be trusted as verified when three conditions hold — (a) injecting the pattern shows measurable improvement, (b) removing it shows measurable degradation, and (c) a placebo control (a mechanism-free instruction of similar shape/length) does not produce the same effect. Without this three-way check, treat the effectiveness claim as unverified — a marketing claim, not a fact.
 
+**Analogy trap check**: a value claim of the form "X does it this way, so should we" needs three answers before it counts — what problem was X actually solving? Is our problem identical along every dimension that matters? What constraints do X and we hold differently? If you can't answer all three, the value claim is riding on analogy alone — treat it as insufficient (reject or ask a follow-up question).
+
 #### 3. Structural Fit
 Does it conflict with your existing layered rules, hard rules, or operating conventions?
 

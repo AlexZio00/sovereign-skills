@@ -160,6 +160,14 @@ the counter-evidence (`file:line` or a quote of the current code). No
 resolvable anchor → label it `asserted_without_anchor` and cut it (see
 Invariants).
 
+**Derivability signal**: if a CLAUDE.md/rules line hardcodes a fact that could
+be mechanically reconstructed from the code (directory layout, dependency
+list, build command, etc.), that's a structural Outdated risk even when the
+current value happens to be correct — the two will drift independently over
+time. Tag such findings `[derivable]` as supporting evidence for priority.
+Not a new category — it's a sub-signal of Outdated, the three-kind taxonomy
+above is unchanged.
+
 **If confidence is low, drop it. False positives are this tool's biggest
 enemy.**
 

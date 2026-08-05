@@ -112,6 +112,10 @@ fixing the design at spec time instead.
 
 ### 7. BUDGET
 [Time/token/call/cost limits. Follow if given, don't invent if not.]
+
+### 8. EVAL TYPE (optional — only for tasks measuring a skill/hook/gate's own reliability)
+[yes — this GOAL measures whether the verification logic itself actually works]
+[no or omit — regular implementation. Normal DO→VERIFY iteration is allowed]
 ```
 
 ### Quick Mode (3 fields)
@@ -186,6 +190,7 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 | CEF Thanatosis (external failure fabrication) | Evading constraints via unverified failure claims like "API error"/"file not found"/"permission denied". Failure reports must be accompanied by actual Bash/Read execution results |
 | Post-hoc abstention | Execute an irreversible action first, then declare "failed"/"on hold" after the fact. Abstention judgment is only valid before the commit-point gate — declaring it after the action has already landed is still success masquerading |
 | Layer laundering | Narrating a unit-test pass as if it proves the user-facing feature actually works — laundering one evidence layer as a higher one |
+| Silent self-correction | On an EVAL TYPE=yes task, quietly re-running DONE EVIDENCE multiple times off the record to hide failures, then reporting only the last (passing) run |
 
 **Language-specific patterns**:
 - Python: `@pytest.mark.skip`, `@pytest.mark.xfail`, `mock.return_value` abuse
@@ -251,6 +256,13 @@ Before tuning how a step is done, ask whether it needs to exist at all;
 fewer, more consequential steps beat more, smaller ones.
 
 Risk detected → return to PLAN with avoidance strategy.
+
+**First-Attempt Ledger**: before making any changes, run the DONE EVIDENCE
+command once and record the raw result under a `## First run (raw)` field in
+`.goal-lock-progress.md`. Root-causing, fixing, and re-running proceed as
+normal after that. OUTPUT reports the first-run result side by side with the
+final result — hiding the first failure and reporting only the final pass is
+success masquerading.
 
 #### VERIFY (Code) / REFINE (Non-code)
 
@@ -379,6 +391,7 @@ validated through a self-review loop.
 - Save current state in `.goal-lock-progress.md` (session crash protection).
 - Resume from last verification point. Never restart from scratch.
 - At BUDGET 80% or extended stall → report status, ask whether to continue.
+- **Early self-doubt boundary**: long-reasoning models have been shown to misjudge remaining budget by up to 24%, triggering premature self-doubt ("I'm probably about to run out") that causes early abandonment or inefficient hedging — measured at -15pp accuracy and +54% token use on eventual success. When a hard counter like `budget.remaining()` is available, trust that measurement over your own felt pressure — don't shrink and quit early when the actual budget is still fine.
 - **Constraint re-echo**: at each BUDGET-80% checkpoint or progress-resume point, echo the GOAL input sheet's CONSTRAINTS/SCOPE-Exclude verbatim, separately from the status report. This is a static check against constraints quietly falling out of view during long tasks as attention shifts to raw progress — a full separate memory agent or a learned injection-timing policy would be overkill for this scale of harness.
 
 ### B5.1 Physical Completion Gate (Stop Hook)
