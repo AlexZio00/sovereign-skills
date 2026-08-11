@@ -6,6 +6,18 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.9 — 2026-08-11
+
+Codex/Cursor compatibility complete — packaging-only release, no skill content changes.
+
+### Added
+- **agents/openai.yaml** for 5 skills missing Codex agent definitions: `doc-drift`, `eval-leakage-audit`, `next-action`, `project-overview`, `skill-ops`. All 20 skills now ship Codex-compatible agent YAML.
+
+### Changed
+- **README.md**: Installation section restructured — Option C now explains Codex `AGENTS.md` integration with `openai.yaml`, Option D covers Cursor and other markdown-reading agents. Requirements updated (scan_secrets.py preferred over .pl).
+
+---
+
 ## v6.5.8 — 2026-08-05
 
 Refinement release — no skills added or removed; targeted delta port from the

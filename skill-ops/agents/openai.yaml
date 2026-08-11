@@ -1,0 +1,3 @@
+name: skill-ops
+description: "Skill ops hub: snapshot/rollback + usage health + invocations."
+instructions: "../SKILL.md"

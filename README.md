@@ -1,9 +1,11 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.5.8
+# sovereign-skills v6.5.9
 
 20 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
+> **What changed in v6.5.9:** Codex compatibility complete — all 20 skills now ship `agents/openai.yaml`. Previously 5 skills added in v6.3–v6.5 (`doc-drift`, `eval-leakage-audit`, `next-action`, `project-overview`, `skill-ops`) were missing Codex agent definitions. Installation section restructured (Option C: Codex/AGENTS.md, Option D: Cursor/other agents). No skill content changes — packaging-only release.
+>
 > **What changed in v6.5.8:** Refinement release — no skills added or removed; a targeted delta port from the internal fork since v6.5.7 (6 of the 20 skills changed upstream in that window, plus a hand-diffed `code-autopsy` port). `doc-drift` (new Derivability signal — a hardcoded-but-code-reconstructable fact is flagged as structurally drift-prone even when currently correct), `integration-intake` (new Analogy-trap check — an "X does it this way, so should we" value claim needs three answered questions before it counts as evidence), `session-start` (new Query-conditional load rule for on-demand memory files — load only after confirming the conversation is actually about that topic, not on keyword overlap alone), `goal-lock` (new optional EVAL TYPE field for tasks that measure a skill/hook/gate's own reliability, a Silent Self-Correction anti-pattern, a First-Attempt Ledger recording the raw pre-fix DONE EVIDENCE run before any changes, an Early Self-Doubt Boundary note against premature task abandonment from misjudged remaining budget), `pre-push` (code-reviewer unavailability now falls back to an inline abbreviated review instead of an outright skip; new Step 3.5 Public-Mirror Scrub — a WARN-only push-time backstop for repos that are curated public mirrors of a private source; new opt-in high-risk gap-sweep second pass and opt-in multi-angle parallel re-attack; skip-reason logging added to the Fix loop), `session-checkpoint` (new Stage 1, CT promotion queueing — `scripts/ct_promotion_queue.py`, opt-in via a marker file, pure deterministic token-overlap clustering with no LLM judgment and no writes to MEMORY.md/context-log.md itself, ships with a 35-case regression suite; invocation-log skip condition clarified to reuse only the activity-volume legs of the Triple Gate, deliberately not the 24h leg meant for a different auto-trigger), `code-autopsy` (7 more code-smell terms + explicit SOLID-principle naming for dependency-direction violations, a wrapper/proxy forwarding-correctness check, a governing-rules violation check quote-only with no inferred "intent", Q3 gained off-by-one/falsy-zero/copy-paste/unescaped-regex plus Python's mutable-default-argument and late-binding-closure traps, Q7's memory-leak check now names closure-captured-large-object as a pattern, STEP 0 gained a function-level contract check + explicit diff-scope pinning + governing-CLAUDE.md/rules discovery, a new re-established-invariant check for every deleted/replaced line, and a new [FAST MODE] `--fast` tier between the full pipeline and Quick Mode).
 >
 > **What changed in v6.5.7:** Refinement release — no skills added or removed; several gained working deterministic scripts in place of LLM self-scoring. `project-overview` (`generate_overview.py` is no longer a stub — fully implemented registry parsing, state-snapshot extraction, and AUTO-block render/replace, with untrusted-input table-cell escaping and malformed-marker recovery, backed by unit + integration tests), `scope` (Quick/Full ambiguity gating and BRIEF.md min-item validation now run through a ported `ambiguity_gate.py`, with a regression test locking a bold-text-as-header counting bug), `skill-ops` → v1.2 (Health Mode bucket classification and Quality Mode S/U/S_Q scoring now run through `skill_health_bucket.py` instead of manual arithmetic), `collab-audit` (Step 0.6 source-hygiene filtering now runs through `session_hygiene_scan.py`), `session-checkpoint` (new Discoverability Check step flagging memory writes with no index backlink, a timeout/kill partial-output guard, two Reflexion lesson-quality gates, a PII-redaction rule for raw observations, and Key Files verification moved to a `validate_memory_claims.py` script), `goal-lock` (scope-check surface widened to interface/API changes not just touched files, a benchmark-backed chain-length dominant-variable note, the Stop-hook order gate upgraded to a verified 4-condition implementation, a new Safety Layers section, enum-style VERIFY failure labels, a self-judgment caveat on REFINE's DELTA CHECK, and a background-task termination handshake), `code-autopsy` (a Rationalization Table of 8 common reviewer rationalizations + rebuttals, and a note recommending script-based severity arithmetic over mental math), `eval-leakage-audit` (17→18-pattern taxonomy — adds Goodhart co-evolution in self-improving loops — plus a Reviewer Independence Honest 4-Label check), `integration-intake` (read-only `tools:` frontmatter, redirect-style `not_for` entries, 7 fixed misjudgment-enum labels per phase), `pre-push` (explicit `depends_on`/`concurrency_profile` frontmatter, an Autonomy Boundary note distinguishing read-only git commands from the gated `git push`, an external security-catalog reference link), `session-start` (`depends_on`/`concurrency_profile` frontmatter, Phase 2.2-2.4 rewritten to deterministic commands with fixed stdout contracts, a new unnumbered L0 Inheritance section), `doc-drift` (new Step 0 deterministic pre-filter feeding the Risky/Ambiguous category as supporting evidence only), and `depends_on`/`concurrency_profile` frontmatter adopted across `full-audit`, `project-check`, `project-init`, `freeze`, `stepback`, `next-action`, and `clean-room`, several of which also gained tool-category-tagged Scope Boundary tables. **Known gap surfaced by this release**: `project-check` (and a few siblings) gained unnumbered "inherited principle" notes on Safety Layers/Error Recovery headers — a past release deliberately stripped numbered `(L0 §N)` citations from these same headers across all 10 skills; this version's notes are unnumbered/generic rather than the removed citations, but the header-annotation pattern itself is back. Worth a conscious call before the next release builds further on it.
@@ -180,30 +182,31 @@ Each skill also includes standalone `.claude-plugin/plugin.json` metadata.
 
 Skills are invoked by typing the trigger command (e.g., `/goal-lock`) in Claude Code. Claude reads the SKILL.md and follows the instructions.
 
-### Option C: Codex / Cursor (npx)
+### Option C: Codex (AGENTS.md)
 
-Each skill includes `agents/openai.yaml` for Codex compatibility:
+All 20 skills ship `agents/openai.yaml` for OpenAI Codex. Copy the YAML into your project's `AGENTS.md` or reference the file directly:
 
 ```bash
-# Install a skill for Codex
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent codex -g -y
+# Copy a skill's Codex agent definition
+cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
 
-# Install a skill for Cursor
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent cursor -g -y
-
-# Install a skill for Claude Code (alternative to Option A)
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent claude-code -g -y
+# Or reference the SKILL.md directly — Codex reads markdown instructions
+# just like Claude Code does. The content is agent-agnostic.
 ```
 
-The SKILL.md content is universal — it works with any LLM that reads markdown instructions.
+Each `openai.yaml` points to the same `SKILL.md` via `instructions: "../SKILL.md"` — one source, two surfaces.
+
+### Option D: Cursor / Other Agents
+
+The SKILL.md content is universal markdown — it works with any LLM that reads markdown instructions. Copy `SKILL.md` into your agent's instruction path.
 
 ### Requirements
 
 - **Claude Code**: CLI, desktop app, or web app ([claude.ai/code](https://claude.ai/code))
-- **Codex**: OpenAI Codex with `npx skills` support
-- **Cursor**: Cursor IDE with skill plugin support
+- **Codex**: OpenAI Codex — each skill includes `agents/openai.yaml`
+- **Cursor / Other**: Any agent that reads markdown instructions
 - Skills directory: `~/.claude/skills/` (Claude Code) or agent-specific path
-- `pre-push` requires Perl (for `scan_secrets.pl` — included)
+- `pre-push` includes both `scan_secrets.py` (preferred) and `scan_secrets.pl` (Perl fallback)
 
 ---
 

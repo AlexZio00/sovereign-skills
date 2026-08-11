@@ -1,0 +1,3 @@
+name: next-action
+description: "Use when the user wants a next-action recommendation based on current state — reads handoff/git/lessons/STATE and prop"
+instructions: "../SKILL.md"

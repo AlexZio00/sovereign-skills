@@ -1,0 +1,3 @@
+name: project-overview
+description: "Use when the user wants a deterministic cross-project status map generated from registered projects' session handoffs. T"
+instructions: "../SKILL.md"

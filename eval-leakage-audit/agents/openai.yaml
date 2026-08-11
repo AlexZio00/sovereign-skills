@@ -1,0 +1,3 @@
+name: eval-leakage-audit
+description: "Audits whether a verification (eval/metric/experiment/holdout) actually secures independent external ground truth, or wh"
+instructions: "../SKILL.md"

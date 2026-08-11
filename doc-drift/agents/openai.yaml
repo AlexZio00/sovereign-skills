@@ -1,0 +1,3 @@
+name: doc-drift
+description: "Audit loaded context (CLAUDE.md/MEMORY.md/skills/agents) for outdated claims, contradictions, and risky wording."
+instructions: "../SKILL.md"
