@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | 🌐 **日本語** | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.8
+# sovereign-skills v6.5.9
 
 Claude Codeプロジェクトのライフサイクル全体をカバーする20個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
 
+> **v6.5.9の変更点:** Codex互換性完了 — 全20スキルが `agents/openai.yaml` を同梱するようになりました。v6.3–v6.5で追加された5スキル（`doc-drift`、`eval-leakage-audit`、`next-action`、`project-overview`、`skill-ops`）にはこれまでCodexエージェント定義がありませんでした。インストールセクションを再構成（方法C: Codex/AGENTS.md、方法D: Cursor/その他のエージェント）。スキルの内容変更なし — パッケージングのみのリリース。
+>
 > **v6.5.8の変更点:** リファインメントリリース — スキルの追加・削除なし。v6.5.7以降の内部フォークの変更分を選別移植（その間にアップストリームで変わった20個中6個 + 手動で差分を取った`code-autopsy`移植1件）。`doc-drift`（新規Derivability信号 — コードから機械的に再構築可能な事実をハードコードした行は、現在の値が正しくても構造的にdriftリスクが高いとフラグ）、`integration-intake`（新規Analogy-trapチェック — 「Xがこうしているから我々も」という価値主張は3つの問いに答えて初めて根拠として認める）、`session-start`（オンデマンドメモリファイル用の新規クエリ条件付きロードルール — 会話が実際にそのトピックを扱っていると確認した後にのみロード、キーワードの重なりだけでは不十分）、`goal-lock`（スキル/フック/ゲート自体の信頼性を測定するタスク用の新規オプションフィールドEVAL TYPE、Silent Self-Correctionアンチパターン、修正前の生のDONE EVIDENCE実行結果を記録するFirst-Attempt Ledger、残予算の誤判断による早期タスク放棄を防ぐEarly Self-Doubt Boundaryノート）、`pre-push`（code-reviewerサブエージェントが利用不可の場合、完全スキップではなくインライン簡易レビューにフォールバック、新規Step 3.5 Public-Mirror Scrub — 非公開ソースの公開ミラーリポジトリ向けpush時WARN専用バックストップ、新規オプトインの高リスクdiff gap-sweep第2パスとオプトインの多角並列再攻撃、Fix loopへのスキップ理由ロギング追加）、`session-checkpoint`（新規Stage 1 CT昇格キューイング — `scripts/ct_promotion_queue.py`、マーカーファイルによるオプトイン、LLM判断なしの純粋決定論的トークン重複クラスタリングでMEMORY.md/context-log.md自体への書き込みなし、35ケースの回帰スイート同梱、invocation-logのスキップ条件がTriple Gateの活動量条件のみを再利用し、別の自動トリガー用の24時間条件は意図的に除外することを明確化）、`code-autopsy`（コードスメル用語7種追加＋依存方向違反へのSOLID原則の明示、wrapper/proxyフォワーディング正確性チェック、引用のみ（推論された「意図」は不可）のgoverning-rules違反チェック、Q3にoff-by-one/falsy-zero/copy-paste/未エスケープ正規表現＋Pythonのmutable-default-argument・late-binding-closureの罠を追加、Q7のメモリリークチェックにクロージャによる大型オブジェクト捕捉パターンを明示、STEP 0に関数単位の契約チェック＋明示的なdiffスコープ固定＋governing CLAUDE.md/rulesの探索を追加、削除・置換された全行に対する新規re-established-invariantチェック、フルパイプラインとQuick Modeの間の新規[FAST MODE] `--fast`ティア）。
 
 > **v6.5.7の変更点:** リファインメントリリース — スキルの追加・削除なし。複数のスキルでLLMの自己採点に代わる決定論的スクリプトが稼働するようになった。`project-overview`（`generate_overview.py`がスタブでなくなり、レジストリのパース・state-snapshot抽出・AUTOブロックのレンダー/置換を完全実装、信頼できない入力に対するテーブルセルのエスケープと不正マーカーからの復旧を追加、ユニット+統合テストで裏付け）、`scope`（Quick/Fullの曖昧性ゲーティングとBRIEF.mdの最小項目バリデーションが移植版`ambiguity_gate.py`経由になり、太字テキストを見出しとして誤カウントするバグを固定するリグレッションテストを追加）、`skill-ops` → v1.2（Health Modeのバケット分類とQuality ModeのS/U/S_Qスコアリングが手計算から`skill_health_bucket.py`経由に）、`collab-audit`（Step 0.6のソース衛生フィルタリングが`session_hygiene_scan.py`経由に）、`session-checkpoint`（インデックスへの逆リンクがないメモリ書き込みを検出する新規Discoverability Checkステップ、タイムアウト/kill時の部分出力ガード、Reflexionレッスン品質ゲート2種、生の観察に対するPII削除ルール、Key Files検証を`validate_memory_claims.py`スクリプトへ移行）、`goal-lock`（スコープチェックの対象を変更ファイルだけでなくinterface/API変更にも拡大、ベンチマーク裏付けのチェーン長Dominant Variableノート、Stop-hookのオーダーゲートを検証済み4条件実装にアップグレード、新規Safety Layersセクション、enum形式のVERIFY失敗ラベル、REFINEのDELTA CHECKに対する自己判定の注意書き、バックグラウンドタスク終了ハンドシェイクを追加）、`code-autopsy`（レビュアーがよく使う正当化8パターン+反論のRationalization Table、暗算よりスクリプト計算での深刻度算出を推奨するノートを追加）、`eval-leakage-audit`（17→18パターンのtaxonomy — 自己改善ループにおけるGoodhart共進化を追加 — Reviewer Independence Honest 4-Labelチェックも追加）、`integration-intake`（読み取り専用の`tools:` frontmatter、リダイレクト形式の`not_for`エントリ、フェーズごとに固定された誤判定enumラベル7種）、`pre-push`（明示的な`depends_on`/`concurrency_profile` frontmatter、読み取り専用のgitコマンドとゲート対象の`git push`を区別するAutonomy Boundaryノート、外部セキュリティカタログへの参照リンク）、`session-start`（`depends_on`/`concurrency_profile` frontmatter、Phase 2.2-2.4を固定stdout契約付きの決定論的コマンドに書き換え、新規の番号なしL0 Inheritanceセクション）、`doc-drift`（Risky/Ambiguousカテゴリを裏付け証拠専用として供給する新規Step 0決定論的プレフィルター）、そして`full-audit`・`project-check`・`project-init`・`freeze`・`stepback`・`next-action`・`clean-room`全体に`depends_on`/`concurrency_profile` frontmatterを採用（うち数スキルはツールカテゴリでタグ付けされたScope Boundaryテーブルも追加）。**このリリースで判明した既知のギャップ**：`project-check`（および数スキル）がSafety Layers/Error Recoveryの見出しに番号なしの「継承原則」ノートを追加した — 過去のリリースでは全10スキルの同じ見出しから番号付き`(L0 §N)`引用を意図的に取り除いていたが、今回のノートは削除された引用ではなく番号なし/汎用な形で復活しており、見出しへの注記パターン自体は戻ってきている。次のリリースでこの上にさらに積み上げる前に、意識的な判断が必要。
@@ -177,30 +179,31 @@ cp -r goal-lock ~/.claude/skills/
 
 トリガーコマンド（例：`/goal-lock`）をClaude Codeで入力するとスキルが実行されます。
 
-### 方法C: Codex / Cursor (npx)
+### 方法C: Codex (AGENTS.md)
 
-各スキルに `agents/openai.yaml` が含まれています：
+全20スキルがOpenAI Codex用の `agents/openai.yaml` を同梱しています。YAMLをプロジェクトの `AGENTS.md` にコピーするか、直接ファイルを参照してください：
 
 ```bash
-# Codex用スキルをインストール
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent codex -g -y
+# スキルのCodexエージェント定義をコピー
+cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
 
-# Cursor用スキルをインストール
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent cursor -g -y
-
-# Claude Code用インストール（方法Aの代替）
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent claude-code -g -y
+# またはSKILL.mdを直接参照 — CodexもClaude Codeと同様にマークダウン指示を読みます
+# コンテンツはエージェント非依存です。
 ```
 
-SKILL.mdの内容は汎用です — マークダウン指示を読むあらゆるLLMで動作します。
+各 `openai.yaml` は `instructions: "../SKILL.md"` で同じ `SKILL.md` を参照します — 単一ソース、2つのサーフェス。
+
+### 方法D: Cursor / その他のエージェント
+
+SKILL.mdの内容は汎用マークダウンです — マークダウン指示を読むあらゆるLLMで動作します。SKILL.mdをエージェントの指示パスにコピーしてください。
 
 ### 要件
 
 - **Claude Code**: CLI、デスクトップアプリ、またはウェブアプリ（[claude.ai/code](https://claude.ai/code)）
-- **Codex**: OpenAI Codex（`npx skills` 対応）
-- **Cursor**: Cursor IDE（スキルプラグイン対応）
+- **Codex**: OpenAI Codex — 各スキルに `agents/openai.yaml` を同梱
+- **Cursor / その他**: マークダウン指示を読むあらゆるエージェント
 - スキルディレクトリ：`~/.claude/skills/`（Claude Code）またはエージェント別パス
-- `pre-push`にはPerlが必要（`scan_secrets.pl`同梱）
+- `pre-push`は`scan_secrets.py`（推奨）と`scan_secrets.pl`（Perlフォールバック）の両方を同梱
 
 ---
 

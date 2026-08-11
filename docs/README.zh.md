@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.8
+# sovereign-skills v6.5.9
 
 覆盖 Claude Code 项目完整生命周期的 20 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
+> **v6.5.9 变更：** Codex 兼容性完成 — 全部 20 个技能现已附带 `agents/openai.yaml`。此前在 v6.3–v6.5 中新增的 5 个技能（`doc-drift`、`eval-leakage-audit`、`next-action`、`project-overview`、`skill-ops`）缺少 Codex 智能体定义。安装章节已重构（方法 C：Codex/AGENTS.md，方法 D：Cursor/其他智能体）。无技能内容变更 — 仅打包发布。
+>
 > **v6.5.8 变更：** 精炼版本 — 未新增或移除任何技能；有针对性地移植了自 v6.5.7 以来内部分支的变更（该期间上游 20 个技能中有 6 个发生变化，另加一份手工比对移植的 `code-autopsy`）。`doc-drift`（新增 Derivability 信号 — 若某行硬编码了一个本可从代码机械重建的事实，即便当前值正确，也会被标记为结构性 drift 高风险）、`integration-intake`（新增 Analogy-trap 检查 — "X 是这么做的，所以我们也应该"这类价值主张，必须回答三个问题才能算作有效证据）、`session-start`（为按需内存文件新增查询条件式加载规则 — 仅在确认本次对话确实涉及该主题后才加载，仅凭关键词重叠不足以触发）、`goal-lock`（为衡量技能/钩子/门控自身可靠性的任务新增可选字段 EVAL TYPE、新增 Silent Self-Correction 反模式、新增 First-Attempt Ledger 用于在任何修改前记录原始的 DONE EVIDENCE 执行结果、新增 Early Self-Doubt Boundary 说明以防止因误判剩余预算而过早放弃任务）、`pre-push`（当 code-reviewer 子代理不可用时，现在会回退到内联简版审查而非直接跳过；新增 Step 3.5 Public-Mirror Scrub — 面向私有源公开镜像仓库的仅警告型 push 时兜底检查；新增可选的高风险 diff 缺口二次扫描与可选的多角度并行再攻击；Fix loop 新增跳过原因记录）、`session-checkpoint`（新增 Stage 1 CT 晋升排队 — `scripts/ct_promotion_queue.py`，通过标记文件启用，纯确定性的 token 重叠聚类，不涉及 LLM 判断，也不写入 MEMORY.md/context-log.md 本身，附带 35 个用例的回归测试套件；invocation-log 的跳过条件已明确仅复用 Triple Gate 的活动量条件，而刻意不复用为另一自动触发器设计的 24 小时条件）、`code-autopsy`（Q1 新增 7 个代码异味术语并为依赖方向违规明确标注对应 SOLID 原则、新增 wrapper/proxy 转发正确性检查、新增仅凭引证（不推断"意图"）的 governing-rules 违规检查，Q3 新增 off-by-one/falsy-zero/复制粘贴残留/未转义正则表达式以及 Python 的可变默认参数与延迟绑定闭包陷阱，Q7 的内存泄漏检查现已明确列出闭包捕获大对象这一模式，STEP 0 新增函数级契约检查 + 明确的 diff 范围锁定 + governing CLAUDE.md/rules 探查，新增针对每一处被删除/替换行的 re-established-invariant 检查，以及位于完整流程与 Quick Mode 之间的新增 [FAST MODE]（`--fast`）档位）。
 
 > **v6.5.7 变更：** 精炼版本 — 未新增或移除任何技能；多个技能用可运行的确定性脚本取代了LLM自我评分。`project-overview`（`generate_overview.py` 不再是占位符 — 完整实现了注册表解析、状态快照提取和AUTO区块渲染/替换，新增不可信输入的表格单元格转义与畸形标记恢复，并配有单元测试+集成测试）、`scope`（Quick/Full 模糊性判定门和 BRIEF.md 最少条目校验现在通过移植的 `ambiguity_gate.py` 运行，并新增回归测试锁定一个"粗体文本误判为标题"的计数bug）、`skill-ops` → v1.2（Health Mode 分桶分类与 Quality Mode 的 S/U/S_Q 评分现在通过 `skill_health_bucket.py` 运行，取代手工算术）、`collab-audit`（Step 0.6 来源卫生过滤现在通过 `session_hygiene_scan.py` 运行）、`session-checkpoint`（新增 Discoverability Check 步骤，标记没有索引反向链接的记忆写入；新增超时/强制终止时的部分输出防护；新增两个 Reflexion 教训质量门；新增原始观察记录的 PII 脱敏规则；Key Files 验证迁移到 `validate_memory_claims.py` 脚本）、`goal-lock`（范围检查覆盖面从"已改动文件"扩展到接口/API变更；新增有基准数据支撑的链长主导变量说明；Stop-hook 顺序门升级为经验证的四条件实现；新增 Safety Layers 章节；VERIFY 失败标签改为枚举式；REFINE 的 DELTA CHECK 新增自我判断警示；新增后台任务终止握手机制）、`code-autopsy`（新增一张收录8种常见审查者自我辩解及其反驳的 Rationalization Table，并新增建议用脚本而非心算计算严重性分数的说明）、`eval-leakage-audit`（17→18种模式分类法 — 新增自我改进循环中的 Goodhart 协同演化模式 — 并新增 Reviewer Independence 诚实四标签检查）、`integration-intake`（新增只读的 `tools:` frontmatter、重定向风格的 `not_for` 条目、每阶段7个固定的误判枚举标签）、`pre-push`（新增显式的 `depends_on`/`concurrency_profile` frontmatter、区分只读git命令与受门控的 `git push` 的 Autonomy Boundary 说明、外部安全目录参考链接）、`session-start`（新增 `depends_on`/`concurrency_profile` frontmatter，Phase 2.2-2.4 重写为带固定stdout约定的确定性命令，新增一个未编号的 L0 Inheritance 章节）、`doc-drift`（新增 Step 0 确定性预过滤器，将 Risky/Ambiguous 类别仅作为辅助证据输入），以及 `full-audit`、`project-check`、`project-init`、`freeze`、`stepback`、`next-action`、`clean-room` 全部采用了 `depends_on`/`concurrency_profile` frontmatter，其中多个还新增了按工具类别标注的 Scope Boundary 表格。**本版本暴露的已知缺口**：`project-check`（及少数同类技能）在 Safety Layers/Error Recovery 标题下新增了未编号的"继承原则"说明 — 而此前某个版本曾在全部10个技能中特意删除了这些同一标题下带编号的 `(L0 §N)` 引用；本版本的说明是未编号/泛化的，并非被删除的引用本身，但标题注释这一模式又回来了。在下一版本继续在此基础上构建之前，值得有意识地做一次判断。
@@ -177,30 +179,31 @@ cp -r goal-lock ~/.claude/skills/
 
 在 Claude Code 中输入触发命令（如 `/goal-lock`）即可运行技能。
 
-### 方法 C: Codex / Cursor (npx)
+### 方法 C：Codex (AGENTS.md)
 
-各技能包含 `agents/openai.yaml` 文件：
+全部 20 个技能均为 OpenAI Codex 附带了 `agents/openai.yaml`。将该 YAML 复制到你项目的 `AGENTS.md` 中，或直接引用该文件：
 
 ```bash
-# Codex 技能安装
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent codex -g -y
+# 复制某个技能的 Codex 智能体定义
+cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
 
-# Cursor 技能安装
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent cursor -g -y
-
-# Claude Code 安装（方法 A 的替代）
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent claude-code -g -y
+# 或直接引用 SKILL.md —— Codex 与 Claude Code 一样读取 markdown 指令
+# 内容与具体智能体无关。
 ```
 
-SKILL.md 内容是通用的 — 支持读取 markdown 指令的任何 LLM 都可以使用。
+每个 `openai.yaml` 都通过 `instructions: "../SKILL.md"` 指向同一份 `SKILL.md` —— 单一来源，两种界面。
+
+### 方法 D：Cursor / 其他智能体
+
+SKILL.md 的内容是通用 markdown —— 支持读取 markdown 指令的任何 LLM 都可以使用。将 `SKILL.md` 复制到你所用智能体的指令路径中即可。
 
 ### 要求
 
 - **Claude Code**：CLI、桌面应用或网页应用（[claude.ai/code](https://claude.ai/code)）
-- **Codex**：OpenAI Codex（支持 `npx skills`）
-- **Cursor**：Cursor IDE（支持技能插件）
+- **Codex**：OpenAI Codex —— 每个技能都包含 `agents/openai.yaml`
+- **Cursor / 其他**：支持读取 markdown 指令的任何智能体
 - 技能目录：`~/.claude/skills/`（Claude Code）或智能体专属路径
-- `pre-push` 需要 Perl（`scan_secrets.pl` 已包含）
+- `pre-push` 同时包含 `scan_secrets.py`（首选）和 `scan_secrets.pl`（Perl 后备）
 
 ---
 
