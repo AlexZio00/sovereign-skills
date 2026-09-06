@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.5.10
+# sovereign-skills v6.5.11
 
 20 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
+> **Cambios en v6.5.11:** Versión de corrección de errores impulsada por una auditoría independiente de terceros sobre la instantánea de v6.5.9 — cada una de las 20 habilidades recibió al menos una corrección; ninguna se añadió ni se eliminó. Dos bloqueantes de despliegue: la documentación de instalación de Codex era incorrecta (Codex en realidad descubre las habilidades mediante `.agents/skills/<name>/SKILL.md`, no añadiendo `agents/openai.yaml` a `AGENTS.md` — corregido en los 5 READMEs y los 20 archivos yaml), y 7 manifiestos de plugin fallaban en `claude plugin validate` por un campo `skills` inválido (ya corregido, valida limpio). Errores reales corregidos con reproducciones: `pre-push` (el escaneo de secretos ahora cubre los commits salientes, no solo el diff en staging), `project-overview` (un empalme de marcador AUTO corrupto podía borrar texto manual; un archivo con codificación defectuosa ya no detiene toda la ejecución; el estado PARTIAL ahora sí se activa), `session-checkpoint` (entradas en cuarentena podían llegar a la promoción de memoria; el timing de attestation causaba falsos reportes TAMPERED), `scope` (brechas en la validación de entrada dejaban pasar puntuaciones malformadas), `code-autopsy` (un bug catastrófico y barato de corregir podía evadir la Critical gate), además de correcciones en `setup`, `project-init`, `project-check`, `session-start`, `collab-audit`, `skill-ops`, `integration-intake`, `clean-room`, `eval-leakage-audit`, `doc-drift`, `goal-lock`, `full-audit` (nueva puerta de modo AUDIT_ONLY/PROPOSE/APPLY_APPROVED), `freeze`, `next-action` y `stepback`. Detalle completo en CHANGELOG.md.
+>
 > **Cambios en v6.5.10:** Versión de refinamiento — no se añadieron ni eliminaron habilidades; un port selectivo (delta) del fork interno que cubre 11 de las 20 habilidades. `pre-push` → v3.9.0 (corrigió una regresión real en la que 9 puntos usaban `cmd | tail -N; $?`, lo que ocultaba silenciosamente fallos de lint/build/test en vez de reportarlos — se cambió a `PIPESTATUS`; se añadió una advertencia opcional de test-count-floor; se corrigió una afirmación desactualizada de "12 patrones" al valor real de 14), `eval-leakage-audit` (taxonomía de 18→21 patrones — añade success-provenance-gap, no divulgación de modo de juez indulgente [lenient-judge-mode], y exclusión de denominador de la categoría más difícil), `doc-drift` (nueva 4ª categoría de detección, Session Leakage, respaldada por dos nuevos scripts deterministas), `goal-lock` (el Termination Handshake de B5.2 fue reemplazado por Ralph Mode para bucles autónomos desatendidos; nuevo paso obligatorio de autoataque Tier-0/Tier-1; la verificación pasó de recomendada a obligatoria), `session-checkpoint` (nuevo campo de lección `kill_if` + paso de Detección de Regresión + una puerta post-mortem de 3 condiciones sobre lecciones nuevas), `full-audit` → v1.1 (nuevo paso previo a la auditoría "coverage caps intervention value"), `integration-intake` (operadores de fusión a nivel de campo — SUM/REPLACE/IMMUTABLE/PATCH — para injertos de frontmatter), `collab-audit` (las secciones de marco psicológico ahora dependen de la suficiencia de evidencia en vez de aplicarse incondicionalmente), `setup` (nueva sonda de documento de gobernanza existente que genera un stub delgado en vez de una plantilla duplicada completa cuando un proyecto ya tiene reglas compatibles), `scope` (tres Invariantes — mínimo de Scope OUT, tope de cantidad de preguntas, mínimo de Risk Flags — ahora permiten una única excepción declarada cada una en vez de ser pisos incondicionales; un cambio de comportamiento, no una corrección de error), `session-start` (incluye el script `harness_observability.py` que esta versión había diferido originalmente, además de un nuevo fast-path que lee el bloque compacto de state-snapshot de `session-checkpoint` en vez del handoff completo en prosa). **No portado en esta versión**: `project-check` — se investigó el aparente cambio de enrutamiento del fork interno y se encontró que `/team-init` no es un disparador registrado en ningún lugar, por lo que es una referencia muerta en vez de una mejora real; la versión pública es actualmente más completa en esta habilidad que el fork interno.
 >
 > **Cambios en v6.5.9:** Compatibilidad con Codex completa — las 20 habilidades ahora incluyen `agents/openai.yaml`. Las 5 habilidades añadidas anteriormente en v6.3–v6.5 (`doc-drift`, `eval-leakage-audit`, `next-action`, `project-overview`, `skill-ops`) carecían de definiciones de agente para Codex. Se reestructuró la sección de instalación (Opción C: Codex/AGENTS.md, Opción D: Cursor/otros agentes). Sin cambios de contenido en las habilidades — versión solo de empaquetado.
@@ -181,19 +183,25 @@ Cada habilidad también incluye metadatos `.claude-plugin/plugin.json` independi
 
 Escriba el comando de activación (ej: `/goal-lock`) en Claude Code para ejecutar la habilidad.
 
-### Opción C: Codex (AGENTS.md)
+### Opción C: Codex
 
-Las 20 habilidades incluyen `agents/openai.yaml` para OpenAI Codex. Copie el YAML en el `AGENTS.md` de su proyecto, o haga referencia al archivo directamente:
+Codex descubre habilidades escaneando `.agents/skills/<nombre-habilidad>/SKILL.md` a nivel de repositorio, usuario (`$HOME/.agents/skills`), administrador y sistema — no se necesita una definición de agente aparte. Instale una habilidad para Codex de la misma forma que para Claude Code, solo que bajo la ruta `.agents/skills/`:
 
 ```bash
-# Copiar la definición de agente Codex de una habilidad
-cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
+# Nivel usuario (disponible en todos los proyectos)
+cp -r goal-lock ~/.agents/skills/goal-lock/
 
-# O hacer referencia directa a SKILL.md — Codex lee instrucciones markdown
-# igual que Claude Code. El contenido es agnóstico al agente.
+# Nivel repositorio (solo este proyecto)
+cp -r goal-lock .agents/skills/goal-lock/
 ```
 
-Cada `openai.yaml` apunta al mismo `SKILL.md` mediante `instructions: "../SKILL.md"` — una sola fuente, dos superficies.
+Cada habilidad también incluye de forma **opcional** `agents/openai.yaml` — metadatos de UI/política para la app de escritorio de ChatGPT (nombre visible, descripción, ícono/color de marca, y el flag `allow_implicit_invocation`, `true` por defecto). No es necesario para que Codex encuentre o ejecute la habilidad; cópielo junto con `SKILL.md` solo si desea aplicar esos metadatos:
+
+```bash
+cp -r goal-lock/agents .agents/skills/goal-lock/agents/
+```
+
+Consulte la [documentación oficial de habilidades de Codex](https://learn.chatgpt.com/docs/build-skills) para conocer la especificación completa de descubrimiento y metadatos.
 
 ### Opción D: Cursor / Otros agentes
 
@@ -202,7 +210,7 @@ El contenido de SKILL.md es markdown universal — funciona con cualquier LLM qu
 ### Requisitos
 
 - **Claude Code**: CLI, app de escritorio o app web ([claude.ai/code](https://claude.ai/code))
-- **Codex**: OpenAI Codex — cada habilidad incluye `agents/openai.yaml`
+- **Codex**: OpenAI Codex — lee `SKILL.md` directamente desde `.agents/skills/`; `agents/openai.yaml` son metadatos de UI opcionales
 - **Cursor / Otros**: cualquier agente que lea instrucciones markdown
 - Directorio de habilidades: `~/.claude/skills/` (Claude Code) o ruta específica del agente
 - `pre-push` incluye tanto `scan_secrets.py` (preferido) como `scan_secrets.pl` (respaldo Perl)

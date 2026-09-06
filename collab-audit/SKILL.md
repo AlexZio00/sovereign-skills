@@ -96,12 +96,18 @@ Mark result 1 line before Section 11: `[Delivery intensity: Direct / Calibrated]
 ### Step 0.6: Source Hygiene Filter (deterministic-first measurement)
 When multiple observation sources exist (e.g. session JSONLs), determine — before analysis — whether **each source is an organic user session or an automation byproduct**. A qualitative caveat alone (the old Step 1 approach) is not enough; automated sessions can be mistaken for user behavior.
 
-**Deterministic gate**: run `scripts/session_hygiene_scan.py --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session `include`/`exclude` and returns `included_count`, `excluded_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye. Detection criteria the script applies (any one qualifies a session as `exclude`):
-- Session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`
-- Directory/cwd matches a recurring automated-experiment harness naming pattern (e.g. pair-run, A/B arm, pipeline)
-- `originator` is an SDK/bot/exec-type process, and no direct user-input signal (natural conversational opening message) is present
+**Deterministic gate**: run `scripts/session_hygiene_scan.py --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session into **one of three states** — `include` (organic) / `uncertain` (cannot confirm either way) / `exclude` (confidently auto-derived) — and returns `included_count`, `excluded_count`, `uncertain_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye.
+
+Detection criteria the script applies:
+- **Confident exclude**: session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`; OR cwd matches a naming convention specific to paired/multi-arm experiment harnesses (e.g. `pair-run`, `arm-a`/`arm-b`, `ab-test`); OR `originator` is an SDK/bot/exec-type process with no direct user-input signal (natural conversational opening message) present.
+- **Uncertain (needs review, not auto-folded either way)**: cwd contains only a generic automation-adjacent word (currently: `pipeline`) with no other automation marker — a real user project named e.g. `data-pipeline-tool` must not be silently misclassified as an automated harness just because the word appears; OR the session-meta object is present but empty (no fields at all) — an empty object is not evidence of an organic session and must not be auto-classified as one.
+- **Include (organic)**: none of the above, and the object carries actual fields.
+
+Malformed metadata (session-meta root is not a JSON object, e.g. `[]`, or a count field like `message_count`/`artifact_count` is a non-numeric type such as a string) is routed to `unreadable`, not silently coerced or crashed on — count fields must be actual numbers, not something that merely looks numeric.
 
 **Exclusion**: sessions the script flags `exclude` are removed from the analysis population; report the exclusion count and reason in 1 line straight from the script output (e.g. "16 of 16 sessions excluded — all were thread_spawn subagent sessions"). Do not substitute a qualitative impression ("seems skewed toward one type") for the script's explicit denominator.
+
+**Uncertain handling**: sessions flagged `uncertain` are neither included nor excluded automatically. Report the `uncertain_count` and list the reasons in 1 line, then ask the user to confirm (or apply their own knowledge of which sessions are real) before deciding whether to fold each one into the analysis population — do not silently default uncertain sessions to either bucket.
 
 Skip condition: if the only observation source is the current conversation (no multi-session file access, no session-meta JSON available), the script cannot run — fall back to the qualitative criteria above and proceed to the next step.
 
@@ -146,11 +152,18 @@ For data-empty sections, mark "Observation unavailable" then proceed to next.
    - If missing → create `.gitignore` with single line `collab-audits/`.
    - If exists but missing `collab-audits/` → add that line.
    - If already present → do not modify.
+   - **Verify actual tracked status — do not infer it from the .gitignore entry alone**: a pattern present in `.gitignore` does not retroactively untrack a file that was already committed before the pattern existed. Run `git -C ~/.claude rev-parse --is-inside-work-tree` first; if that fails, `~/.claude` is not a git repo and the entry is simply inert (state that, not "blocked"). If it is a repo, run `git -C ~/.claude ls-files --error-unmatch collab-audits/ 2>&1` — a non-error match means one or more files under `collab-audits/` are already tracked despite the ignore rule.
 4. After save, display in conversation:
-   ```
-   Saved: ~/.claude/collab-audits/YYYY-MM-DD.md
-   ⚠ Personal audit result — git tracking blocked (~/.claude/.gitignore)
-   ```
+   - Verified untracked (not a git repo, or `.gitignore` present and `ls-files` finds no tracked match under `collab-audits/`):
+     ```
+     Saved: ~/.claude/collab-audits/YYYY-MM-DD.md
+     ⚠ Personal audit result — git tracking blocked (~/.claude/.gitignore)
+     ```
+   - `ls-files` shows this file (or another file under `collab-audits/`) is already tracked:
+     ```
+     Saved: ~/.claude/collab-audits/YYYY-MM-DD.md
+     🔴 Already tracked by git despite .gitignore — adding a pattern does not retroactively untrack committed files. Run: git -C ~/.claude rm --cached <path> to actually untrack it.
+     ```
 
 ---
 
@@ -274,8 +287,7 @@ After outputting blind spots, include **feedback loop** — mandatory question:
 This rebuttal is additional data. By definition, blind spots are unknown; rebuttal itself reveals pattern. Upon rebuttal:
 **Rebuttal type assessment:**
 - **Evidence-based**: specific counterexample provided ("that situation was X so I did Y"), observable events cited → consider revising that blind spot
-- **Emotional**: negation only, no counterexample ("doesn't seem right", "I disagree"), rejection without alternative → internal note "this reaction itself is blind spot evidence" (do not state, record only)
-- **No rebuttal** → treat as acceptance. Keep blind spot and proceed.
+- **Emotional or no rebuttal**: negation only, no counterexample ("doesn't seem right", "I disagree"), rejection without alternative, or no response at all → mark `Observation unavailable — rebuttal inconclusive (no counterexample given)`. Do **not** record disagreement or silence as confirming evidence of the blind spot — treating "no falsifying evidence" as "confirmed" makes the claim unfalsifiable (any response short of a specific counterexample would always end up "proving" the blind spot). Keep the blind spot's original wording/confidence unchanged; do not upgrade or reinforce it based on the rebuttal itself.
 
 **One development direction** (highest leverage only):
 - "Changing this cascades everything else"
@@ -405,7 +417,7 @@ Based on previous development direction + current patterns, one next focus point
 - **Read**: MEMORY.md, artifact files, `~/.claude/collab-audits/*.md` (Compare mode)
 - **Write**: save `~/.claude/collab-audits/YYYY-MM-DD.md` and `~/.claude/.gitignore` (gitignore protection only)
 - **Glob**: list `~/.claude/collab-audits/` files (Compare mode)
-- **Bash**: scoped to invoking `scripts/session_hygiene_scan.py` for the Step 0/0.6 deterministic gate only — not general-purpose execution
+- **Bash**: scoped to invoking `scripts/session_hygiene_scan.py` for the Step 0/0.6 deterministic gate, and read-only `git rev-parse`/`git ls-files` for the Step 5 tracked-status check only — not general-purpose execution. Never runs `git rm`, `git add`, or `git commit` itself.
 - Delete and other execute tools forbidden
 
 ## Recommended Usage Times

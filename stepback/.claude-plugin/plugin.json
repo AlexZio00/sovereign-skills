@@ -2,10 +2,11 @@
   "name": "stepback",
   "description": "One-shot perspective reset — 1 reframing question + 3 quick checks in under 10 lines",
   "version": "1.0.0",
-  "skills": [
-    {
-      "name": "stepback",
-      "path": "SKILL.md"
-    }
-  ]
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT"
 }

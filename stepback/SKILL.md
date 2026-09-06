@@ -147,7 +147,7 @@ Output and stop immediately. No follow-up questions, no menus, no "would you lik
 
 ## Hard Rules
 
-1. **No user questions** — output and return immediately. No input requests.
+1. **No user questions if context is clear; ask exactly once if unclear** — output and return immediately when the work context is clear; only if it is genuinely unclear, ask one clarifying question (see Key Assumptions / Error Recovery), then stop.
 2. **No agent spawning** — runs in main context only.
 3. **No code generation** — analysis only. No code writing or suggestions.
 4. **No request restatement** — don't summarize what the user asked. Analyze what's happening now.

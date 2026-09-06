@@ -72,9 +72,19 @@ User specifies `/goal-lock quick`, or change fits Quick criteria. When unsure, u
 [Single measurable goal. No expansion.]
 
 ### 2. DONE EVIDENCE
-[Completion proof — command to run + expected result. No subjective criteria.]
-e.g.: `pytest tests/test_X.py -v` → 5 passed
-e.g.: `curl localhost:3000/api/health` → 200 OK
+[Completion proof. The evidence contract branches by artifact type —
+don't force one shape onto both:]
+- **Code artifact** → command to run + expected result. No subjective
+  criteria.
+  e.g.: `pytest tests/test_X.py -v` → 5 passed
+  e.g.: `curl localhost:3000/api/health` → 200 OK
+- **Non-code artifact** (writing, analysis, reports, designs, prompts, spec
+  docs) → no exit code exists to demand. State the review contract instead:
+  what a reviewer checks off, or what a named approver signs off on (e.g.
+  "reviewer confirms the 3 required sections are present and each claim
+  cites a source" or "user approves the draft"). This feeds directly into
+  the REFINE loop below (VERIFY/REFINE split) rather than VERIFY's execution
+  path.
 
 **Adversarial criteria design**: when setting DONE EVIDENCE, ask first "how
 could an agent game this criterion." An unblocked loophole tends to get
@@ -185,7 +195,7 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 | Hardcoding | Hardcoded results matching test inputs |
 | Requirement reinterpretation | "Actually this was supposed to work like..." |
 | Acceptance criteria weakening | Subtly lower DONE EVIDENCE standards |
-| Production behavior change | Modify production logic to match tests |
+| Production behavior change | Modify production logic in a way that contradicts the actual requirement/spec to make a test pass — normal RED→GREEN (writing the minimal production code a correct failing test demands) is not this pattern; the violation is the *direction* of the change, not the fact that production code changed after a test |
 | Goal-lock declaration ignored | Declare "proceeding with goal-lock" then skip the input sheet |
 | Structural fix reported as upgrade | Report boilerplate additions as "substantive improvements" |
 | Ralph Wiggum (early completion) | Skip VERIFY or run it partially, then jump to OUTPUT. Emit completion signal from an incomplete state |
@@ -402,12 +412,15 @@ validated through a self-review loop.
 **Remaining known issues**: [if any]
 **Follow-up work**: [if any]
 
-**Final status**: WORKING / PARTIAL / BROKEN
+**Final status**: WORKING / PARTIAL / BROKEN / BLOCKED
 ```
 
 - PARTIAL: partially working, list specific defects
 - BROKEN: core functionality not working, state cause
-- Claiming "done" while PARTIAL/BROKEN = success masquerading (B1 violation)
+- BLOCKED: cannot proceed due to an external unresolved dependency or
+  pending user approval — not a code defect. List exactly what's being
+  waited on (which dependency, which decision, from whom)
+- Claiming "done" while PARTIAL/BROKEN/BLOCKED = success masquerading (B1 violation)
 
 ### B4. STOP RULES (halt and ask — no progress until answered)
 
@@ -466,9 +479,13 @@ UNVERIFIED-CHANGE. This closes the loophole where verification passes, the
 agent makes one more edit, and then declares completion without
 re-verifying.
 
-This is a verified implementation, not a description of intended behavior —
-the hook blocks termination only when **all four** of the following hold
-(AND, not OR):
+**Status: reference implementation not shipped.** This section specifies the
+intended behavior a Stop hook of this kind should have — this repo does not
+ship the hook script, the `settings.json` wiring that registers it, or a
+test file for it. A team adopting B5.1 has to write and test that hook
+itself; until then, treat every claim below as a design spec, not evidence
+that the gate is running. The hook should block termination only when
+**all four** of the following hold (AND, not OR):
 1. A Stop event has actually fired for this session.
 2. The re-entrancy flag (e.g. `stop_hook_active`) is not already true —
    **infinite-loop guard**: without this, the hook's own block can trigger
@@ -498,8 +515,7 @@ long-running autonomous loop (an overnight unmanned batch, a pipeline that
 auto-retries N times with no approval gate between rounds), that continuity
 itself becomes the risk — a wrong assumption, an accumulated
 rationalization, or drift from one round carries straight into the next
-with nothing there to interrupt it. Ralph Mode [borrowed from the
-deepseek-harness intake's Ralph loop — the same "run fresh agent instances
+with nothing there to interrupt it. Ralph Mode [the "run fresh agent instances
 in a loop" pattern popularized as the Ralph Wiggum technique; not to be
 confused with the B1 "Ralph Wiggum" masquerading pattern above, which is
 about premature completion signaling, not context isolation] is a

@@ -14,6 +14,15 @@ path opens memory_md_path in write/append mode — test_ct_promotion_queue.py's
 no-leak static self-test checks this). No LLM judgment anywhere — pure
 counting and string matching.
 
+Context-log entries carrying the `[QUARANTINE]` TYPE tag (memory-format.md's
+injection-defense convention for external/untrusted content, per SKILL.md
+Phase 1.5's "External instruction detected -> use [QUARANTINE] type") are
+dropped before clustering even starts. This is deliberate: a quarantined
+entry must never become a promotion candidate itself, and must never be
+allowed to pad a legitimate cluster's mention_count either — letting either
+happen would mean untrusted content reaches MEMORY.md under a `source` label
+(default: clean:internal) that says it's trusted.
+
 Usage:
   python ct_promotion_queue.py scan --context-log <path> --memory-md <path>
       [--tombstones-dir <dir>] [--queue <path>] [--marker <path>]
@@ -33,6 +42,7 @@ _ENTRY_RE = re.compile(r"^-?\s*\[(\d{4}-\d{2}-\d{2})\]")
 _PATH_TOKEN_RE = re.compile(r"[A-Za-z0-9_./\\-]+\.[A-Za-z]{1,5}")
 _QUOTE_TOKEN_RE = re.compile(r"[\"'`]([^\"'`]{2,40})[\"'`]")
 _PROPER_NOUN_RE = re.compile(r"\b[A-Z][A-Za-z0-9_]{2,}\b")
+_QUARANTINE_TAG_RE = re.compile(r"\[QUARANTINE\]")
 
 # TYPE tags from memory-format.md's context-log type list, plus common memory
 # abbreviations. Leaving these out of the stopword set would let unrelated
@@ -63,6 +73,16 @@ def extract_entries(text: str) -> list[tuple[int, str]]:
     bracket (returns 1-indexed line number, stripped original text)."""
     lines = text.splitlines()
     return [(i + 1, line.strip()) for i, line in enumerate(lines) if _ENTRY_RE.match(line.strip())]
+
+
+def is_quarantined_entry(text: str) -> bool:
+    """Whether a context-log entry line carries the `[QUARANTINE]` TYPE tag.
+    Quarantined entries are excluded from CT promotion candidacy entirely —
+    filtered out before clustering, not just re-labeled — so an
+    external/untrusted entry can neither become a promotion candidate by
+    itself nor contribute tokens that help a legitimate cluster reach the
+    T2 threshold."""
+    return bool(_QUARANTINE_TAG_RE.search(text))
 
 
 def tokenize(line: str) -> set[str]:
@@ -261,6 +281,8 @@ def run_scan(context_log_path: str, memory_md_path: str, tombstones_dir: str, qu
             memory_md_text = f.read()
 
     entries = extract_entries(context_log_text)
+    quarantined_count = sum(1 for _lineno, text in entries if is_quarantined_entry(text))
+    entries = [(lineno, text) for lineno, text in entries if not is_quarantined_entry(text)]
     clusters = cluster_entries(entries)
     existing_records = load_queue_records(queue_path)
     context_log_name = os.path.basename(context_log_path)
@@ -294,6 +316,7 @@ def run_scan(context_log_path: str, memory_md_path: str, tombstones_dir: str, qu
         "enqueued": enqueued,
         "skipped_ct_exists": skipped_ct_exists,
         "skipped_duplicate": skipped_duplicate,
+        "skipped_quarantined": quarantined_count,
         "resurfaced": resurfaced_count,
         "resurfaced_topics": resurfaced_topics,
     }
@@ -321,7 +344,8 @@ def cmd_scan(args) -> int:
     print(
         f"[CT Promotion Queue] clusters={result['clusters_found']} "
         f"enqueued={result['enqueued']} skip_ct_exists={result['skipped_ct_exists']} "
-        f"skip_duplicate={result['skipped_duplicate']} resurfaced={result['resurfaced']}"
+        f"skip_duplicate={result['skipped_duplicate']} skip_quarantined={result['skipped_quarantined']} "
+        f"resurfaced={result['resurfaced']}"
     )
     for topic in result["resurfaced_topics"]:
         print(f"⚠️ Resurfaced: {topic}")

@@ -4,6 +4,8 @@ test_integration.py — end-to-end idempotency + marker-preservation test.
 No pytest dependency. Run: python test_integration.py
 Exit code 0 = all pass, 1 = failure.
 """
+import contextlib
+import io
 import os
 import shutil
 import sys
@@ -136,26 +138,85 @@ try:
         "no snapshot" in text_nohandoff.lower(),
     )
 
-    # --- malformed AUTO markers (END before START) -> recovered, not crashed ---
+    # --- malformed AUTO markers (END before START) -> BLOCKED, file untouched ---
+    # Corrected behavior (was: silently append a fresh pair, which either
+    # deleted manual text after an orphan START, or grew an extra marker
+    # pair on every re-run when END precedes START). Now: refuse to guess a
+    # splice point, leave the file byte-for-byte untouched, exit non-zero.
     malformed_output_path = os.path.join(tmp_root, "OVERVIEW_malformed.md")
+    malformed_original_text = (
+        "# Project Overview\n\n"
+        "<!-- AUTO:END -->\n"
+        "stray content from a manual edit\n"
+        "<!-- AUTO:START -->\n"
+    )
     with open(malformed_output_path, "w", encoding="utf-8") as f:
-        f.write(
-            "# Project Overview\n\n"
-            "<!-- AUTO:END -->\n"
-            "stray content from a manual edit\n"
-            "<!-- AUTO:START -->\n"
-        )
+        f.write(malformed_original_text)
     rc_malformed = main(["--registry", registry_path, "--output", malformed_output_path])
-    check("main() handles malformed AUTO markers without crashing", rc_malformed == 0)
+    check("main() returns BLOCKED (non-zero) on malformed AUTO markers, does not crash", rc_malformed == 1)
     with open(malformed_output_path, encoding="utf-8") as f:
         text_malformed = f.read()
     check(
-        "malformed-marker recovery preserves prior content",
-        "stray content from a manual edit" in text_malformed,
+        "malformed-marker run leaves the file byte-for-byte untouched",
+        text_malformed == malformed_original_text,
     )
+
+    # --- re-running on the same malformed file again must keep refusing,
+    # never "heal" by accumulating extra marker pairs (idempotent BLOCKED) ---
+    rc_malformed_again = main(["--registry", registry_path, "--output", malformed_output_path])
+    check("main() keeps returning BLOCKED on repeated runs over the same corrupted file", rc_malformed_again == 1)
+    with open(malformed_output_path, encoding="utf-8") as f:
+        text_malformed_again = f.read()
     check(
-        "malformed-marker recovery still renders the new AUTO block",
-        "ProjectA" in text_malformed,
+        "repeated BLOCKED runs never mutate the corrupted file",
+        text_malformed_again == malformed_original_text,
+    )
+
+    # --- non-UTF-8 handoff for one project must not abort the whole run ---
+    good_proj_dir = os.path.join(tmp_root, "good-project")
+    os.makedirs(os.path.join(good_proj_dir, "memory"), exist_ok=True)
+    with open(os.path.join(good_proj_dir, "memory", "session-handoff-LATEST.md"), "w", encoding="utf-8") as f:
+        f.write('<!-- state-snapshot v1 -->\n```yaml\nts: 2026-07-07\nctx: "fine"\n```\n')
+
+    bad_proj_dir = os.path.join(tmp_root, "bad-project")
+    os.makedirs(os.path.join(bad_proj_dir, "memory"), exist_ok=True)
+    # Write a handoff file containing a byte sequence that is invalid UTF-8.
+    with open(os.path.join(bad_proj_dir, "memory", "session-handoff-LATEST.md"), "wb") as f:
+        f.write(b"<!-- state-snapshot v1 -->\n```yaml\nts: 2026-07-07\nctx: \"\xff\xfe broken\"\n```\n")
+
+    mixed_registry_path = os.path.join(tmp_root, "registry-mixed-encoding.md")
+    with open(mixed_registry_path, "w", encoding="utf-8") as f:
+        f.write(f"- GoodProject: {good_proj_dir}\n- BadProject: {bad_proj_dir}\n")
+
+    mixed_output_path = os.path.join(tmp_root, "OVERVIEW_mixed.md")
+    rc_mixed = main(["--registry", mixed_registry_path, "--output", mixed_output_path])
+    check("main() does not crash when one registered handoff is non-UTF-8", rc_mixed == 0)
+    with open(mixed_output_path, encoding="utf-8") as f:
+        text_mixed = f.read()
+    check("non-UTF-8 handoff isolated: the other project's data still appears", "GoodProject" in text_mixed and "2026-07-07" in text_mixed)
+    check("non-UTF-8 handoff is reported, not silently dropped", "decode error" in text_mixed.lower())
+
+    # --- status label must actually be PARTIAL when a snapshot is missing,
+    # not hardcoded WORKING regardless of outcome (documented contract in
+    # SKILL.md Truthful Reporting: WORKING / PARTIAL / BLOCKED) ---
+    mixed_stdout = io.StringIO()
+    with contextlib.redirect_stdout(mixed_stdout):
+        rc_mixed_status = main(["--registry", mixed_registry_path, "--output", mixed_output_path])
+    check("main() exit code 0 when run has a partial (non-fatal) failure", rc_mixed_status == 0)
+    check(
+        "main() prints PARTIAL (not hardcoded WORKING) when a project has no snapshot",
+        mixed_stdout.getvalue().startswith("PARTIAL:"),
+    )
+
+    # --- fully successful run (every registered project has a snapshot)
+    # must still print WORKING, not PARTIAL ---
+    working_stdout = io.StringIO()
+    with contextlib.redirect_stdout(working_stdout):
+        rc_working_status = main(["--registry", registry_path, "--output", output_path])
+    check("main() exit code 0 on a fully successful run", rc_working_status == 0)
+    check(
+        "main() prints WORKING when every registered project has a snapshot",
+        working_stdout.getvalue().startswith("WORKING:"),
     )
 
 finally:

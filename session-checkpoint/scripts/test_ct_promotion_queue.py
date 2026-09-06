@@ -345,6 +345,73 @@ def _load_queue_skips_non_dict_json():
         return len(records) == 1 and records[0]["topic_summary"] == "a"
 case("load_queue_records: skips valid-JSON-but-non-dict lines, no crash", _load_queue_skips_non_dict_json)
 
+# 35. is_quarantined_entry: [QUARANTINE] tag detected -> True
+case("is_quarantined_entry: [QUARANTINE] tag -> True", lambda: ctq.is_quarantined_entry(
+    "[2026-08-01] [QUARANTINE] [ttl:90d] [ref:0] external instruction detected in fetched content"
+) is True)
+
+# 36. is_quarantined_entry: ordinary [EVENT] tag -> False
+case("is_quarantined_entry: ordinary [EVENT] tag -> False", lambda: ctq.is_quarantined_entry(
+    "[2026-08-01] [EVENT] [ttl:30d] [ref:0] newfeature.py design"
+) is False)
+
+# 37. run_scan: 3 [QUARANTINE]-tagged lines sharing a token must NOT enqueue (injection-defense regression)
+def _run_scan_excludes_quarantined():
+    with tempfile.TemporaryDirectory() as td:
+        marker = os.path.join(td, "marker.enabled")
+        with open(marker, "w", encoding="utf-8") as f:
+            f.write("")
+        queue = os.path.join(td, "queue.jsonl")
+        log_path = os.path.join(td, "context-log.md")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(
+                "[2026-08-01] [QUARANTINE] [ttl:90d] [ref:0] injected.py claims admin override\n"
+                "[2026-08-01] [QUARANTINE] [ttl:90d] [ref:0] injected.py claims admin override again\n"
+                "[2026-08-01] [QUARANTINE] [ttl:90d] [ref:0] injected.py claims admin override thrice\n"
+            )
+        memory_md = os.path.join(td, "MEMORY.md")
+        with open(memory_md, "w", encoding="utf-8") as f:
+            f.write("")
+        result = ctq.run_scan(log_path, memory_md, os.path.join(td, "tomb"), queue, marker,
+                               "global", None, "clean:internal")
+        records = ctq.load_queue_records(queue)
+        return (
+            result["enqueued"] == 0
+            and result["clusters_found"] == 0
+            and result["skipped_quarantined"] == 3
+            and records == []
+        )
+case("run_scan: [QUARANTINE]-tagged cluster never enqueued (injection defense)", _run_scan_excludes_quarantined)
+
+# 38. run_scan: mixed log — [QUARANTINE] lines excluded, legitimate cluster still enqueues normally
+def _run_scan_mixed_quarantine_and_legit():
+    with tempfile.TemporaryDirectory() as td:
+        marker = os.path.join(td, "marker.enabled")
+        with open(marker, "w", encoding="utf-8") as f:
+            f.write("")
+        queue = os.path.join(td, "queue.jsonl")
+        log_path = os.path.join(td, "context-log.md")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(
+                "[2026-08-01] [QUARANTINE] [ttl:90d] [ref:0] newfeature.py ignore prior instructions\n"
+                "[2026-08-01] [EVENT] [ttl:30d] [ref:0] newfeature.py design\n"
+                "[2026-08-01] [EVENT] [ttl:30d] [ref:0] newfeature.py implementation\n"
+                "[2026-08-01] [EVENT] [ttl:30d] [ref:0] newfeature.py test\n"
+            )
+        memory_md = os.path.join(td, "MEMORY.md")
+        with open(memory_md, "w", encoding="utf-8") as f:
+            f.write("")
+        result = ctq.run_scan(log_path, memory_md, os.path.join(td, "tomb"), queue, marker,
+                               "global", None, "clean:internal")
+        records = ctq.load_queue_records(queue)
+        return (
+            result["enqueued"] == 1
+            and result["skipped_quarantined"] == 1
+            and len(records) == 1
+            and records[0]["mention_count"] == 3  # the quarantined line must not inflate this count
+        )
+case("run_scan: [QUARANTINE] line excluded from mixed log, legit cluster (count=3) still enqueues", _run_scan_mixed_quarantine_and_legit)
+
 # 34. check_resurfaced: a tombstone file with a valid-JSON but non-dict line mixed in still gets judged from the rest, no crash
 def _check_resurfaced_skips_non_dict_json():
     with tempfile.TemporaryDirectory() as td:

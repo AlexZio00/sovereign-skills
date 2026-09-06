@@ -71,10 +71,20 @@ outweighs one missed real issue.
 
 ## Discard If
 
-- The project has neither CLAUDE.md nor MEMORY.md (nothing to audit)
-- The user just finished manual cleanup and wants an immediate re-audit (drift
-  needs time to accumulate — recommend at least a 24h gap)
-- The project has fewer than 10 files (audit cost exceeds the benefit)
+- The project has neither CLAUDE.md nor MEMORY.md (nothing to audit) — hard
+  discard, no override (there is nothing to read).
+- **Default**: skip an immediate re-audit within 24h of the last one (drift
+  needs time to accumulate — an immediate re-audit mostly reproduces the same
+  result). **Override**: this is a recommendation, not a block — if the user
+  just changed something and wants to confirm the fix landed (regression
+  check), or invokes `/doc-drift --force-after-change`, run anyway and note
+  `Re-audit before 24h elapsed: forced` in the report header.
+- **Default**: skip projects with fewer than 10 files (audit cost exceeds the
+  benefit for a large low-risk repo). **Override**: a small repo that is
+  high-risk (handles secrets, is a shared/published skill, or the user
+  explicitly asks for it despite the size) is worth auditing regardless —
+  run it and note `Small-repo override applied (N files)` in the report
+  header.
 
 ---
 
@@ -180,6 +190,12 @@ the counter-evidence (`file:line` or a quote of the current code). No
 resolvable anchor → label it `asserted_without_anchor` and cut it (see
 Invariants).
 
+When the quoted claim comes from personal/global memory (`~/.claude/CLAUDE.md`,
+`~/.claude/projects/*/memory/MEMORY.md`), redact personal identifiers
+(usernames, home-directory paths, unrelated project/company names, private
+architecture detail) before the quote goes into the report — see Invariants
+#4.
+
 **Derivability signal**: if a CLAUDE.md/rules line hardcodes a fact that could
 be mechanically reconstructed from the code (directory layout, dependency
 list, build command, etc.), that's a structural Outdated risk even when the
@@ -188,8 +204,11 @@ time. Tag such findings `[derivable]` as supporting evidence for priority.
 Not a new category — it's a sub-signal of Outdated, the four-kind taxonomy
 above is unchanged.
 
-**If confidence is low, drop it. False positives are this tool's biggest
-enemy.**
+**No resolvable anchor → drop it (`asserted_without_anchor`). An anchor exists
+but confidence is below 80% → keep it, labeled `UNCERTAIN`, in its own report
+section instead of dropping it — false positives are this tool's biggest
+enemy, but an evidence-backed lead you're not fully sure about is not a false
+positive, it's an unconfirmed one.**
 
 ### Step 3 — Prioritize and propose fixes
 
@@ -222,10 +241,11 @@ judge it with a single OK/NO.
 
 | Rationalization | Counter |
 |-----------------|---------|
-| "This finding's confidence is a bit low, but I'll include it anyway" | One false positive permanently damages this tool's credibility. Violates the Dominant Variable. Confidence < 80% → exclude. |
+| "This finding's confidence is a bit low, but I'll include it as a HIGH/MED/LOW finding" | That overstates confidence you don't have. Don't drop it either if it has a real anchor — label it `UNCERTAIN` in its own section instead. Only findings with no resolvable anchor get cut outright (`asserted_without_anchor`). |
 | "I can auto-fix Conflicts too" | Only a human knows which side of a Conflict is correct. Auto-fixing risks locking in the wrong side as the standard. |
 | "A longer report is more valuable" | Long reports don't get read. 5 HIGH findings beat 50 LOW ones. Keep the signal-to-noise ratio high. |
-| "It's fine to run this every day" | Drift accumulates over time. Re-audit only after at least 24h. An immediate re-audit just reproduces the same result. |
+| "It's fine to run this every day" | Drift accumulates over time — an immediate re-audit mostly reproduces the same result, so daily runs waste the read budget. Default: wait at least 24h. This is a recommendation, not a hard block — a genuine regression check right after a fix, or `--force-after-change`, overrides it. |
+| "I'll just quote the MEMORY.md line as-is, it's faster" | Personal/global memory can carry personal paths, real names, or private architecture notes with nothing to do with this project. Redact identifiers before the quote lands in a report meant to be read or committed in-repo (Invariant #4). |
 
 ---
 
@@ -262,14 +282,31 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
    trace what the tool actually based its judgment on, so a human can't decide
    whether to fix it.
 
-2. **Exclude confidence < 80%**: items that are merely suspected, not
-   confirmed, are left out of the report. Violation → false positives
-   accumulate → the report gets ignored → the tool gets abandoned.
+2. **Confidence < 80% → label `UNCERTAIN`, don't drop it (if it has an
+   anchor)**: a finding that clears Invariant 1 (resolvable `file:line`
+   anchor on both sides) but sits below 80% confidence is not a false
+   positive — it's an unconfirmed lead. Put it in a separate "Uncertain"
+   report section instead of discarding it, so evidence-backed suspicion
+   isn't silently lost. Only findings that fail Invariant 1 (no resolvable
+   anchor → `asserted_without_anchor`) are cut outright. Violation → dropping
+   every sub-80% item throws away exactly the finding class this skill exists
+   to surface (a real issue the model isn't fully sure about), trading false
+   negatives to make the false-positive count look better on paper.
 
 3. **Auto-fix requires all 3 conditions AND**: Outdated + a clear fix +
    explicit user approval. Auto-fixing Conflict/Risky items is never allowed.
    No file edits without user approval. Violation → a bad auto-fix can make
    the drift worse or break the document system.
+
+4. **Redact personal/global memory before quoting it**: `~/.claude/CLAUDE.md`
+   and `~/.claude/projects/<encoded-cwd>/memory/MEMORY.md` are the user's
+   personal, cross-project files — they can hold personal file paths, real
+   names, unrelated project/company names, or private architecture notes
+   unrelated to this project's drift. Before a line from either file is
+   quoted into `.drift-reports/`, strip personal identifiers and generalize
+   unpublished architecture detail — keep only what's needed to demonstrate
+   the drift. Violation → a report meant to be read or committed inside this
+   project's repo leaks the user's personal information into it.
 
 ---
 
@@ -287,7 +324,7 @@ its history should be visible in PRs):
 # Memory Audit — {timestamp}
 
 **Scanned:** {n} files reachable from CLAUDE.md / MEMORY.md / skills / agents
-**Findings:** HIGH {h} / MED {m} / LOW {l}
+**Findings:** HIGH {h} / MED {m} / LOW {l} / UNCERTAIN {u}
 
 ## Top priority
 1. **[HIGH] `path:line`** — {one-line summary}
@@ -301,6 +338,12 @@ its history should be visible in PRs):
 
 ## Low
 ...
+
+## Uncertain (confidence < 80%, evidence-backed — not dropped)
+- **`path:line`** — {one-line summary}
+  - Claim: "..."
+  - Anchor: `other/path:line` — ...
+  - Why unconfirmed: {reason confidence is below 80%}
 
 ## Needs a human decision
 - Conflicts where it's unclear which side is correct
@@ -333,14 +376,18 @@ Risky/Ambiguous (needs intent confirmation).
 | `/doc-drift` | Full audit (default) |
 | `/doc-drift recent` / `recent 50` | Only areas changed in the last N commits |
 | `/doc-drift path <glob>` | A specific path only |
+| `/doc-drift --force-after-change` | Override the 24h re-audit cooldown and the <10-file skip (see Discard If) — for a regression check right after a fix, or a small high-risk repo |
 
 ---
 
 ## Principles
 
-- **Minimize false positives** — drop it if you're not confident. The report
-  only survives if people trust it.
+- **Minimize false positives** — no anchor, drop it; an anchor but low
+  confidence, label it `UNCERTAIN` rather than presenting it as confirmed.
+  The report only survives if people trust it.
 - **Evidence required** — every finding cites both sides (`file:line`).
+- **Redact before quoting personal/global memory** — CLAUDE.md/MEMORY.md
+  quotes in the report get personal identifiers stripped first.
 - **Respect the summary-and-link pattern** — it's normal for `CLAUDE.md` to
   summarize/link to other documents. Only flag it when the meaning has
   actually drifted.

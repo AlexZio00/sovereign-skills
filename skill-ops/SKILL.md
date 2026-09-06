@@ -41,7 +41,7 @@ concurrency_profile:
 ## Discard If
 - Target file is outside `~/.claude/skills/` or `~/.claude/agents/` (project code → git handles it)
 - Target file doesn't exist (nothing to snapshot)
-- A same-day snapshot with identical content (line count) already exists (duplicate is pointless)
+- A same-day snapshot with an identical SHA-256 content hash already exists (duplicate is pointless)
 - Health mode: `invocations/` directory itself doesn't exist → report "no logs"
 - Health mode: 0 JSONL files within scan range → report "no logs in range"
 
@@ -61,28 +61,38 @@ concurrency_profile:
 2. Extract skill name: `~/.claude/skills/<name>/SKILL.md` or `~/.claude/agents/<name>.md`
 
 ### Phase 1: Read Original
-- `[READ] {TARGET_FILE}` → record line count (ORIGINAL_LINES)
+- `[READ] {TARGET_FILE}` → compute its SHA-256 content hash (ORIGINAL_HASH)
 - Failure (file missing) → "target file not found" + end with BROKEN status
 
 ### Phase 2: Prepare Directory + Same-Day Duplicate Check
 ```bash
 TIMESTAMP=$(date +%Y-%m-%d-%H%M%S)
 SKILL_SNAP_DIR=~/.claude/.harness/snapshots/{skill-name}
+ORIGINAL_HASH=$(sha256sum "${TARGET_FILE}" | cut -d' ' -f1)
 mkdir -p ${SKILL_SNAP_DIR}/${TIMESTAMP}
 ```
-- Same-day snapshot exists + identical line count → "identical-content snapshot already exists" → go to Phase 6
+- Same-day snapshot exists + its SHA-256 hash equals `ORIGINAL_HASH` → "identical-content snapshot already exists" → go to Phase 6 (equal line counts alone do NOT count as identical — always compare hashes)
 
 ### Phase 3: Save + Verify (Invariant #2)
-- `[WRITE]` snapshot → `[READ]` re-verify → compare line count
+- `[WRITE]` snapshot → `[READ]` re-verify → compare its SHA-256 hash against `ORIGINAL_HASH`
 - Mismatch → `⚠️ Snapshot verification failed` + end with PARTIAL
 
 ### Phase 4: Clean Up Old Snapshots (delete beyond 5)
 ```bash
-ls -d ~/.claude/.harness/snapshots/{skill-name}/*/ | sort | head -$((COUNT-5)) | xargs rm -rf
+SNAP_DIR=~/.claude/.harness/snapshots/{skill-name}
+COUNT=$(find "${SNAP_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+if [ "${COUNT}" -gt 5 ]; then
+  find "${SNAP_DIR}" -mindepth 1 -maxdepth 1 -type d | sort | head -n "$((COUNT-5))" | while IFS= read -r path; do
+    [ -n "${path}" ] && rm -rf -- "${path}"
+  done
+fi
 ```
+- `COUNT` is computed explicitly (previously undefined) and cleanup is skipped entirely when `COUNT` ≤ 5, so `head -n` never receives a zero/negative argument.
+- The `while IFS= read -r path` loop replaces `xargs` — `xargs`' default whitespace-delimited splitting mishandles snapshot paths containing spaces, while `read -r` consumes each line whole.
+- `[ -n "${path}" ]` guards against an empty line reaching `rm -rf`.
 
 ### Phase 5: Show Prior Score Store Score
-- Extract `harness_score` + `date` from the latest `~/.claude/.harness/scores/*.json` file
+- Extract `harness_score` (0-100 scale — check-harness's project/user-level aggregate score; a different schema from this skill's own 0-10 `S_Q` metric in Quality Mode below) + `date` from the latest `~/.claude/.harness/scores/*.json` file
 - If none: "No Score Store — run a quality audit first to have something to compare against"
 
 ### Phase 6: Output Rollback Command
@@ -104,7 +114,7 @@ Per-skill rollup from JSONL over the last 30 days (default):
 - `skills[]` → invocation count
 - `discarded[]` → Discard If trigger count
 - `last_seen` → last invocation date
-- **Correction count**: number of snapshots under `~/.claude/.harness/snapshots/{skill}/` = cumulative edit count for that skill. High edit frequency is a stability-watch signal
+- **Retained snapshot count**: number of snapshot directories currently under `~/.claude/.harness/snapshots/{skill}/` — NOT the skill's true cumulative edit count, since Invariant 4 caps retention at 5 (a skill edited more than 5 times still shows at most 5 here). A count at or near the 5-snapshot cap is a stability-watch signal (frequent recent edits)
 
 ### Phase 2: Classify Status (deterministic)
 
@@ -164,7 +174,7 @@ Zero-invocation: [never-invoked list — SHARPEN candidates]
 > Trigger: `/skill-ops quality` or `/skill-ops --quality`
 
 ### Purpose
-Calculate a per-skill quality score (S_Q) and identify the bottom quartile as optimization targets.
+Calculate a per-skill quality score (S_Q, 0-10 scale — distinct from the 0-100 `harness_score` in Snapshot Mode's Score Store) and identify the bottom quartile as optimization targets.
 
 > ⚠️ Boundary: S_Q is an **operational signal** for "keep vs. retire this skill" — not a quality oracle. It measures usage plus a handful of structural checklist items, not whether the skill's content is actually good. Don't read a low S_Q as "this skill is badly written" — it may simply be under-used. Deep content-quality review of a skill's actual reasoning/instructions is a separate activity outside this skill's scope (see `not_for` above).
 
@@ -225,7 +235,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 | Delete old snapshots (`rm -rf`) | medium | L1+L3 |
 | Roll back a skill file (Write overwrite) | medium | L1+L3 |
 
-- **L1 (Invariants)**: mandatory line-count re-verification after save. No automatic restoration.
+- **L1 (Invariants)**: mandatory SHA-256 hash re-verification after save. No automatic restoration.
 - **L3 (User Approval)**: deletion only after explicit user request. Rollback only after stating "current→rollback" and getting user confirmation.
 
 ## Error Recovery
@@ -233,14 +243,14 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 | Failure Type | Detection | Recovery |
 |---------|---------|--------|
 | `tool_failure` | Write/Read failure | State "snapshot save failed". Never proceed with comparison without a snapshot |
-| `logic_inconsistency` | Score DELTA ≤ -5 but content actually improved | State "possible false positive" + ask user to re-review |
+| `logic_inconsistency` | `harness_score` DELTA (0-100 scale, from Phase 5's Score Store — not the 0-10 `S_Q` scale below) ≤ -5 but content actually improved | State "possible false positive" + ask user to re-review |
 | `missing_data` | Target file missing / invocations log missing | Discard that mode + state the reason |
 | `input_error` | Target skill unclear | Default to full-list scan. If specific target intended, ask 1 clarifying question |
 
 ## Invariants (never violate)
 
 1. **Confirm original exists before snapshotting**: Write only after successful Read. Abort if original is missing. Violation → empty snapshot.
-2. **Re-verify Read after Write**: line-count mismatch → PARTIAL. Violation → reporting a corrupted snapshot as "done".
+2. **Re-verify Read after Write**: SHA-256 hash mismatch → PARTIAL. Violation → reporting a corrupted snapshot as "done".
 3. **No automatic restoration**: only output the restore `cp` command. Execution is the user's job. Violation → unintended file overwrite.
 4. **Keep last 5**: delete 6th and beyond. Violation → unbounded directory growth.
 5. **No automatic deletion (Health)**: never delete/move files even at 0 usage. Report only. Violation → No Action default violation.
@@ -251,7 +261,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 ## Truthful Reporting
 
 1. **no mock deception**: never say "save complete" without a post-Write Read re-verification. Never assume "used" from absent logs.
-2. **no test façade**: line-count mismatch = PARTIAL. Never assume "it probably worked".
+2. **no test façade**: SHA-256 hash mismatch = PARTIAL. Never assume "it probably worked".
 3. **no silent brokenness**: final status must be labeled `WORKING` / `PARTIAL` / `BROKEN`.
 
 ## Rationalization Table

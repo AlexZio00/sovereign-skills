@@ -85,7 +85,12 @@ def load_project_entries(projects, base_reader=None):
 
     base_reader: injectable function(path) -> str for testability (defaults to
     reading from filesystem). Returns list of entries with keys:
-    name, path, ts, ctx (ts/ctx are None if handoff or snapshot missing).
+    name, path, ts, ctx, error (ts/ctx are None if handoff or snapshot
+    missing; error is None | "not_found" | "decode_error").
+
+    A per-project failure (missing file, or a handoff saved in a non-UTF-8
+    encoding) is isolated to that project only — one bad file must not abort
+    collection for the rest of the registered projects.
     """
     if base_reader is None:
         def base_reader(p):
@@ -95,15 +100,21 @@ def load_project_entries(projects, base_reader=None):
     entries = []
     for proj in projects:
         handoff_path = os.path.join(proj["path"], HANDOFF_RELATIVE_PATH)
-        ts, ctx = None, None
+        ts, ctx, error = None, None, None
         try:
             text = base_reader(handoff_path)
             snap = parse_state_snapshot(text)
             if snap:
                 ts, ctx = snap["ts"], snap["ctx"]
         except (FileNotFoundError, OSError):
-            pass
-        entries.append({"name": proj["name"], "path": proj["path"], "ts": ts, "ctx": ctx})
+            error = "not_found"
+        except UnicodeDecodeError:
+            # A single non-UTF-8 handoff file must not crash the whole run —
+            # isolate the failure to this project and keep aggregating others.
+            error = "decode_error"
+        entries.append(
+            {"name": proj["name"], "path": proj["path"], "ts": ts, "ctx": ctx, "error": error}
+        )
     return entries
 
 
@@ -129,21 +140,46 @@ def render_overview_block(entries):
         name = _escape_table_cell(e["name"])
         path = _escape_table_cell(e["path"])
         ts = _escape_table_cell(e.get("ts") or "no snapshot")
-        ctx = _escape_table_cell(e.get("ctx") or "no handoff")
+        if e.get("error") == "decode_error":
+            ctx = _escape_table_cell("decode error (non-UTF-8 handoff file)")
+        else:
+            ctx = _escape_table_cell(e.get("ctx") or "no handoff")
         lines.append(f"| {name} | `{path}` | {ts} | {ctx} |")
     return "\n".join(lines) + "\n"
 
 
+class MarkerCorruptionError(Exception):
+    """Raised when AUTO:START/AUTO:END markers exist but are malformed: an
+    orphan START with no END, an orphan END with no START, END appearing
+    before START, or duplicate markers. Auto-splicing in this state was
+    found (external audit, 2026-09) to either delete manually-written text
+    that a human left after an orphan START, or grow an extra marker pair
+    on every re-run when END precedes START (non-idempotent) — so this
+    function refuses to guess a splice point and leaves existing_text
+    completely untouched instead.
+    """
+
+
 def apply_auto_markers(existing_text, new_block_content):
     """Replace text between AUTO:START/AUTO:END markers with new_block_content.
-    Text outside the markers is preserved byte-for-byte. If markers are absent,
-    or END appears before START (mangled/orphaned markers from a manual edit),
-    markers are (re)appended to the end of the file (existing content preserved above).
+    Text outside the markers is preserved byte-for-byte.
+
+    If NEITHER marker is present, a fresh pair is appended at the end
+    (existing content preserved above) — this is the normal first-run case,
+    not corruption.
+
+    If the markers are malformed (only one of the pair present, END appears
+    before START, or either marker is duplicated), raises
+    MarkerCorruptionError without modifying existing_text at all. The caller
+    is expected to report BLOCKED and leave cleanup to a human — see
+    MarkerCorruptionError docstring for why auto-repair is unsafe here.
     """
     start_idx = existing_text.find(AUTO_START)
     end_idx = existing_text.find(AUTO_END)
+    start_count = existing_text.count(AUTO_START)
+    end_count = existing_text.count(AUTO_END)
 
-    if start_idx == -1 or end_idx == -1 or start_idx > end_idx:
+    if start_idx == -1 and end_idx == -1:
         separator = "" if existing_text.endswith("\n") else "\n"
         return (
             existing_text
@@ -154,6 +190,23 @@ def apply_auto_markers(existing_text, new_block_content):
             + new_block_content
             + AUTO_END
             + "\n"
+        )
+
+    if (
+        start_idx == -1
+        or end_idx == -1
+        or start_idx > end_idx
+        or start_count != 1
+        or end_count != 1
+    ):
+        raise MarkerCorruptionError(
+            "OVERVIEW.md AUTO:START/AUTO:END markers are malformed (orphan "
+            "marker, AUTO:END appears before AUTO:START, or duplicate "
+            "markers). Refusing to auto-splice — this could delete "
+            "manually-written text or duplicate the marker pair on every "
+            "re-run. Fix the markers by hand in the output file (leave "
+            "exactly one AUTO:START before exactly one AUTO:END), then "
+            "re-run."
         )
 
     before = existing_text[:start_idx]
@@ -182,18 +235,40 @@ def main(argv=None):
     entries = load_project_entries(projects)
     new_block = render_overview_block(entries)
 
+    # Report per-project decode failures explicitly (isolated, not fatal) —
+    # no-silent-brokenness: a skipped file must be visible, not swallowed.
+    decode_error_paths = [e["path"] for e in entries if e.get("error") == "decode_error"]
+    for path in decode_error_paths:
+        print(
+            f"WARN: could not decode handoff at {path} as UTF-8 — "
+            "treated as no snapshot, other projects still processed",
+            file=sys.stderr,
+        )
+
     if os.path.exists(args.output):
         with open(args.output, encoding="utf-8") as f:
             existing_text = f.read()
     else:
         existing_text = "# Project Overview\n\n"
 
-    updated_text = apply_auto_markers(existing_text, new_block)
+    try:
+        updated_text = apply_auto_markers(existing_text, new_block)
+    except MarkerCorruptionError as exc:
+        # existing_text is untouched -> nothing is written to args.output.
+        print(f"BLOCKED: {exc}", file=sys.stderr)
+        return 1
 
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(updated_text)
 
-    print(f"WORKING: {len(projects)} project(s) -> {args.output}")
+    missing_count = sum(1 for e in entries if e.get("ts") is None)
+    if missing_count:
+        print(
+            f"PARTIAL: {len(projects)} project(s) -> {args.output} "
+            f"({missing_count} with no snapshot)"
+        )
+    else:
+        print(f"WORKING: {len(projects)} project(s) -> {args.output}")
     return 0
 
 

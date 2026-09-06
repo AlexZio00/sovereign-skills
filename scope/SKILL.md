@@ -81,10 +81,11 @@ Score clarity across 4 dimensions (0-10 each), by judgment.
 | **Verification** | How is "done" verified — is there a measurable criterion? |
 | **Assumptions** | Any hidden assumptions — dependencies on existing system/data/environment? |
 
-**Gating (deterministic)**: hand the 4 scores to the gate script and read its stdout — don't average them by eye.
+**Gating (deterministic)**: hand the 4 scores to the gate script and read its stdout — don't average them by eye. Resolve the script from the skill's own directory rather than a path relative to the invocation cwd — `python scope/scripts/...` only works when the shell happens to be sitting one level above `scope/`, and breaks in every other cwd:
 
 ```bash
-python scope/scripts/ambiguity_gate.py quick --scores '{"function":8,"boundary":7,"verification":6,"assumptions":9}'
+GATE_SCRIPT=$(find ~/.claude -name "ambiguity_gate.py" -path "*/scope/scripts/*" -type f 2>/dev/null | head -1)
+python "$GATE_SCRIPT" quick --scores '{"function":8,"boundary":7,"verification":6,"assumptions":9}'
 # -> {"ok": true, "avg": 7.5, "weakest": "verification"}
 ```
 
@@ -119,16 +120,19 @@ Exceeds question limit → conservative minimum scope + `[assumed]` tag.
 ```
 
 ### Step 4: Min-item validation → Approval → Save BRIEF.md
-Before requesting approval, validate the drafted brief against the minimum-item requirements — don't count bullets by eye. A bolded aside inside a section (e.g. `**Note**: ...`) can look like a new section header on a human skim and silently truncate a manual count; a regression test locks this exact failure mode closed in the script.
+The gate script takes `--file`, not stdin, so it needs something on disk to read — but Invariant 5 says the deliverable (`BRIEF.md`) isn't saved until after approval, and approval isn't requested until the script says `ok: true`. Break that cycle by writing the drafted brief to a **scratch file** (e.g. `.scope-draft.md`) first: the scratch write is not the Invariant-5-gated save, it exists purely so the deterministic script has a path to read. Draft freely, re-run the gate as many times as needed, all before any approval exists.
+
+Validate the scratch draft against the minimum-item requirements — don't count bullets by eye. A bolded aside inside a section (e.g. `**Note**: ...`) can look like a new section header on a human skim and silently truncate a manual count; a regression test locks this exact failure mode closed in the script.
 
 ```bash
-python scope/scripts/ambiguity_gate.py min-items --file <path-to-drafted-brief>
+GATE_SCRIPT=$(find ~/.claude -name "ambiguity_gate.py" -path "*/scope/scripts/*" -type f 2>/dev/null | head -1)
+python "$GATE_SCRIPT" min-items --file .scope-draft.md
 # -> {"scope_out": 2, "risk_flags": 1, "contraindication": 1, "constraints": 1, "ok": true}
 ```
 
-Pass `--new-project` for new projects (Invariant 6 waives the Constraints requirement). `ok: false` → the per-field counts in the JSON show which section is short; add items there and re-run before moving to approval.
+Pass `--new-project` for new projects (Invariant 6 waives the Constraints requirement). `ok: false` → the per-field counts in the JSON show which section is short; revise `.scope-draft.md`, add items there, and re-run before moving to approval.
 
-Request approval only once the script reports `ok: true`. Save BRIEF.md only after explicit user approval (Invariant 5).
+Request approval only once the script reports `ok: true`. **On approval**: write the same content to `BRIEF.md` (Invariant 5 — this is the actual gated save) and delete the scratch file. **On rejection**: keep revising the scratch file and re-gating; it is never shown to the user as the deliverable, only `BRIEF.md` is.
 
 ---
 
@@ -156,10 +160,11 @@ Each Decision gets clarity score (0-5):
 - 3: Needs 1-2 clarifying questions
 - 1: Completely ambiguous
 
-**Gating (deterministic)**: hand the per-Decision scores to the gate script — don't average them by eye.
+**Gating (deterministic)**: hand the per-Decision scores to the gate script — don't average them by eye. Resolve the script from the skill's own directory, not a cwd-relative path (see Quick Mode Step 2 for why):
 
 ```bash
-python scope/scripts/ambiguity_gate.py full --scores "5,3,4,5"
+GATE_SCRIPT=$(find ~/.claude -name "ambiguity_gate.py" -path "*/scope/scripts/*" -type f 2>/dev/null | head -1)
+python "$GATE_SCRIPT" full --scores "5,3,4,5"
 # -> {"ok": true, "avg": 4.25}
 ```
 
@@ -242,10 +247,10 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 
 ## Output
 
-**Before approval**: the brief (Quick) or the current layer's draft (Full) is emitted into the conversation only — no file is written yet. This is the review surface; catch problems here, not after the file exists.
+**Before approval**: the brief (Quick) or the current layer's draft (Full) is emitted into the conversation only — no *deliverable* file (`BRIEF.md` / `spec.md`) is written yet. Quick mode's Step 4 gate needs a file to read, so a `.scope-draft.md` scratch file may exist at this stage — it is not the deliverable and is deleted once `BRIEF.md` is saved (or once the flow is abandoned). This is the review surface; catch problems here, not after the deliverable exists.
 
 **After approval**:
-- Quick → `BRIEF.md` written to disk (Step 4, gated by the min-items script above).
+- Quick → `BRIEF.md` written to disk (Step 4, gated by the min-items script above), scratch file deleted.
 - Full → `specs/{kebab-name}/spec.md` written/appended per layer (L0→L4), each layer gated by its own user-approval checkpoint.
 
 **Final status label** (required on completion): `WORKING` (brief/spec saved, all gates passed) / `PARTIAL` (saved with a documented gap — e.g. `[assumed]` tags from a question-limit exit, or a section marked `⚠️`) / `BROKEN` (approval never reached, or the save itself failed). Conditions per label are the same as Truthful Reporting above.

@@ -105,7 +105,9 @@ Severity Anchor Table:
 | Fix Cost | Architecture (1wk+) | Multi-file (2-3d) | Module (hours) | File (1hr) | One line |
 | Detectability | Prod only | Specific data | Integration test | Unit test | Lint |
 
-**CRITICAL Reachability Gate**: Before 🔴 CRITICAL — (a) reachable (b) realistic trigger. Either fails → downgrade + `[theoretical]`.
+**Hard Anchor Override (catastrophic-impact categories)**: The weighted formula (Impact×0.4 + Probability×0.3 + FixCost×0.2 + Detectability×0.1) can be gamed downward when a serious defect happens to be cheap or easy to fix — e.g. a data-loss bug with Impact=10/Probability=10/FixCost=1/Detectability=3 computes to 75, landing below an 80 gate despite being catastrophic. To prevent this: **any finding with Impact=10 AND Probability≥8 (data loss, security breach, credential exposure, and equivalent catastrophic-and-likely categories) is classified CRITICAL regardless of the computed composite score** — a low FixCost or Detectability does not offset it. Report the computed score alongside the override for transparency, e.g. "Severity: 75/100 → CRITICAL [hard anchor: Impact=10/Probability=10 overrides formula]". This does not change the formula's weights or its use for ranking non-catastrophic findings — it only sets a floor classification for this narrow Impact/Probability combination.
+
+**CRITICAL Reachability Gate**: Before 🔴 CRITICAL (including one set by the Hard Anchor Override above) — (a) reachable (b) realistic trigger. Either fails → downgrade + `[theoretical]`.
 
 **Deterministic scoring recommendation**: the Severity formula above (Impact×0.4 + Probability×0.3 + FixCost×0.2 + Detectability×0.1) and the Composite Score formula in [STEP 3] are pure arithmetic — mental math on these is an avoidable error source. If your environment supports running a small script, compute both through one instead of doing the arithmetic by hand; the formulas themselves don't change, only where they're evaluated.
 
@@ -114,8 +116,8 @@ Severity Anchor Table:
 **CapCode Ceiling Metric**:
 Scores themselves can be gamed. Set a **legitimate performance ceiling** per category.
 - When reporting composite/category scores, label: "legitimate ceiling for this project: X"
-- Score exceeds ceiling → `⚠️ SCORE EXCEEDS LEGITIMATE CEILING` → downgrade to FIX FIRST
-- Ceiling: top 95th percentile of prior reviews or public benchmark
+- Score exceeds ceiling → `⚠️ SCORE EXCEEDS LEGITIMATE CEILING (advisory)` → flag for a second look; downgrade to FIX FIRST only when corroborated by an actual finding, not on the ceiling breach alone
+- Ceiling: top 95th percentile of prior reviews or public benchmark — **advisory reference only, not an absolute quality ceiling**. Without a stated comparison group, sample size, and normalization (codebase size/language/domain), a 95th-percentile figure has no statistical grounding. Use it as a rough sanity-check signal, not as gating evidence by itself.
 - Q7/Q10: sudden coverage jump (+20pp) → cross-check with Q10 for mock-deception
 
 **Outcome-ceiling to process-metric switch**:

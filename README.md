@@ -1,9 +1,11 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.5.10
+# sovereign-skills v6.5.11
 
 20 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
+> **What changed in v6.5.11:** Bug-fix release driven by an independent third-party audit of the v6.5.9 snapshot — every one of the 20 skills received at least one fix, none added or removed. Two deployment blockers: Codex install docs were wrong (Codex actually discovers skills via `.agents/skills/<name>/SKILL.md`, not by appending `agents/openai.yaml` to `AGENTS.md` — fixed across all 5 READMEs and all 20 yaml files), and 7 plugin manifests failed `claude plugin validate` with an invalid `skills` field (now fixed, validates clean). Real bugs fixed with reproductions: `pre-push` (secrets scan now covers outgoing commits, not just staged diff), `project-overview` (corrupted AUTO-marker splice could delete manual text; one bad-encoding file no longer kills the whole run; PARTIAL status now actually fires), `session-checkpoint` (quarantined entries could reach memory promotion; attestation timing caused false TAMPERED reports), `scope` (input validation gaps let malformed scores pass), `code-autopsy` (a cheap-to-fix catastrophic bug could dodge the Critical gate), plus fixes across `setup`, `project-init`, `project-check`, `session-start`, `collab-audit`, `skill-ops`, `integration-intake`, `clean-room`, `eval-leakage-audit`, `doc-drift`, `goal-lock`, `full-audit` (new AUDIT_ONLY/PROPOSE/APPLY_APPROVED mode gate), `freeze`, `next-action`, and `stepback`. Full detail in CHANGELOG.md.
+>
 > **What changed in v6.5.10:** Refinement release — no skills added or removed; a delta port from the internal fork covering 11 of the 20 skills. `pre-push` → v3.9.0 (fixed a real regression where 9 spots used `cmd | tail -N; $?`, which silently swallowed lint/build/test failures instead of reporting them — switched to `PIPESTATUS`; added an opt-in test-count-floor warning; corrected a stale "12 patterns" claim to the actual 14), `eval-leakage-audit` (18→21-pattern taxonomy — adds success-provenance-gap, lenient-judge-mode non-disclosure, and hardest-category denominator exclusion), `doc-drift` (new 4th detection category, Session Leakage, backed by two new deterministic scripts), `goal-lock` (B5.2 Termination Handshake replaced with Ralph Mode for unattended autonomous loops; new mandatory Tier-0/Tier-1 self-attack step; verification upgraded from recommended to mandatory), `session-checkpoint` (new `kill_if` lesson field + Regression Detection step + a postmortem 3-condition gate on new lessons), `full-audit` → v1.1 (new "coverage caps intervention value" pre-audit step), `integration-intake` (field-level merge operators — SUM/REPLACE/IMMUTABLE/PATCH — for frontmatter grafts), `collab-audit` (psychological-framework sections now gate on evidence sufficiency instead of applying unconditionally), `setup` (new existing-governance-doc probe that generates a thin stub instead of a full duplicate template when a project already has compatible rules), `scope` (three Invariants — Scope OUT minimum, question-count cap, Risk Flags minimum — now allow a single stated exception each instead of being unconditional floors; a behavior change, not a bug fix), `session-start` (ships the `harness_observability.py` script this release had originally deferred, plus a new fast-path that reads `session-checkpoint`'s compact state-snapshot block instead of the full prose handoff). **Not ported this release**: `project-check` — investigated the internal fork's apparent routing change and found `/team-init` isn't a registered trigger anywhere, so it's a dead reference rather than a real upgrade; the public version is currently more complete on this skill than the internal fork.
 >
 > **What changed in v6.5.9:** Codex compatibility complete — all 20 skills now ship `agents/openai.yaml`. Previously 5 skills added in v6.3–v6.5 (`doc-drift`, `eval-leakage-audit`, `next-action`, `project-overview`, `skill-ops`) were missing Codex agent definitions. Installation section restructured (Option C: Codex/AGENTS.md, Option D: Cursor/other agents). No skill content changes — packaging-only release.
@@ -184,19 +186,25 @@ Each skill also includes standalone `.claude-plugin/plugin.json` metadata.
 
 Skills are invoked by typing the trigger command (e.g., `/goal-lock`) in Claude Code. Claude reads the SKILL.md and follows the instructions.
 
-### Option C: Codex (AGENTS.md)
+### Option C: Codex
 
-All 20 skills ship `agents/openai.yaml` for OpenAI Codex. Copy the YAML into your project's `AGENTS.md` or reference the file directly:
+Codex discovers skills by scanning `.agents/skills/<skill-name>/SKILL.md` at the repository, user (`$HOME/.agents/skills`), admin, and system levels — no separate agent definition is required. Install a skill for Codex the same way you would for Claude Code, just under the `.agents/skills/` path:
 
 ```bash
-# Copy a skill's Codex agent definition
-cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
+# User-level (available in every project)
+cp -r goal-lock ~/.agents/skills/goal-lock/
 
-# Or reference the SKILL.md directly — Codex reads markdown instructions
-# just like Claude Code does. The content is agent-agnostic.
+# Repo-level (this project only)
+cp -r goal-lock .agents/skills/goal-lock/
 ```
 
-Each `openai.yaml` points to the same `SKILL.md` via `instructions: "../SKILL.md"` — one source, two surfaces.
+Each skill also ships an **optional** `agents/openai.yaml` — UI/policy metadata for the ChatGPT desktop app (display name, description, icon/branding color, and the `allow_implicit_invocation` flag, `true` by default). It is not needed for Codex to find or run the skill; copy it along with `SKILL.md` only if you want that metadata applied:
+
+```bash
+cp -r goal-lock/agents .agents/skills/goal-lock/agents/
+```
+
+See the [official Codex skills documentation](https://learn.chatgpt.com/docs/build-skills) for the full discovery and metadata spec.
 
 ### Option D: Cursor / Other Agents
 
@@ -205,7 +213,7 @@ The SKILL.md content is universal markdown — it works with any LLM that reads 
 ### Requirements
 
 - **Claude Code**: CLI, desktop app, or web app ([claude.ai/code](https://claude.ai/code))
-- **Codex**: OpenAI Codex — each skill includes `agents/openai.yaml`
+- **Codex**: OpenAI Codex — reads `SKILL.md` directly from `.agents/skills/`; `agents/openai.yaml` is optional UI metadata
 - **Cursor / Other**: Any agent that reads markdown instructions
 - Skills directory: `~/.claude/skills/` (Claude Code) or agent-specific path
 - `pre-push` includes both `scan_secrets.py` (preferred) and `scan_secrets.pl` (Perl fallback)

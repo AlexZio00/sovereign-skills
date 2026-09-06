@@ -12,8 +12,8 @@ Generate at project root using this structure:
 
 ## Hard Rules (never bend)
 {Conditional — check before generating:
-  `.claude/rules/project-rules` exists →
-    Hard Rules → see [.claude/rules/project-rules](.claude/rules/project-rules)
+  `.claude/rules/project-rules.md` exists →
+    Hard Rules → see [.claude/rules/project-rules.md](.claude/rules/project-rules.md)
   Does NOT exist →
     - [each rule from Q7 + domain defaults, listed directly]
 }
@@ -139,7 +139,11 @@ vendor/
 ```gitignore
 .env
 /target/
-Cargo.lock   # remove this line if publishing a library
+
+# Cargo.lock policy: binary crates should commit it (reproducible builds) — do not ignore.
+# Library crates should ignore it — downstream consumers pin their own versions.
+# Uncomment the next line only if this is a library crate:
+# Cargo.lock
 ```
 
 **Java / Kotlin:**

@@ -2,8 +2,12 @@
 """handoff_attestation.py — session-handoff-LATEST.md integrity verification (SHA-256)
 plus an evidence-chain receipt log.
 
-Right after session-checkpoint Phase 2.4, write_receipt() appends a receipt
-(and, for the checkpoint family, also refreshes the sidecar hash).
+Right after session-checkpoint Phase 4.5, write_receipt() appends a receipt
+(and, for the checkpoint family, also refreshes the sidecar hash). Phase 4.5
+runs after Phase 4 (not right after the Phase 2.3 compact-block insertion)
+because Phase 3.9 and Phase 4 can still rewrite the handoff file — hashing
+any earlier would let a legitimate later rewrite invalidate the sidecar and
+make the next session's guard() falsely report TAMPERED.
 A SessionStart hook can call guard() to check the sidecar and verify_receipts()
 to recompute and compare receipt SHA-256 values, in parallel.
 
@@ -167,7 +171,7 @@ def write_receipt(family, session_id, cwd=None, receipts_dir=None):
     with open(receipts_path, "a", encoding="utf-8") as f:
         f.write(_canonical_json(receipt) + "\n")
     if family == "checkpoint":
-        # Phase 2.4 replaces the old standalone write_sidecar call, so this
+        # Phase 4.5 replaces the old standalone write_sidecar call, so this
         # runs here only for the checkpoint family. cwd-based memory/ path
         # resolution follows the same rule as _default_paths().
         base = os.path.join(cwd or os.getcwd(), "memory")

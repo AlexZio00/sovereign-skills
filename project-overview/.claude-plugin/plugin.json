@@ -2,10 +2,11 @@
   "name": "project-overview",
   "description": "Generates a deterministic cross-project status map from registered projects' session handoffs.",
   "version": "1.0.0",
-  "skills": [
-    {
-      "name": "project-overview",
-      "path": "SKILL.md"
-    }
-  ]
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT"
 }

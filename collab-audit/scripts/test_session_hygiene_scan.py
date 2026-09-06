@@ -31,15 +31,24 @@ case("originator=sdk no first_message excluded", lambda: shs.classify_session(
 case("organic session included", lambda: shs.classify_session(
     {"originator": "user", "first_message": "what should I start with today"})[0] == "include")
 
-# 4b. cwd automated-experiment harness naming pattern -> exclude
+# 4b. cwd automated-experiment harness naming pattern -> exclude (strong signal only)
 case("cwd pair-run pattern excluded", lambda: shs.classify_session(
     {"originator": "user", "first_message": "hi", "cwd": "/home/user/experiments/pair-run-42"})[0] == "exclude")
 case("cwd arm-a pattern excluded", lambda: shs.classify_session(
     {"originator": "user", "first_message": "hi", "cwd": "/data/ab-test/arm-a"})[0] == "exclude")
-case("cwd pipeline pattern excluded", lambda: shs.classify_session(
-    {"originator": "user", "first_message": "hi", "cwd": "/ci/pipeline-run-7"})[0] == "exclude")
 case("cwd normal path not excluded", lambda: shs.classify_session(
     {"originator": "user", "first_message": "hi", "cwd": "/home/user/projects/my-app"})[0] == "include")
+
+# 4c. cwd "pipeline" alone is a weak/generic signal -> uncertain, NOT auto-excluded
+# (regression: a real project named e.g. "data-pipeline-tool" must not be
+# misclassified as an automated harness just because of the word "pipeline")
+case("cwd pipeline-only word -> uncertain (not auto-excluded)", lambda: shs.classify_session(
+    {"originator": "user", "first_message": "hi", "cwd": "/home/user/projects/data-pipeline-tool"})[0] == "uncertain")
+case("cwd pipeline + strong pattern still excluded", lambda: shs.classify_session(
+    {"originator": "user", "first_message": "hi", "cwd": "/ci/pipeline-run/pair-run-7"})[0] == "exclude")
+
+# 4d. empty metadata object {} must not be auto-classified as organic
+case("empty metadata object -> uncertain, not organic", lambda: shs.classify_session({})[0] == "uncertain")
 
 # 5. scan_sessions: 2+ sessions -> meets_minimum True
 def _scan_two_sessions():
@@ -112,6 +121,58 @@ def _scan_survives_malformed_file():
         return (len(result["unreadable"]) == 1 and result["unreadable"][0]["path"] == bad
                 and result["included_count"] == 1)
 case("scan_sessions survives malformed JSON file", _scan_survives_malformed_file)
+
+# 11. scan_sessions: session-meta root is a JSON array ([]) -> routed to
+# unreadable, does not crash the batch (regression: previously meta.get(...)
+# on a list raised AttributeError and killed the whole scan)
+def _scan_survives_array_root():
+    with tempfile.TemporaryDirectory() as td:
+        arr = os.path.join(td, "arr.json")
+        with open(arr, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        good = os.path.join(td, "good.json")
+        with open(good, "w", encoding="utf-8") as f:
+            json.dump({"originator": "user", "first_message": "hi", "message_count": 10, "artifact_count": 0}, f)
+        result = shs.scan_sessions([arr, good])
+        return (len(result["unreadable"]) == 1 and result["unreadable"][0]["path"] == arr
+                and result["included_count"] == 1)
+case("scan_sessions survives JSON array root (no crash)", _scan_survives_array_root)
+
+# 12. scan_sessions: non-numeric count field (string) -> routed to unreadable,
+# does not crash the batch (regression: int("many") previously raised
+# ValueError uncaught)
+def _scan_survives_string_count():
+    with tempfile.TemporaryDirectory() as td:
+        bad = os.path.join(td, "bad.json")
+        with open(bad, "w", encoding="utf-8") as f:
+            json.dump({"originator": "user", "first_message": "hi", "message_count": "many", "artifact_count": 0}, f)
+        result = shs.scan_sessions([bad])
+        return len(result["unreadable"]) == 1 and result["included_count"] == 0
+case("scan_sessions survives non-numeric count field (no crash)", _scan_survives_string_count)
+
+# 13. scan_sessions: empty metadata object {} is reported as uncertain, not
+# silently folded into included/organic
+def _scan_empty_object_uncertain():
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "empty.json")
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+        result = shs.scan_sessions([p])
+        return result["uncertain_count"] == 1 and result["included_count"] == 0
+case("scan_sessions empty metadata object -> uncertain, not organic", _scan_empty_object_uncertain)
+
+# 14. scan_sessions: cwd "pipeline"-only sessions are reported as uncertain,
+# not folded into excluded_count or included_count
+def _scan_pipeline_word_uncertain():
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "s0.json")
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"originator": "user", "first_message": "hi", "cwd": "/home/user/projects/data-pipeline-tool",
+                       "message_count": 10, "artifact_count": 0}, f)
+        result = shs.scan_sessions([p])
+        return result["uncertain_count"] == 1 and result["included_count"] == 0 and result["excluded_count"] == 0
+case("scan_sessions cwd pipeline word -> uncertain bucket, not excluded/included", _scan_pipeline_word_uncertain)
+
 
 def main():
     fails = []

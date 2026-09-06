@@ -50,9 +50,9 @@ Read the following 5 sources. Skip missing files.
 
 ### Step 2: Derive Candidates
 
-Extract action candidates from collected data:
+Extract action candidates from collected data. Check each candidate's own underlying source for freshness (the specific lesson's `seen` date, the specific commit referenced) — not just whether the handoff file as a whole is old:
 
-- Handoff "what to do now" → candidate as-is
+- Handoff "what to do now" → candidate as-is, but verify the specific file/commit it references is still current
 - Uncommitted files → "commit + push" or "needs verification"
 - PENDING blocker trigger satisfied → "resolve blocker"
 - Stale lesson → "re-apply/verify lesson"

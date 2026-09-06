@@ -103,7 +103,7 @@ for it itself at startup, so this phase calls it unconditionally without a
 separate existence check.
 
 ```bash
-python ~/.claude/scripts/ct_promotion_queue.py scan \
+python "scripts/ct_promotion_queue.py" scan \
   --context-log <absolute path to this project's context-log.md> \
   --memory-md <absolute path to this project's MEMORY.md> \
   --scope project --project-path <absolute path to this project's root>
@@ -114,6 +114,7 @@ python ~/.claude/scripts/ct_promotion_queue.py scan \
 - If the output shows `enqueued=0`, no new T2 candidates this session — end silently.
 - If `enqueued` is 1 or more, surface a one-line summary verbatim to the user: `[CT Promotion Queue] {N} newly queued — drafts will be proposed at the next memory-dream run (queue: ~/.claude/.harness/ct-promotion-queue.jsonl)`.
 - If the output includes a `⚠️ Resurfaced: {topic}` line, surface that verbatim too (a previously-deleted fact resurfacing — never suppress this silently).
+- `[QUARANTINE]`-tagged context-log entries (external/untrusted content, see below) are excluded from candidacy by the script itself before clustering — they can never become a promotion candidate, and the `skip_quarantined=N` count in the script's stdout reflects how many were dropped.
 
 **External source 3-Tier Reference Threshold**
 | Tier | Criterion | Storage Location |
@@ -499,22 +500,7 @@ After Phase 2 prose, measure byte size → after compact block, compare:
 
 If under 2x: `next/diff` items have unnecessary description — recommend additional compression.
 
-### Phase 2.4: Attestation — receipt logging (checkpoint family)
-
-Once the handoff file (Phase 2 prose + the Phase 2.3 compact block, fully inserted) is in its final state, append an evidence-chain receipt (checkpoint family) to `~/.claude/.harness/receipts/YYYY-MM.jsonl`. For the checkpoint family specifically, `write-receipt` also internally refreshes the existing sidecar (`memory/.session-handoff.sha256`) — so both the next session's SessionStart hook `guard` (sidecar comparison) and `verify-receipt` (receipt SHA-256 comparison) keep working.
-
-**Run:**
-```bash
-python "scripts/handoff_attestation.py" write-receipt checkpoint "$SESSION_ID"
-```
-
-`$SESSION_ID` reuses the session_id issued in Phase 1.6.5 (ISO8601, or the latest value on a Growth Re-check). If run with no arguments, `receipts_dir` uses the default path (`~/.claude/.harness/receipts/`).
-
-**Reading the output:**
-- `OK receiptId=...` — receipt appended + sidecar refreshed. Proceed to the next Phase without further output (internal integrity step — no need to tell the user).
-- `MISSING_SESSION_ID` — Phase 1.6.5's session_id wasn't obtained. Output `⚠️ Attestation receipt write skipped: session_id missing` 1 line then proceed to Phase 3 (attestation failure never blocks the overall checkpoint).
-
-**On failure**: even if the script itself fails to run (e.g. Python not found, git not found), never halt the checkpoint. Output `⚠️ Attestation write failed: {reason}` 1 line then proceed to Phase 3.
+> **Attestation runs later (Phase 4.5), not here.** The compact block above is not the last edit the handoff file will receive this checkpoint — Phase 3.9 (Handoff Clarity Self-Check) can rewrite it, and Phase 4's checklist can supplement it. Hashing the file now would let either of those legitimate later rewrites make the sidecar stale, and the next session's SessionStart `guard` hook would then report a false `TAMPERED`. See Phase 4.5 below.
 
 ---
 
@@ -579,7 +565,7 @@ Reflect Phase 1.5 extraction into files:
      python "scripts/validate_memory_claims.py" check-paths --file memory/MEMORY.md
      ```
    - Exit code contract: `0` = clean (every backtick-quoted path in MEMORY.md exists — this naturally concentrates on the `## Key Files & Architecture` section, entry.py/app.py/key scripts etc.), `1` = stale paths found (see `STALE:` lines in stdout), `2` = MEMORY.md could not be read.
-   - **Exit 1**: for each `STALE: {path}` line, immediately update/delete that line in MEMORY.md + output `⚠️ STALE PATH: {path} → removed`
+   - **Exit 1**: `check-paths` is a heuristic lead, not a final verdict (the script's own docstring: a backtick-quoted common noun that isn't actually a file reference — e.g. `SKILL.md` used generically — can misfire as stale). Do not update/delete the MEMORY.md line automatically. For each `STALE: {path}` line, surface `⚠️ STALE PATH (needs confirmation): {path}` to the user and wait — only after the user confirms the path is genuinely gone, update/delete that line in MEMORY.md + output `⚠️ STALE PATH: {path} → removed`.
    - **Exit 0**: `[Key Files verification] {N} checked — all OK` 1 line only (N = the `total=` value from stdout)
    - **Exit 2**: treat as `tool_failure` (Error Recovery below) — do not silently skip
    - Skip condition: MEMORY.md missing, or the script itself isn't present at that path (fall back to manual Glob spot-check, 60s cap, and note `⚠️ deterministic checker unavailable — manual fallback used`)
@@ -623,6 +609,25 @@ Before compacting, checklist:
 ```
 Any NO → supplement then proceed.
 
+## Phase 4.5: Attestation — receipt logging (checkpoint family)
+
+Once the handoff file is in its **actually final** state for this checkpoint — Phase 2 prose + the Phase 2.3 compact block inserted, any Phase 3.9 rewrite applied, and any Phase 4 "supplement then proceed" edit applied — append an evidence-chain receipt (checkpoint family) to `~/.claude/.harness/receipts/YYYY-MM.jsonl`. For the checkpoint family specifically, `write-receipt` also internally refreshes the existing sidecar (`memory/.session-handoff.sha256`) — so both the next session's SessionStart hook `guard` (sidecar comparison) and `verify-receipt` (receipt SHA-256 comparison) keep working.
+
+This step runs here — after Phase 4, not right after Phase 2.3 — precisely because Phase 3.9 and Phase 4 are still allowed to write to the handoff file. Signing before either of them ran was the bug: a legitimate later rewrite would silently invalidate a hash already taken, and the next session would misread that as tampering instead of a normal edit.
+
+**Run:**
+```bash
+python "scripts/handoff_attestation.py" write-receipt checkpoint "$SESSION_ID"
+```
+
+`$SESSION_ID` reuses the session_id issued in Phase 1.6.5 (ISO8601, or the latest value on a Growth Re-check). If run with no arguments, `receipts_dir` uses the default path (`~/.claude/.harness/receipts/`).
+
+**Reading the output:**
+- `OK receiptId=...` — receipt appended + sidecar refreshed. Proceed to Phase 5 without further output (internal integrity step — no need to tell the user).
+- `MISSING_SESSION_ID` — Phase 1.6.5's session_id wasn't obtained. Output `⚠️ Attestation receipt write skipped: session_id missing` 1 line then proceed to Phase 5 (attestation failure never blocks the overall checkpoint).
+
+**On failure**: even if the script itself fails to run (e.g. Python not found, git not found), never halt the checkpoint. Output `⚠️ Attestation write failed: {reason}` 1 line then proceed to Phase 5.
+
 ## Phase 5: Compact Guidance
 
 `/compact` is a built-in Claude Code CLI command, not callable from skills.
@@ -649,7 +654,7 @@ After verification passes, inform user:
 | [READ+EDIT] Verify MEMORY.md Key File paths via `scripts/validate_memory_claims.py check-paths` → fix stale immediately (Phase 3 item 8) | Rewrite entire Key Files section |
 | [READ+EDIT] Verify new-fact backlinks via grep, flag+add one index line if missing (Discoverability Check, Phase 3 item 10) | Rewrite the whole index file |
 | [WRITE] `~/.claude/.harness/interventions/YYYY-MM.jsonl` — Intervention Log append (Phase 1.8) | Modify or delete existing items |
-| [WRITE] `memory/.session-handoff.sha256` + `~/.claude/.harness/receipts/YYYY-MM.jsonl` — Attestation sidecar + receipt logging (Phase 2.4, write-receipt) | Sidecar/receipt verification·blocking logic (SessionStart hook only — guard/verify-receipt) |
+| [WRITE] `memory/.session-handoff.sha256` + `~/.claude/.harness/receipts/YYYY-MM.jsonl` — Attestation sidecar + receipt logging (Phase 4.5, write-receipt) | Sidecar/receipt verification·blocking logic (SessionStart hook only — guard/verify-receipt) |
 
 ## Safety Layers 
 
@@ -699,8 +704,8 @@ After handoff save, report status with:
 ## Output
 
 - **`memory/session-handoff-LATEST.md`** — only unfinished items + pending decisions + outstanding issues. Max 200 lines.
-- **`memory/.session-handoff.sha256`** — SHA-256 hash sidecar for the handoff (Phase 2.4, refreshed internally by write-receipt, used by the next session's SessionStart hook `guard` for tamper detection)
-- **`~/.claude/.harness/receipts/YYYY-MM.jsonl`** — evidence-chain receipt append (Phase 2.4, family=checkpoint, used by the next session's SessionStart hook `verify-receipt` for comparison)
+- **`memory/.session-handoff.sha256`** — SHA-256 hash sidecar for the handoff (Phase 4.5, refreshed internally by write-receipt, used by the next session's SessionStart hook `guard` for tamper detection)
+- **`~/.claude/.harness/receipts/YYYY-MM.jsonl`** — evidence-chain receipt append (Phase 4.5, family=checkpoint, used by the next session's SessionStart hook `verify-receipt` for comparison)
 - **Memory files** — update new/stale MEMORY.md items (when applicable)
 - **Chat guidance** — confirm compact ready + instruct `/compact` run
 

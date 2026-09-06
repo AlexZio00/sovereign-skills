@@ -1,3 +1,3 @@
 name: session-start
 description: "Load handoff state, review lessons, and prepare for session continuation."
-instructions: "../SKILL.md"
+allow_implicit_invocation: true

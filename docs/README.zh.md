@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.10
+# sovereign-skills v6.5.11
 
 覆盖 Claude Code 项目完整生命周期的 20 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
+> **v6.5.11 变更：** 缺陷修复版本，由针对 v6.5.9 快照的独立第三方审计驱动 — 20 个技能全部至少收到一处修复，未新增或移除任何技能。两个部署阻断项：Codex 安装文档有误（Codex 实际是通过 `.agents/skills/<name>/SKILL.md` 发现技能，而非通过在 `AGENTS.md` 中追加 `agents/openai.yaml` — 已在全部 5 个 README 及全部 20 个 yaml 文件中修复），以及 7 个插件清单因 `skills` 字段无效而未能通过 `claude plugin validate`（现已修复，校验通过）。附带可复现步骤的真实缺陷修复：`pre-push`（密钥扫描现已覆盖待推送的全部提交，而不仅是已暂存的 diff）、`project-overview`（损坏的 AUTO 标记拼接此前可能删除手动文本；一个编码错误的文件不再拖垮整次运行；PARTIAL 状态现在能被真正触发）、`session-checkpoint`（隔离条目此前可能进入记忆晋升流程；Attestation 时序问题曾导致误报 TAMPERED）、`scope`（输入校验缺口曾放行格式错误的分数）、`code-autopsy`（一个修复成本低的严重缺陷此前可能绕过 Critical 门），以及对 `setup`、`project-init`、`project-check`、`session-start`、`collab-audit`、`skill-ops`、`integration-intake`、`clean-room`、`eval-leakage-audit`、`doc-drift`、`goal-lock`、`full-audit`（新增 AUDIT_ONLY/PROPOSE/APPLY_APPROVED 模式门控）、`freeze`、`next-action`、`stepback` 的多项修复。完整细节见 CHANGELOG.md。
+>
 > **v6.5.10 变更：** 精炼版本 — 未新增或移除任何技能；从内部分支移植的增量变更覆盖了 20 个技能中的 11 个。`pre-push` → v3.9.0（修复了一个真实回归 — 9 处使用了 `cmd | tail -N; $?`，导致 lint/build/test 失败被静默吞没而非上报，已改为使用 `PIPESTATUS`；新增可选的测试数量下限警告；将一处过时的"12 种模式"表述更正为实际的 14 种）、`eval-leakage-audit`（18→21种模式分类法 — 新增成功溯源缺口、宽松裁判模式未披露、以及最难类别分母排除）、`doc-drift`（新增第 4 类检测——会话泄漏（Session Leakage），由两个新的确定性脚本提供支撑）、`goal-lock`（将 B5.2 终止握手机制替换为面向无人值守自主循环的 Ralph Mode；新增强制性的 Tier-0/Tier-1 自我攻击步骤；验证从推荐项升级为强制项）、`session-checkpoint`（新增 `kill_if` 教训字段 + Regression Detection 步骤 + 针对新教训的事后三条件门）、`full-audit` → v1.1（新增"覆盖率决定介入价值"审计前步骤）、`integration-intake`（新增字段级合并运算符 — SUM/REPLACE/IMMUTABLE/PATCH — 用于 frontmatter 嫁接）、`collab-audit`（心理学框架相关章节现在须以证据充分性为门槛，而非无条件应用）、`setup`（新增既有治理文档探测机制 — 当项目已具备兼容规则时，生成精简存根而非完整的重复模板）、`scope`（三项 Invariant — Scope OUT 最小值、问题数量上限、Risk Flags 最小值 — 现各允许一次明确声明的例外，而非无条件下限；这是行为变更，而非缺陷修复）、`session-start`（附带此前推迟的 `harness_observability.py` 脚本，并新增一条快速路径，读取 `session-checkpoint` 的紧凑状态快照区块，而非完整的散文式交接文档）。**本版本未移植**：`project-check` — 核查了内部分支中看似存在的路由变更，发现 `/team-init` 并未在任何地方被注册为触发器，因此那只是一个失效引用而非真正的升级；就该技能而言，公开版本目前反而比内部分支更完整。
 >
 > **v6.5.9 变更：** Codex 兼容性完成 — 全部 20 个技能现已附带 `agents/openai.yaml`。此前在 v6.3–v6.5 中新增的 5 个技能（`doc-drift`、`eval-leakage-audit`、`next-action`、`project-overview`、`skill-ops`）缺少 Codex 智能体定义。安装章节已重构（方法 C：Codex/AGENTS.md，方法 D：Cursor/其他智能体）。无技能内容变更 — 仅打包发布。
@@ -181,19 +183,25 @@ cp -r goal-lock ~/.claude/skills/
 
 在 Claude Code 中输入触发命令（如 `/goal-lock`）即可运行技能。
 
-### 方法 C：Codex (AGENTS.md)
+### 方法 C：Codex
 
-全部 20 个技能均为 OpenAI Codex 附带了 `agents/openai.yaml`。将该 YAML 复制到你项目的 `AGENTS.md` 中，或直接引用该文件：
+Codex 会在仓库级、用户级（`$HOME/.agents/skills`）、管理员级和系统级扫描 `.agents/skills/<skill-name>/SKILL.md` 来发现技能 —— 不需要单独的智能体定义文件。安装方式与 Claude Code 相同，只是路径换成 `.agents/skills/`：
 
 ```bash
-# 复制某个技能的 Codex 智能体定义
-cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
+# 用户级（所有项目均可用）
+cp -r goal-lock ~/.agents/skills/goal-lock/
 
-# 或直接引用 SKILL.md —— Codex 与 Claude Code 一样读取 markdown 指令
-# 内容与具体智能体无关。
+# 仓库级（仅限本项目）
+cp -r goal-lock .agents/skills/goal-lock/
 ```
 
-每个 `openai.yaml` 都通过 `instructions: "../SKILL.md"` 指向同一份 `SKILL.md` —— 单一来源，两种界面。
+每个技能还**可选地**附带 `agents/openai.yaml` —— 这是供 ChatGPT 桌面应用使用的 UI/策略元数据（显示名称、描述、图标/品牌色，以及默认值为 `true` 的 `allow_implicit_invocation` 标志）。Codex 发现或运行技能并不需要它，只有需要这份元数据时才把它和 `SKILL.md` 一起复制过去：
+
+```bash
+cp -r goal-lock/agents .agents/skills/goal-lock/agents/
+```
+
+完整的发现机制与元数据规范请参见[官方 Codex 技能文档](https://learn.chatgpt.com/docs/build-skills)。
 
 ### 方法 D：Cursor / 其他智能体
 
@@ -202,7 +210,7 @@ SKILL.md 的内容是通用 markdown —— 支持读取 markdown 指令的任�
 ### 要求
 
 - **Claude Code**：CLI、桌面应用或网页应用（[claude.ai/code](https://claude.ai/code)）
-- **Codex**：OpenAI Codex —— 每个技能都包含 `agents/openai.yaml`
+- **Codex**：OpenAI Codex —— 直接从 `.agents/skills/` 读取 `SKILL.md`；`agents/openai.yaml` 是可选的 UI 元数据
 - **Cursor / 其他**：支持读取 markdown 指令的任何智能体
 - 技能目录：`~/.claude/skills/`（Claude Code）或智能体专属路径
 - `pre-push` 同时包含 `scan_secrets.py`（首选）和 `scan_secrets.pl`（Perl 后备）

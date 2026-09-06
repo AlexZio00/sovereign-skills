@@ -154,7 +154,7 @@ The only artifact this skill produces is the FROZEN SCOPE block itself, emitted 
 |-------------|:-------------:|----------------|
 | (none — read-only, block output only) | — | L1 (Invariant 1: no modifications to frozen files, ever) |
 
-- **L1 (Invariants)**: Frozen = intended physical block on Edit/Write. Exit immediately after declaration.
+- **L1 (Invariants)**: Frozen = intended instruction-level block on Edit/Write (a declarative constraint, not sandbox/hook-enforced). Exit immediately after declaration.
 
 ## Error Recovery 
 

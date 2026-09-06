@@ -10,7 +10,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from generate_overview import (
+    MarkerCorruptionError,
     apply_auto_markers,
+    load_project_entries,
     parse_state_snapshot,
     render_overview_block,
 )
@@ -164,26 +166,88 @@ check(
     "Only human text here." in created,
 )
 
-# malformed markers: END appears before START -> treated as no-markers,
-# fresh pair re-appended at the end, existing content preserved untouched
+# malformed markers: END appears before START -> this is corruption, not
+# "no markers present". Auto-splicing here used to re-append a fresh pair
+# every run, so on the *second* run start_idx (old orphaned START, now the
+# first START in the file) still came after end_idx (old orphaned END,
+# still the first END in the file) -> it kept re-triggering "append fresh
+# pair" forever, growing an extra AUTO:START/AUTO:END pair on every run
+# (non-idempotent). Fixed behavior: raise, don't touch the text at all.
 MALFORMED_MARKER_OVERVIEW = (
     "# Project Overview\n\n"
     "<!-- AUTO:END -->\n"
     "some stray content\n"
     "<!-- AUTO:START -->\n"
 )
-recovered = apply_auto_markers(MALFORMED_MARKER_OVERVIEW, new_block_content)
+try:
+    apply_auto_markers(MALFORMED_MARKER_OVERVIEW, new_block_content)
+    check("apply_auto_markers raises MarkerCorruptionError when END precedes START", False)
+except MarkerCorruptionError:
+    check("apply_auto_markers raises MarkerCorruptionError when END precedes START", True)
+
+# orphan START (START present, no END) -> also corruption. The old
+# recovery appended a fresh pair after the orphan START, so on a *second*
+# run the first AUTO:START found was still the orphan one but the first
+# AUTO:END found was now the newly-appended one -> everything between them
+# (including any manual text a human wrote after the orphan START) got
+# replaced by the AUTO block, silently deleting that manual text. Fixed
+# behavior: raise, don't touch the text — the manual text must survive.
+ORPHAN_START_OVERVIEW = (
+    "# Project Overview\n\n"
+    "<!-- AUTO:START -->\n"
+    "manually written text that must never be silently deleted\n"
+)
+try:
+    apply_auto_markers(ORPHAN_START_OVERVIEW, new_block_content)
+    check("apply_auto_markers raises MarkerCorruptionError on orphan START", False)
+except MarkerCorruptionError:
+    check("apply_auto_markers raises MarkerCorruptionError on orphan START", True)
+
+# corruption must never mutate input or produce partial output as a side
+# effect — calling it repeatedly on the same corrupted text must keep
+# raising, never "heal" into a growing marker count.
+for _ in range(3):
+    try:
+        apply_auto_markers(MALFORMED_MARKER_OVERVIEW, new_block_content)
+        check("repeated calls on corrupted markers keep raising (no silent growth)", False)
+        break
+    except MarkerCorruptionError:
+        continue
+else:
+    check("repeated calls on corrupted markers keep raising (no silent growth)", True)
+
+# ---- load_project_entries: non-UTF-8 handoff isolation ----
+
+def fake_reader(path):
+    if "bad-project" in path:
+        # Simulate a handoff file saved in a non-UTF-8 encoding.
+        raise UnicodeDecodeError("utf-8", b"\xff\xfe", 0, 1, "invalid start byte")
+    if "good-project" in path:
+        return (
+            "<!-- state-snapshot v1 -->\n```yaml\nts: 2026-07-05\nctx: \"ok\"\n```\n"
+        )
+    raise FileNotFoundError(path)
+
+projects_mixed = [
+    {"name": "BadProject", "path": "/tmp/bad-project"},
+    {"name": "GoodProject", "path": "/tmp/good-project"},
+]
+mixed_entries = load_project_entries(projects_mixed, base_reader=fake_reader)
+bad_entry = next(e for e in mixed_entries if e["name"] == "BadProject")
+good_entry = next(e for e in mixed_entries if e["name"] == "GoodProject")
 check(
-    "apply_auto_markers recovers when END precedes START (no crash)",
-    "(new auto content)" in recovered,
+    "load_project_entries isolates a non-UTF-8 handoff instead of crashing",
+    bad_entry["error"] == "decode_error" and bad_entry["ts"] is None,
 )
 check(
-    "apply_auto_markers preserves original text when recovering from malformed markers",
-    "some stray content" in recovered,
+    "load_project_entries still processes the remaining project after a decode failure",
+    good_entry["ts"] == "2026-07-05" and good_entry["error"] is None,
 )
+
+decode_error_block = render_overview_block(mixed_entries)
 check(
-    "apply_auto_markers recovery produces exactly one well-formed marker pair",
-    recovered.count("<!-- AUTO:START -->") >= 1 and recovered.count("<!-- AUTO:END -->") >= 1,
+    "render_overview_block surfaces the decode error distinctly (not silently 'no handoff')",
+    "decode error" in decode_error_block.lower(),
 )
 
 print()

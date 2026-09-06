@@ -1,9 +1,11 @@
 [English](../README.md) | 🌐 **한국어** | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.10
+# sovereign-skills v6.5.11
 
 Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
 
+> **v6.5.11 변경사항:** v6.5.9 스냅샷에 대한 독립 제3자 감사가 이끈 버그수정 릴리즈 — 20개 스킬 전체가 최소 1건씩 수정을 받음, 추가/제거 없음. 배포 블로커 2건: Codex 설치 문서가 틀렸음(Codex는 실제로 `AGENTS.md`에 `agents/openai.yaml`을 덧붙이는 방식이 아니라 `.agents/skills/<name>/SKILL.md` 경로로 스킬을 탐색함 — README 5개 전체 + yaml 20개 파일 전량 수정), 플러그인 매니페스트 7개가 잘못된 `skills` 필드로 `claude plugin validate`에 실패(이제 수정되어 클린 통과). 재현 가능한 실제 버그 수정: `pre-push`(시크릿 스캔이 이제 staged diff뿐 아니라 outgoing commit까지 커버), `project-overview`(손상된 AUTO-marker splice가 수동 텍스트를 삭제할 수 있었음; 인코딩 오류 파일 1개가 전체 실행을 죽이지 않도록 수정; PARTIAL 상태가 이제 실제로 발동), `session-checkpoint`(격리된 항목이 메모리 승격에 도달할 수 있었음; attestation 타이밍이 거짓 TAMPERED 보고를 유발), `scope`(입력 검증 갭으로 잘못된 형식의 점수가 통과), `code-autopsy`(수정비용이 낮은 치명적 버그가 Critical 게이트를 회피할 수 있었음), 그 외 `setup`, `project-init`, `project-check`, `session-start`, `collab-audit`, `skill-ops`, `integration-intake`, `clean-room`, `eval-leakage-audit`, `doc-drift`, `goal-lock`, `full-audit`(신규 AUDIT_ONLY/PROPOSE/APPLY_APPROVED 모드 게이트), `freeze`, `next-action`, `stepback` 전반에 수정. 전체 상세는 CHANGELOG.md 참조.
+>
 > **v6.5.10 변경사항:** 정비 릴리즈 — 스킬 추가/제거 없음, 내부 포크에서 20개 중 11개 스킬에 걸친 델타 이식. `pre-push` → v3.9.0(9곳에서 `cmd | tail -N; $?` 패턴을 쓰던 실회귀 수정 — lint/build/test 실패를 보고 대신 조용히 삼켰던 문제, `PIPESTATUS`로 전환 + opt-in 테스트-카운트-플로어 경고 추가 + 구식 "12 patterns" 표기를 실제 14로 정정), `eval-leakage-audit`(18→21패턴 taxonomy — success-provenance-gap, lenient-judge-mode 미공개, hardest-category 분모제외 추가), `doc-drift`(신규 4번째 탐지 카테고리 Session Leakage — 신규 결정론 스크립트 2개 뒷받침), `goal-lock`(무인 자율루프용 B5.2 Termination Handshake를 Ralph Mode로 교체, 신규 필수 Tier-0/Tier-1 self-attack 단계, verification을 권장에서 필수로 격상), `session-checkpoint`(신규 `kill_if` 교훈 필드 + Regression Detection 단계 + 신규 교훈용 사후분석 3조건 게이트), `full-audit` → v1.1(신규 "coverage caps intervention value" 감사 전 단계), `integration-intake`(frontmatter 병합용 필드 단위 병합 연산자 — SUM/REPLACE/IMMUTABLE/PATCH), `collab-audit`(심리 프레임워크 섹션이 이제 무조건 적용 대신 증거 충분성 게이팅을 거침), `setup`(프로젝트에 이미 호환 규칙이 있으면 전체 중복 템플릿 대신 얇은 스텁을 생성하는 신규 기존-거버넌스-문서 탐지), `scope`(Invariant 3종 — Scope OUT 최소치·질문개수 상한·Risk Flags 최소치 — 이제 각각 무조건 하한 대신 명시된 예외 1건을 허용, 버그 수정이 아닌 동작 변경), `session-start`(이번 릴리즈에서 애초 보류됐던 `harness_observability.py` 스크립트를 포함 배송 + 전체 서술형 핸드오프 대신 `session-checkpoint`의 압축 상태-스냅샷 블록을 읽는 신규 fast-path). **이번 릴리즈에 이식 안 됨**: `project-check` — 내부 포크의 겉보기 라우팅 변경을 조사한 결과 `/team-init`이 어디에도 등록된 트리거가 아님을 확인, 실제 업그레이드가 아니라 죽은 참조였다 — 현재 공개판이 이 스킬에 한해 내부 포크보다 더 완결된 상태다.
 >
 > **v6.5.9 변경사항:** Codex 호환성 완성 — 20개 스킬 전체가 이제 `agents/openai.yaml`을 동봉. 이전엔 v6.3~v6.5에서 추가된 5개 스킬(`doc-drift`, `eval-leakage-audit`, `next-action`, `project-overview`, `skill-ops`)에 Codex 에이전트 정의가 빠져 있었음. 설치 섹션 재구성(Option C: Codex/AGENTS.md, Option D: Cursor/기타 에이전트). 스킬 내용 변경 없음 — 패키징 전용 릴리즈.
@@ -181,27 +183,42 @@ cp -r goal-lock ~/.claude/skills/
 
 트리거 명령어(예: `/goal-lock`)를 Claude Code에서 입력하면 스킬이 실행됩니다.
 
-### 방법 C: Codex / Cursor (npx)
+### 방법 C: Codex
 
-각 스킬에 `agents/openai.yaml`이 포함되어 있습니다:
+Codex는 리포지토리·유저(`$HOME/.agents/skills`)·관리자·시스템 레벨에서 `.agents/skills/<skill-name>/SKILL.md`를 스캔해 스킬을 찾습니다 — 별도 에이전트 정의가 필요 없습니다. Claude Code와 같은 방식으로 설치하되, 경로만 `.agents/skills/`로 바꾸면 됩니다:
 
 ```bash
-# Codex용 스킬 설치
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent codex -g -y
+# 유저 레벨 (모든 프로젝트에서 사용 가능)
+cp -r goal-lock ~/.agents/skills/goal-lock/
 
-# Cursor용 스킬 설치
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent cursor -g -y
-
-# Claude Code용 설치 (방법 A 대안)
-npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent claude-code -g -y
+# 리포 레벨 (이 프로젝트 한정)
+cp -r goal-lock .agents/skills/goal-lock/
 ```
 
-SKILL.md 내용은 범용입니다 — 마크다운 지시문을 읽는 모든 LLM에서 작동합니다.
+각 스킬은 **선택적**으로 `agents/openai.yaml`도 포함합니다 — ChatGPT 데스크톱 앱용 UI/정책 메타데이터(표시명·설명, 아이콘/브랜딩 색상, 기본값 `true`인 `allow_implicit_invocation` 플래그)입니다. Codex가 스킬을 찾거나 실행하는 데 필요하지 않으며, 이 메타데이터를 적용하고 싶을 때만 `SKILL.md`와 함께 복사하면 됩니다:
+
+```bash
+cp -r goal-lock/agents .agents/skills/goal-lock/agents/
+```
+
+전체 탐색·메타데이터 스펙은 [공식 Codex 스킬 문서](https://learn.chatgpt.com/docs/build-skills)를 참조하세요.
+
+### 방법 D: Cursor / 기타 에이전트
+
+SKILL.md 내용은 범용 마크다운입니다 — 마크다운 지시문을 읽는 모든 LLM에서 작동합니다. `SKILL.md`를 에이전트의 지시 경로에 복사하세요.
+
+```bash
+# npx skills CLI 사용 시 (Cursor)
+npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent cursor -g -y
+
+# npx skills CLI 사용 시 (Claude Code, 방법 A 대안)
+npx skills add AlexZio00/sovereign-skills --skill goal-lock --agent claude-code -g -y
+```
 
 ### 요구사항
 
 - **Claude Code**: CLI, 데스크톱 앱, 또는 웹 앱 ([claude.ai/code](https://claude.ai/code))
-- **Codex**: OpenAI Codex (`npx skills` 지원)
+- **Codex**: OpenAI Codex — `.agents/skills/`에서 `SKILL.md`를 직접 읽음; `agents/openai.yaml`은 선택적 UI 메타데이터
 - **Cursor**: Cursor IDE (스킬 플러그인 지원)
 - 스킬 디렉토리: `~/.claude/skills/` (Claude Code) 또는 에이전트별 경로
 - `pre-push`는 Perl 필요 (`scan_secrets.pl` 포함)

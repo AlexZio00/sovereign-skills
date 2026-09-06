@@ -85,7 +85,7 @@ Detect project name from directory name or `name` field in package.json / pyproj
 |------|-------|-------------------------------|
 | `CLAUDE.md` | Exists? Has `## Hard Rules`? Has `## Secrets Policy`? | ✗ missing / ⚠ incomplete |
 | `docs/DEVELOPMENT_ROADMAP.md` | Exists? (skip if scale=script) | ✗ if scale=full/mini |
-| `.gitignore` | Exists? `.env` listed in it? | ✗ missing / 🔴 .env not listed |
+| `.gitignore` | Exists? `.env` actually ignored — verified via `git check-ignore -v .env` (see Step 2), not just string presence in the file | ✗ missing / 🔴 not ignored or already tracked (see Step 2) |
 | `.env.example` | Exists? (if API key patterns found in code) | ✗ if keys detected |
 | `docs/decisions/` | Exists? (only check if scale=full) | ⚠ if scale=full |
 
@@ -107,9 +107,13 @@ token\s*=\s*["'][^$({]        → hardcoded token
 
 Each match → 🔴 with `file:line` reference.
 
-Additional checks:
-- `.env` in `.gitignore` → 🔴 if not present
-- `.env.local`, `.env.*.local` in `.gitignore` → ⚠ if missing (TypeScript/Next.js projects)
+Additional checks — `.env` protection (skip entirely if not a git repo, per Key Assumption 2):
+
+A string match for `.env` inside `.gitignore` is not proof of protection — the pattern can be malformed (wrong path, typo, wrong glob syntax) and never actually match, or the file can already be tracked in git, in which case `.gitignore` has no effect on it at all. Verify both:
+1. `git check-ignore -v .env` — confirms the pattern actually matches the file. No output / non-zero exit → the listed pattern doesn't cover `.env` → 🔴 "`.env` present in `.gitignore` text but the pattern doesn't actually match (git check-ignore reports it as not ignored)".
+2. `git ls-files --error-unmatch .env` (exit 0 means tracked) — if `.env` is already tracked, → 🔴 "`.env` is already tracked in git — `.gitignore` cannot retroactively untrack it. Needs `git rm --cached .env` (manual step; this skill does not run it)".
+- `.env` missing from `.gitignore` entirely (no string match) → 🔴 as before.
+- `.env.local`, `.env.*.local` in `.gitignore` → ⚠ if missing (TypeScript/Next.js projects). Apply the same `git check-ignore -v` verification when a matching line is present.
 
 ### Step 3: Quality Scan
 
@@ -137,6 +141,17 @@ TODO|FIXME|HACK|XXX
 
 ### Step 4: Harness Scan
 
+**Profile detection (run first — determines whether orchestrator/agent-team absence is a gap at all):**
+
+Check whether the project shows any sign of agent-routing adoption:
+- `.claude/agents/*.md` (project-level) — any files present?
+- `~/.claude/agents/*.md` (global) — any files present?
+- CLAUDE.md or project rules mention agent routing (e.g., "orchestrator", "Tier 1/2/3", "subagent-dev", "brainstorming → writing-plans")?
+
+If **none** of the above are present, infer **Minimal profile** — per the `setup` skill's own Q2 ("Minimal: rules + memory only. No agent routing" is a first-class, intentional choice, not a defect). Under Minimal profile, orchestrator/agent-team absence is a configuration choice, not a gap — do not score it as ⚠.
+
+If **any** of the above are present, the project has adopted Standard/Orchestrated routing at least partially — a missing orchestrator or key agents at that point is a real gap (routing infrastructure exists without the piece that coordinates it), and stays ⚠.
+
 Check Claude Code infrastructure:
 
 | Item | Check | Severity |
@@ -145,15 +160,15 @@ Check Claude Code infrastructure:
 | `~/.claude/rules/agents.md` | Exists? | ⚠ if missing |
 | `.claude/settings.json` or `~/.claude/settings.json` | hooks section present? | ⚠ if no hooks |
 | CLAUDE.md Hard Rules format | Inline text vs project rules reference link | ⚠ if both (duplication) |
-| `~/.claude/agents/` | Any .md agent files installed? (global) | ⚠ if empty |
+| `~/.claude/agents/` | Any .md agent files installed? (global) | ⚠ if empty and **not** Minimal profile; ℹ (no score) if empty and Minimal profile |
 | `.claude/agents/` | Any .md agent files installed? (project-level) | ℹ if present (report separately) |
-| `~/.claude/agents/orchestrator.md` | Exists? | ⚠ if missing |
-| Orchestrator type | Contains drift detection (`MISSING`, `EXTRA`, `DIVERGED`, correction loop)? | ⚠ if absent |
+| `~/.claude/agents/orchestrator.md` | Exists? | ⚠ if missing and **not** Minimal profile; skip (no flag) if Minimal profile |
+| Orchestrator type | Contains drift detection (`MISSING`, `EXTRA`, `DIVERGED`, correction loop)? | ⚠ if absent, **only when `orchestrator.md` exists** (Light-only case) — N/A if `orchestrator.md` itself is missing, since that's already covered by the row above |
 | `tasks/lessons.md` | Exists? (skip if scale=script) | ⚠ if scale=full/mini |
-| SubagentStop hook | SubagentStop included in `settings.json` hooks? | ⚠ if missing |
+| SubagentStop hook | SubagentStop included in `settings.json` hooks? | ⚠ if missing and **not** Minimal profile (a Minimal setup has no subagents to stop) |
 
 Count total agent files across both locations. Report global vs project-level split.
-Report which key agents are installed (orchestrator, code-reviewer, verification, brainstorming, security-reviewer).
+Report which key agents are installed (orchestrator, code-reviewer, verification, brainstorming, security-reviewer). If Minimal profile was inferred, report "0 agents — consistent with Minimal setup profile (rules + memory only)" instead of counting it toward gaps.
 
 If CLAUDE.md has inline Hard Rules AND `~/.claude/rules/project rules` exists → ⚠ "Hard Rules duplication: directly in CLAUDE.md AND project rules file present. Recommend consolidating to project rules with reference link in CLAUDE.md."
 
@@ -198,8 +213,9 @@ Always end with next steps:
 - 🔴 Security → "🔴 First: Remove secrets at [file:line] and move to .env (manual edit required)"
 - Infrastructure ✗ → "→ Use `/project-init` — if CLAUDE.md exists, choose Update mode"
 - Harness rules ✗/⚠ (rules, agents, hooks) → "→ Use `/setup` to configure Claude Code infrastructure"
-- Harness agents ✗/⚠ (no agents, no orchestrator) → "→ Use `/setup` to install agent team (orchestrator + reviewer + implementer)"
-- Orchestrator Light only → "→ Use `/setup` Update mode to enable Full orchestrator (with drift detection)"
+- Harness agents ✗/⚠ (no agents, no orchestrator) AND agent-routing infra already exists elsewhere (Step 4 profile detection = not Minimal) → "→ Use `/setup` to install agent team (orchestrator + reviewer + implementer)"
+- No agents anywhere AND no orchestrator, Minimal profile inferred (Step 4) → do not recommend an agent team as a fix; instead: "ℹ No agent-routing layer detected — consistent with a Minimal setup (rules + memory only). No action needed if intentional; run `/setup` Update mode if you want review agents or orchestration."
+- Orchestrator Light only (orchestrator.md exists but lacks drift detection) → "→ Use `/setup` Update mode to enable Full orchestrator (with drift detection)"
 - Quality only → "→ Recommend adding tests"
 - Score ≥ 8 → "✓ Already well configured. Optionally address ⚠ items."
 
@@ -225,10 +241,13 @@ If either is found, compare against it:
 Previous: [N]/10 (YYYY-MM-DD) → Current: [M]/10
 Change: [+X / -X / no change]
 
-Improved: [items that went ✗→✓]
-New gaps: [items not flagged before]
-Unresolved: [items still failing]
+By category — Previous → Current:
+  🔴 Critical: [N] → [N]
+  ✗ Fail:      [N] → [N]
+  ⚠ Warn:      [N] → [N]
 ```
+
+**Honesty limit**: the history file stores only the total score and per-category counts (see JSON schema below) — it does not store *which* items failed. Item-level claims like "X went from ✗ to ✓" or "Y is a new gap" are not supported by this data and must never be shown — showing them would be a guess dressed as a fact. Report only the aggregate score and per-category count deltas above (e.g., "2 fewer ⚠ items than last run," not which ones resolved). Per-item history tracking is out of scope for this skill by design (a persistent, item-level maturity trend is `check-harness`'s job — see `see_also`), not a missing feature to add here.
 
 If neither exists, suggest saving current result — project-root file by default, user-level cache path as the fallback option if the project doesn't want history checked into (or gitignored within) the repo:
 ```json
@@ -258,7 +277,8 @@ If neither exists, suggest saving current result — project-root file by defaul
 |------|----------|
 | [READ] Scan file existence (Glob) | Modify, create, or delete any file |
 | [READ] Grep code patterns (read-only) | Execute tests (pytest, jest, go test, etc.) |
-| [READ] Output gap report | Run git commands |
+| [READ] Run read-only git inspection (`git check-ignore -v`, `git ls-files --error-unmatch`) to verify `.gitignore` actually protects secret files | Run any git command that mutates state (commit, push, add, rm, checkout, etc.) |
+| [READ] Output gap report | — |
 | [READ] Recommend /project-init, /setup | Remove secrets directly |
 | [READ] Analyze CLAUDE.md content | Refactor code or fix bugs |
 
@@ -288,7 +308,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 
 ## Invariants (never violate)
 
-1. **Read-only**: Never write, edit, delete, or execute any file. Use Glob and Grep only. Violation → scan tool gains unintended side effects; user trust in a diagnostic tool erodes.
+1. **Read-only**: Never write, edit, delete, or execute any file. Use Glob, Grep, and read-only inspection commands only (e.g., `git check-ignore -v`, `git ls-files --error-unmatch`, `wc -l`) — never a Bash command that writes, deletes, mutates git state, or executes project code. Violation → scan tool gains unintended side effects; user trust in a diagnostic tool erodes.
 2. **Security first**: 🔴 Security section always appears first in the report, even if all Security items pass. Never bury security findings. Violation → user misses credential leak warning while reading infrastructure gaps.
 3. **Scale-aware warnings**: Never report ✗ ROADMAP missing for scale=script. Never report ⚠ docs/decisions/ for scale=mini or script. Violation → noise causes users to dismiss the entire report.
 4. **No test execution**: Detect test infrastructure via Glob only. Never run `pytest`, `jest`, `go test`, or any test runner. Violation → unexpected test side effects (DB writes, API calls, network requests).

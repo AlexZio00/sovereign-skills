@@ -1,3 +1,3 @@
 name: freeze
 description: "Lock in specification and implementation plan before writing code."
-instructions: "../SKILL.md"
+allow_implicit_invocation: true

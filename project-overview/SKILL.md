@@ -36,7 +36,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 
 1. **`session-handoff-LATEST.md` is a hint, not a fact** — parsed results (ts/ctx) are carried over as-is without fact-checking. The generated overview reflects "what each project last reported," not "current ground truth."
 2. **Registry is opt-in** — never pull in unowned projects or auto-scanned directories. Only projects explicitly listed in `projects-registry.md` are in scope.
-3. **AUTO block generation is fully deterministic** — a regex-based script (`scripts/generate_overview.py`) does all the parsing/rendering, including neutralizing markdown-table-breaking characters in the text it pulls from other projects' handoffs and recovering cleanly from a mangled/missing marker pair instead of crashing. The model only triggers execution and reports the result — no LLM inference in the parsing/rendering logic itself.
+3. **AUTO block generation is fully deterministic** — a regex-based script (`scripts/generate_overview.py`) does all the parsing/rendering, including neutralizing markdown-table-breaking characters in the text it pulls from other projects' handoffs, isolating a single non-UTF-8 handoff file so it can't abort the whole run, and refusing (BLOCKED, no write) instead of guessing when the AUTO marker pair itself is mangled. The model only triggers execution and reports the result — no LLM inference in the parsing/rendering logic itself.
 
 ## Trigger
 - `/project-overview`
@@ -101,8 +101,8 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 | Failure Type | Detection | Recovery |
 |---------|---------|--------|
 | `missing_data` | `projects-registry.md` missing or empty | Return BLOCKED, instruct user to create/add to the registry |
-| `tool_failure` | Failed to read a specific project's handoff file (permissions/path) | Mark only that project as "no snapshot", continue the rest (partial failure doesn't block the whole run — explicit "no snapshot" labeling keeps it transparent per no-silent-brokenness) |
-| `input_error` | `OVERVIEW.md` has a mangled marker pair (`AUTO:END` appears before `AUTO:START`, or either is missing/orphaned from a manual edit) | Don't crash and don't guess at a splice point — treat it as no markers present: re-append a fresh `AUTO:START`/`AUTO:END` pair at the end of the file, with all existing content preserved above it untouched |
+| `tool_failure` | Failed to read a specific project's handoff file (permissions/path, or a non-UTF-8 encoding) | Mark only that project as "no snapshot" (or "decode error" for a non-UTF-8 file), continue the rest (partial failure doesn't block the whole run — explicit labeling keeps it transparent per no-silent-brokenness). Final status label becomes `PARTIAL` for that run. |
+| `input_error` | `OVERVIEW.md` has a mangled marker pair (`AUTO:END` appears before `AUTO:START`, either marker is missing/orphaned, or a marker is duplicated — from a manual edit) | Don't crash and don't guess at a splice point. Auto-repairing by appending a fresh pair was tried and found unsafe (external audit, 2026-09): an orphan `AUTO:START` lost the manually-written text sitting after it on the next run, and `AUTO:END`-before-`AUTO:START` kept re-appending a pair on every run (non-idempotent, unbounded growth). Current behavior: raise `MarkerCorruptionError`, write nothing, report `BLOCKED` with the exact marker problem, and let a human fix the markers by hand. |
 | `logic_inconsistency` | Integration test finds AUTO block mismatch on re-run | Script regression — revert the commit and re-review the implementation |
 
 ## Truthful Reporting

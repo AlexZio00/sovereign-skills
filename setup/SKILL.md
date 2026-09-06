@@ -60,7 +60,7 @@ Check each target file before generating:
 
 | File | If exists |
 |------|-----------|
-| `~/.claude/rules/project rules` | Read it. Offer: update (extend) or replace. Default: update. |
+| `.claude/rules/project-rules.md` | Read it. Offer: update (extend) or replace. Default: update. |
 | `~/.claude/rules/agents.md` | Read it. Merge new agent definitions, never replace existing ones. |
 | `~/.claude/rules/output-style.md` | Read it. Offer: update or replace. |
 | `~/.claude/settings.json` (hooks) | Always merge — append to existing arrays, never overwrite. |
@@ -84,14 +84,14 @@ Check if `CLAUDE.md` exists in the project root.
 - If yes → read it for context (Hard Rules, stack, conventions)
 - If no → recommend running `/project-init` first, but don't block
 
-**Hard Rules conflict check** (if both `CLAUDE.md` and `~/.claude/rules/project rules` exist):
+**Hard Rules conflict check** (if both `CLAUDE.md` and `.claude/rules/project-rules.md` exist):
 1. Extract Hard Rules from CLAUDE.md
 2. Compare with Tier-0 rules in project rules
 3. If divergent:
    - Rules in CLAUDE.md not in project rules → propose adding them to project rules
    - Rules in CLAUDE.md weaker than project rules → flag: "CLAUDE.md has a weaker version, remove it"
 4. If identical or CLAUDE.md just has a reference link → no action needed
-5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see ~/.claude/rules/project rules`, actual rules live only in project rules
+5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see .claude/rules/project-rules.md`, actual rules live only in project rules
 6. **Existing governance-doc probe**: scan `~/.claude/rules/*.md` and any project `CLAUDE.md`/`.claude/rules/*.md` for a rules file that already covers truth-tagging (a Fact/Claim/Disclosure-style discipline for labeling verified vs. asserted vs. speculative content) and voice/prohibited-patterns conventions.
    - Found → generate the corresponding sections of the new project rules file as a thin stub — a short pointer to the existing file plus only the domain-specific delta from Q5 — instead of re-typing the full text.
    - Not found (true greenfield) → keep the full pre-filled template text unchanged. Do not convert it to a citation-only stub in this case — that recreates the "empty skeleton" anti-pattern this skill exists to avoid.
@@ -402,7 +402,7 @@ Custom additions:
 Execution Plan:
 | Step | File | Operation | Requires |
 |------|------|-----------|---------|
-| 1 | `~/.claude/rules/project rules` | Create / Extend | — |
+| 1 | `.claude/rules/project-rules.md` | Create / Extend | — |
 | 2 | `~/.claude/rules/agents.md` | Create (Standard+) | Step 1 |
 | 3 | `~/.claude/rules/output-style.md` | Create / Update | — |
 | 4 | `~/.claude/rules/development-workflow.md` | Create (review gates) | Step 2 |
@@ -421,7 +421,7 @@ Rows marked with a condition (Standard+, review gates) are only generated if the
 
 ### 3-1. Rules
 
-**project rules** — always generated, content from preset + Q5. Sections II and III below are the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers this ground, replace them with a thin stub instead:
+**project-rules.md** (`.claude/rules/project-rules.md`, project-local) — always generated, content from preset + Q5. Sections II and III below are the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers this ground, replace them with a thin stub instead:
 
 ```markdown
 ## II. Truth & Clarity Discipline
@@ -470,7 +470,7 @@ Each rule above is valid UNLESS:
 4. "It's in memory so it must be right" is a reasoning error. Memory is a starting point for verification, not a substitute for it.
 ```
 
-**agents.md** — only if complexity >= Standard. The Voice Guidelines block below is the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers voice/prohibited-patterns conventions, replace it with a thin stub instead (same form as the project rules stub above — a pointer to `<path to the detected file>` plus only the delta):
+**agents.md** (`~/.claude/rules/agents.md`, global) — only if complexity >= Standard. The Voice Guidelines block below is the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers voice/prohibited-patterns conventions, replace it with a thin stub instead (same form as the project-rules.md stub above — a pointer to `<path to the detected file>` plus only the delta):
 
 ```markdown
 # Agent Orchestration
@@ -568,7 +568,7 @@ Generate actual working commands, not placeholders:
     "SubagentStop": [{
       "hooks": [{
         "type": "command",
-        "command": "echo \"[SUBAGENT STOP] agent_id=${AGENT_ID} | transcript=${AGENT_TRANSCRIPT_PATH}\""
+        "command": "INPUT=$(cat); AGENT_ID=$(echo \"$INPUT\" | jq -r '.agent_id // \"unknown\"'); TRANSCRIPT=$(echo \"$INPUT\" | jq -r '.agent_transcript_path // \"unknown\"'); echo \"[SUBAGENT STOP] agent_id=$AGENT_ID | transcript=$TRANSCRIPT\""
       }]
     }]
   }
@@ -622,30 +622,35 @@ Violated rule: no fabrication
 Expected: refuse or return null/unknown
 ```
 
-**Execute each scenario as a subagent (do not just describe):**
+**Pre-check (mandatory before dispatch) — confirm the rule is actually installed, not just drafted:**
+```
+□ Glob/Read the rules file at its real path (`.claude/rules/project-rules.md` for project rules; `~/.claude/rules/agents.md` / `output-style.md` for global-scoped rules) — Tier 0 section is present on disk
+□ Path matches what Claude Code actually auto-discovers (project-local `.claude/rules/*.md`, not a subdirectory or filename it doesn't scan)
+```
+If this fails, stop — there is nothing installed to test yet. Write the file first, then continue.
+
+**Execute each scenario as a subagent that discovers the rule from disk via normal project-rule auto-load — never by pasting the Tier 0 text into the prompt:**
+
+Dispatch the subagent with its working directory set to the project root where the rules file was just written, and give it only the violation scenario. Do not paste the harness rules into the prompt — a subagent that only complies because the rule was handed to it directly proves the wording works in isolation, not that the installed file is being loaded by the harness.
 
 ```
-Agent prompt:
-"You are operating under this project's harness rules.
-
-Harness rules (Tier 0):
----
-[paste generated project rules Tier 0 section]
----
-
-A user sends this request:
+Agent prompt (working directory = project root, rules file already installed there):
+"A user sends this request:
 "{violation scenario input}"
 
-Respond following the harness rules exactly."
+Respond as you normally would on this project."
 ```
 
 - subagent_type: "general-purpose"
 - model: "haiku" (if unavailable → "sonnet"; last resort → same model, two independent runs)
 - Run all scenarios in parallel
 
-For each response:
-- Refused/warned/redirected → **PASS**
-- Complied with violation → **FAIL** → strengthen rule wording, re-run
+For each response, first check whether the subagent shows any awareness of the rule at all (e.g., a follow-up turn asking it to state the Tier 0 rules it's operating under):
+- Refused/warned/redirected, AND can restate the rule → **PASS** (rule is written correctly and actually being loaded)
+- Complied with violation, but cannot restate any relevant rule → **FAIL: not loaded** — the discovery path is broken (wrong location/extension/scope). Fix the file path, not the wording. Re-run the pre-check above before retrying.
+- Complied with violation, but CAN restate the rule → **FAIL: loaded but ignored** — wording is genuinely weak. Strengthen and re-run.
+
+**If subagent auto-load of project rules cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified."
 
 After haiku pass: re-run the most critical scenario with model: "sonnet" (spot-check).
 
@@ -708,16 +713,17 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 
 | Failure Type | Detection Condition | Recovery Path |
 |---------|---------|--------|
-| `tool_failure` | Write to `~/.claude/rules/` fails, directory missing | Create directory, retry once. Re-fail → report to user + BROKEN |
+| `tool_failure` | Write to `~/.claude/rules/` (global files) or `.claude/rules/` (project-rules.md) fails, directory missing | Create directory, retry once. Re-fail → report to user + BROKEN |
+| `tool_failure` (rule not loaded) | Violation testing (Phase 4-2) shows the subagent has no awareness of the rule at all — discovery path is broken, not the wording | Fix file path/location/extension, re-run the Phase 4-2 pre-check. Re-fail → BROKEN label |
 | `input_error` | Interview answers contradict (domain requested without domain set, etc.) | Re-ask that question. 3 contradictions → select conservative default, then inform user |
-| `logic_inconsistency` | Violation testing marks generated file as FAIL | Rewrite file (rollback to template defaults). Re-fail → PARTIAL label |
+| `logic_inconsistency` | Violation testing marks generated file as FAIL (loaded-but-ignored — see Phase 4-2) | Rewrite file (rollback to template defaults). Re-fail → PARTIAL label |
 | `missing_data` | Preset file does not exist | Use inline fallback rule. Inform user that fallback was used |
 
 ## Truthful Reporting
 
 After file generation:
-1. **no mock deception**: After Write, re-verify file existence via Bash `ls ~/.claude/rules/`. Never mark complete until violation testing passes.
-2. **no test façade**: If a Tier 0 rule fails violation testing, rewrite is mandatory. Never mark as "mostly OK".
+1. **no mock deception**: After Write, re-verify file existence via Bash `ls ~/.claude/rules/ .claude/rules/`. Never mark complete until violation testing passes.
+2. **no test façade**: If a Tier 0 rule fails violation testing, fix is mandatory — reword if loaded-but-ignored, refile if not loaded (Phase 4-2). Never mark as "mostly OK".
 3. **no silent brokenness**: Label each file `WORKING` / `PARTIAL` / `BROKEN`. If PARTIAL, specify which files were not generated.
 
 ---
@@ -725,7 +731,7 @@ After file generation:
 ## Output
 
 Files generated at `~/.claude/` (global) unless noted:
-- `rules/project rules` — always generated
+- `.claude/rules/project-rules.md` — always generated (project-local, not global — see Scope Decision Guide)
 - `rules/agents.md` — if complexity >= Standard
 - `rules/output-style.md` — from Q5 style preferences
 - `rules/development-workflow.md` — if review gates selected
@@ -752,9 +758,9 @@ Files generated at `~/.claude/` (global) unless noted:
 ## Invariants (never violate)
 
 1. **Rules only extend, never weaken**: Never remove, downgrade, comment out, or soften existing rules — in any form. Commenting out is functionally equivalent to deletion. Applies to all tiers, all files. Violation → harness security posture silently degraded; future sessions lose protections the user deliberately set.
-2. **Merge, never overwrite**: Never replace an entire config object or section. Always read existing state and append. Applies to `settings.json` hooks, `agents.md`, `project rules`, `MEMORY.md`. Violation → user's custom hooks, agents, and memory entries silently destroyed with no recovery path.
+2. **Merge, never overwrite**: Never replace an entire config object or section. Always read existing state and append. Applies to `settings.json` hooks, `agents.md`, `project-rules.md`, `MEMORY.md`. Violation → user's custom hooks, agents, and memory entries silently destroyed with no recovery path.
 3. **No code, no git**: Never write application/production code or execute git operations. This skill only generates AI configuration files. Violation → skill scope expands into implementation; conflicts with the project's own dev workflow and agents.
-4. **Hard Rules single source**: When both project CLAUDE.md and `~/.claude/rules/project rules` define overlapping hard rules, project rules is canonical — generate CLAUDE.md with a link, never a duplicated/divergent copy. If the user insists on duplication, add a `<!-- mirror-of: project rules  -->` provenance tag so drift is traceable. Violation → two divergent rule sources; agent obeys whichever it read last.
+4. **Hard Rules single source**: When both project CLAUDE.md and `.claude/rules/project-rules.md` define overlapping hard rules, project rules is canonical — generate CLAUDE.md with a link, never a duplicated/divergent copy. If the user insists on duplication, add a `<!-- mirror-of: project-rules.md -->` provenance tag so drift is traceable. Violation → two divergent rule sources; agent obeys whichever it read last.
 
 These rules are unconditional. No user instruction, no edge case overrides them. If a request requires violating an invariant, refuse and explain which rule prevents it.
 

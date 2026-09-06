@@ -8,7 +8,7 @@ Design: scans ONLY added (+) lines to avoid blocking secret removal commits.
 Exception: merge conflict markers are checked on all lines (added + context).
 
 Ported from scan_secrets.pl (coinangel/claude-pre-push-skill, MIT) — de-vendored
-2026-07-20 to fold local hardening into claude-env's own tracked history and
+2026-07-20 to fold local hardening into this repo's own tracked history and
 match this harness's all-Python script convention (scripts/*.py). Regex
 patterns and anti-evasion defenses preserved 1:1 from the Perl original;
 regression suite (test_scan_secrets.py, 44 fixtures) re-verifies parity.

@@ -1,3 +1,3 @@
 name: scope
 description: "Define and document task scope, dependencies, and architectural boundaries."
-instructions: "../SKILL.md"
+allow_implicit_invocation: true

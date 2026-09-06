@@ -1,9 +1,11 @@
 [English](../README.md) | [한국어](README.ko.md) | 🌐 **日本語** | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.10
+# sovereign-skills v6.5.11
 
 Claude Codeプロジェクトのライフサイクル全体をカバーする20個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
 
+> **v6.5.11の変更点:** バグ修正リリース — v6.5.9スナップショットの独立した第三者監査を受けて実施。20スキル全てが少なくとも1つの修正を受け、追加・削除はなし。デプロイブロッカー2件：Codexのインストール手順が誤っていた（実際のCodexは`AGENTS.md`に`agents/openai.yaml`を追記する方式ではなく、`.agents/skills/<name>/SKILL.md`経由でスキルを検出する — 全5言語のREADMEと全20個のyamlファイルにわたって修正）、そして7個のプラグインマニフェストが`skills`フィールドの不正値で`claude plugin validate`に失敗していた問題（修正済み、クリーンにバリデーションを通過）。再現込みで修正された実際のバグ：`pre-push`（シークレットスキャンがステージ済みdiffだけでなく、送信予定のコミット全体をカバーするように）、`project-overview`（破損したAUTOマーカーの接合が手動テキストを削除し得た問題を修正、エンコーディング不良のファイル1つが実行全体を巻き込んで失敗させなくなった、PARTIALステータスが実際に発火するように修正）、`session-checkpoint`（隔離されたエントリがメモリ昇格に到達し得た問題、attestationのタイミングが誤ったTAMPERED報告を引き起こしていた問題を修正）、`scope`（入力バリデーションの不備で不正なスコアが通過していた問題を修正）、`code-autopsy`（修正コストの低い破局的バグがCriticalゲートを回避し得た問題を修正）、加えて`setup`、`project-init`、`project-check`、`session-start`、`collab-audit`、`skill-ops`、`integration-intake`、`clean-room`、`eval-leakage-audit`、`doc-drift`、`goal-lock`、`full-audit`（新規AUDIT_ONLY/PROPOSE/APPLY_APPROVEDモードゲート）、`freeze`、`next-action`、`stepback`にも修正あり。詳細はCHANGELOG.mdを参照。
+>
 > **v6.5.10の変更点:** リファインメントリリース — スキルの追加・削除なし。内部フォークからの選別移植で20個中11個のスキルが対象。`pre-push` → v3.9.0（9箇所で`cmd | tail -N; $?`を使っており、lint/build/testの失敗を報告せず黙って握りつぶす実際のリグレッションを修正 — `PIPESTATUS`に切り替え、オプトインのtest-count-floor警告を追加、古い「12パターン」という記述を実際の14に訂正）、`eval-leakage-audit`（18→21パターンのtaxonomy — success-provenance-gap、lenient-judge-modeの非開示、最難関カテゴリの分母除外を追加）、`doc-drift`（新規4つ目の検出カテゴリSession Leakageを追加、2つの新規決定論的スクリプトで裏付け）、`goal-lock`（B5.2 Termination Handshakeを無人自律ループ向けのRalph Modeに置き換え、新規必須Tier-0/Tier-1自己攻撃ステップを追加、検証を推奨から必須にアップグレード）、`session-checkpoint`（新規`kill_if`レッスンフィールド + Regression Detectionステップ + 新規レッスンへのpostmortem 3条件ゲートを追加）、`full-audit` → v1.1（新規「coverage caps intervention value」事前監査ステップ）、`integration-intake`（frontmatter統合用のフィールドレベルmergeオペレーター — SUM/REPLACE/IMMUTABLE/PATCH）、`collab-audit`（心理フレームワークセクションが無条件適用から証拠充足性によるゲーティングに変更）、`setup`（プロジェクトに互換性のあるルールが既にある場合、フルの重複テンプレートではなく薄いスタブを生成する新規existing-governance-docプローブを追加）、`scope`（3つのInvariant — Scope OUTの最小数、質問数の上限、Risk Flagsの最小数 — がそれぞれ無条件の下限から、明示された例外を1件だけ許容する形に変更。バグ修正ではなく挙動変更）、`session-start`（今回のリリースで当初先送りされていた`harness_observability.py`スクリプトを同梱、加えて完全な散文形式のハンドオフではなく`session-checkpoint`のコンパクトなstate-snapshotブロックを読む新規fast-pathを追加）。**今回移植されなかったもの**：`project-check` — 内部フォークの見かけ上のルーティング変更を調査したところ、`/team-init`がどこにも登録済みトリガーとして存在しないことが判明し、実質的なアップグレードではなくデッドリファレンスと分かった。このスキルに関しては現時点で公開版の方が内部フォークより完成度が高い。
 >
 > **v6.5.9の変更点:** Codex互換性完了 — 全20スキルが `agents/openai.yaml` を同梱するようになりました。v6.3–v6.5で追加された5スキル（`doc-drift`、`eval-leakage-audit`、`next-action`、`project-overview`、`skill-ops`）にはこれまでCodexエージェント定義がありませんでした。インストールセクションを再構成（方法C: Codex/AGENTS.md、方法D: Cursor/その他のエージェント）。スキルの内容変更なし — パッケージングのみのリリース。
@@ -181,19 +183,25 @@ cp -r goal-lock ~/.claude/skills/
 
 トリガーコマンド（例：`/goal-lock`）をClaude Codeで入力するとスキルが実行されます。
 
-### 方法C: Codex (AGENTS.md)
+### 方法C: Codex
 
-全20スキルがOpenAI Codex用の `agents/openai.yaml` を同梱しています。YAMLをプロジェクトの `AGENTS.md` にコピーするか、直接ファイルを参照してください：
+Codexはリポジトリ・ユーザー（`$HOME/.agents/skills`）・管理者・システムの各レベルで `.agents/skills/<skill-name>/SKILL.md` をスキャンしてスキルを検出します — 個別のエージェント定義は不要です。Claude Codeと同じ方法で、パスだけ `.agents/skills/` に変えてインストールしてください：
 
 ```bash
-# スキルのCodexエージェント定義をコピー
-cat goal-lock/agents/openai.yaml >> .codex/AGENTS.md
+# ユーザーレベル（すべてのプロジェクトで利用可能）
+cp -r goal-lock ~/.agents/skills/goal-lock/
 
-# またはSKILL.mdを直接参照 — CodexもClaude Codeと同様にマークダウン指示を読みます
-# コンテンツはエージェント非依存です。
+# リポジトリレベル（このプロジェクトのみ）
+cp -r goal-lock .agents/skills/goal-lock/
 ```
 
-各 `openai.yaml` は `instructions: "../SKILL.md"` で同じ `SKILL.md` を参照します — 単一ソース、2つのサーフェス。
+各スキルは**任意**で `agents/openai.yaml` も同梱しています — ChatGPTデスクトップアプリ向けのUI/ポリシーメタデータ（表示名・説明、アイコン/ブランディングカラー、デフォルト`true`の `allow_implicit_invocation` フラグ）です。Codexがスキルを検出・実行するのに必須ではなく、このメタデータを使いたい場合のみ `SKILL.md` と一緒にコピーしてください：
+
+```bash
+cp -r goal-lock/agents .agents/skills/goal-lock/agents/
+```
+
+検出とメタデータの完全な仕様は[公式Codexスキルドキュメント](https://learn.chatgpt.com/docs/build-skills)を参照してください。
 
 ### 方法D: Cursor / その他のエージェント
 
@@ -202,7 +210,7 @@ SKILL.mdの内容は汎用マークダウンです — マークダウン指示�
 ### 要件
 
 - **Claude Code**: CLI、デスクトップアプリ、またはウェブアプリ（[claude.ai/code](https://claude.ai/code)）
-- **Codex**: OpenAI Codex — 各スキルに `agents/openai.yaml` を同梱
+- **Codex**: OpenAI Codex — `.agents/skills/` から `SKILL.md` を直接読み込み。`agents/openai.yaml` は任意のUIメタデータ
 - **Cursor / その他**: マークダウン指示を読むあらゆるエージェント
 - スキルディレクトリ：`~/.claude/skills/`（Claude Code）またはエージェント別パス
 - `pre-push`は`scan_secrets.py`（推奨）と`scan_secrets.pl`（Perlフォールバック）の両方を同梱

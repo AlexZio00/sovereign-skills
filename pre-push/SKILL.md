@@ -9,7 +9,7 @@ name: "pre-push"
 description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials + prompt-injection/exfiltration markers (14 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts, embedded prompt-injection strings, non-standard package sources, Slack webhooks), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.9.0"
+  version: "3.10.0"
   author: "coinangel"
 user_invocable: true
 not_for:
@@ -30,6 +30,28 @@ see_also:
 ---
 
 <!--
+  v3.10.0 (2026-09-06) — fixed 3 external-audit findings. (1) Step 1 scanned only
+                        `git diff --staged`, but `git push` sends every commit from
+                        upstream (or the merge-base with the remote's default branch)
+                        to HEAD — commits already made earlier in a session could carry
+                        secrets past the staged-only net. Step 1 now resolves that
+                        outgoing-commit range (with a documented degraded-mode fallback
+                        when no upstream/origin-HEAD is resolvable) and scans it alongside
+                        the staged diff, combined into one pass; staged-diff scanning is
+                        kept as its own distinct check, not replaced. (2) Scanner-script
+                        discovery was hardcoded to `find ~/.claude ...`, so a standalone
+                        clone of this skill's own repo (not installed under `~/.claude` or
+                        a project `.claude/`) couldn't find its bundled scan_secrets.py/.pl.
+                        Replaced with a 3-candidate portable search (`~/.claude` → project
+                        `.claude/` → `$PWD` tree). `${CLAUDE_PLUGIN_ROOT}` was evaluated and
+                        rejected for this — verified against anthropics/claude-code#38699
+                        (inconsistent path across hook vs. agent Bash contexts) and #9354
+                        (doesn't expand inside markdown-embedded instructions). (3) Autonomy
+                        Boundary claimed test runners "read without mutating" — inaccurate,
+                        since Step 4 writes a local test-count-floor state file and `npm run
+                        build` writes build artifacts. Reworded to distinguish "no git-state
+                        mutation" (still true, still needs no confirmation) from "read-only"
+                        (false) — labeled these side-effecting-but-non-git instead.
   v3.9.0 (2026-09-06) — fixed a real regression: 9 spots in Steps 0/3/4/5a used the
                         `cmd | tail -N` / `VAR=$?` pattern, which (with no `pipefail` in this
                         shell) captures tail's exit code, not the underlying command's — lint,
@@ -95,7 +117,7 @@ Does the secrets scanner run without exception — a single skip permanently rec
 
 ## Autonomy Boundary
 
-Every step through Step 6 only *inspects* state — `git diff`, `git status`, `git branch --show-current`, `git log`, linters, test runners, and the parallel review agents all read without mutating the repo or its remote, so none of them need a per-command confirmation to run. `git push` is the one write action in this entire pipeline, and it's exactly where the gates apply: it only fires after Step 8's Overall verdict is READY TO PUSH, and a push to `main`/`master` additionally needs an explicit "yes" (Step 1 protected-branch block, Safety Layers L3). Treat "runs freely" and "needs approval" as following directly from read vs. write, not from step number or perceived risk.
+Every step through Step 6 only *inspects git state* — `git diff`, `git status`, `git branch --show-current`, `git log`, linters, and the parallel review agents never mutate the repo or its remote, so none of them need a per-command confirmation to run. **Build and test runners (Step 4) are not fully read-only**: they don't touch git state (no commits, no staged-index changes), but they do have local filesystem side effects — `npm run build` writes build artifacts to the project's configured output directory, and the Python test-count-floor check writes/updates a local, gitignored state file (`.harness/test-count-floor.json`). These are non-git, locally-reversible outputs (re-running regenerates them), so they still need no per-command confirmation, but "read-only" is the wrong label for them — treat them as side-effecting-but-non-git. `git push` is the one write action against git/remote state in this entire pipeline, and it's exactly where the gates apply: it only fires after Step 8's Overall verdict is READY TO PUSH, and a push to `main`/`master` additionally needs an explicit "yes" (Step 1 protected-branch block, Safety Layers L3). Treat "runs freely" and "needs approval" as following directly from read-vs-write-to-git-state, not from step number or perceived risk.
 
 ## Step 0: Hook Pipeline Health (Fast, WARN-only)
 
@@ -120,7 +142,11 @@ WARN-only — a smoke failure does not block push (avoids introducing a new hard
 
 Run everything in **one bash call** — variables share the same shell session, so `$STAGED_DIFF` is reused for the secrets scan without a second `git diff` invocation.
 
+**Scan scope — staged diff AND outgoing commits**: `git diff --staged` alone is not what `git push` actually sends. A push transmits every commit from the upstream (or the merge-base with the remote's default branch) up to `HEAD` — including commits made earlier in this session that were already committed and are therefore invisible to a staged-only scan. Step 1 scans **both**: the staged diff (about to be committed) and the outgoing-commit range (already committed, not yet on the remote), combined into one pass. Staged-diff scanning is not replaced by this — it stays a distinct check, since staged changes aren't part of any commit's history yet.
+
 **Scanner selection**: prefer `scan_secrets.py` when a Python runtime is available, otherwise fall back to `scan_secrets.pl` — both are maintained. Python needs no extra runtime install in most environments, but this package started as a Perl-based scanner, so both implementations are kept for compatibility.
+
+**Scanner script discovery — portable, not `~/.claude`-only**: this skill's bundled scripts may live under the global `~/.claude` install, a project-local `.claude/`, or (if this skill's own repo was cloned standalone rather than installed into either) somewhere under the current working directory. `find` tries each candidate in that order and stops at the first hit, so the common case (`~/.claude`) pays no extra cost. (`${CLAUDE_PLUGIN_ROOT}` was considered and rejected — it's known to point to inconsistent paths across hook vs. agent Bash contexts, and does not expand inside markdown-embedded instructions like this one; see anthropics/claude-code#38699 and #9354.)
 
 ```bash
 STAGED_FILES=$(git diff --staged --name-only)
@@ -128,21 +154,52 @@ STAGED_DIFF=$(git diff --staged)
 DIFF_LINES=$(echo "$STAGED_DIFF" | wc -l | tr -d ' ')
 FILE_COUNT=$(echo "$STAGED_FILES" | grep -c . || echo 0)
 CURRENT_BRANCH=$(git branch --show-current)
+
+# Outgoing-commit range (already committed, not yet pushed). Falls back to the
+# remote's default branch when no upstream is configured (new/never-pushed
+# branch); if that's also unresolvable (no network, origin/HEAD never set
+# locally), outgoing-commit scanning degrades to staged-only — surfaced below
+# and in the Step 8 report, never silently dropped.
+UPSTREAM_REF=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)
+[ -z "$UPSTREAM_REF" ] && UPSTREAM_REF=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's#^refs/remotes/##')
+MERGE_BASE=""
+[ -n "$UPSTREAM_REF" ] && MERGE_BASE=$(git merge-base "$UPSTREAM_REF" HEAD 2>/dev/null)
+if [ -n "$MERGE_BASE" ]; then
+  OUTGOING_DIFF=$(git diff "$MERGE_BASE"..HEAD)
+  OUTGOING_COMMIT_COUNT=$(git rev-list --count "$MERGE_BASE"..HEAD)
+  OUTGOING_MODE="${UPSTREAM_REF}..HEAD (${OUTGOING_COMMIT_COUNT} commit(s))"
+else
+  OUTGOING_DIFF=""
+  OUTGOING_MODE="unresolvable (no upstream, no origin/HEAD) — staged-only, degraded mode"
+fi
+COMBINED_DIFF="$STAGED_DIFF
+$OUTGOING_DIFF"
+
 SCAN_START=$(date +%s)
-SCAN_SCRIPT_PY=$(find ~/.claude -name "scan_secrets.py" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
-SCAN_SCRIPT_PL=$(find ~/.claude -name "scan_secrets.pl" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
+# Portable script discovery: try ~/.claude, then a project-local .claude/, then
+# finally the current working directory tree (covers a standalone clone of this
+# skill's own repo living under neither ~/.claude nor a project .claude/).
+find_bundled_script() {
+  local name="$1" found=""
+  found=$(find "$HOME/.claude" -name "$name" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
+  [ -z "$found" ] && [ -d "$PWD/.claude" ] && found=$(find "$PWD/.claude" -name "$name" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
+  [ -z "$found" ] && found=$(find "$PWD" -maxdepth 6 -name "$name" -path "*/pre-push/scripts/*" -type f 2>/dev/null | head -1)
+  echo "$found"
+}
+SCAN_SCRIPT_PY=$(find_bundled_script "scan_secrets.py")
+SCAN_SCRIPT_PL=$(find_bundled_script "scan_secrets.pl")
 if [ -n "$SCAN_SCRIPT_PY" ] && command -v python >/dev/null 2>&1; then
-  SECRETS_OUTPUT=$(echo "$STAGED_DIFF" | python "$SCAN_SCRIPT_PY")
+  SECRETS_OUTPUT=$(echo "$COMBINED_DIFF" | python "$SCAN_SCRIPT_PY")
   SECRETS_EXIT=$?
 elif [ -n "$SCAN_SCRIPT_PL" ]; then
-  SECRETS_OUTPUT=$(echo "$STAGED_DIFF" | perl "$SCAN_SCRIPT_PL")
+  SECRETS_OUTPUT=$(echo "$COMBINED_DIFF" | perl "$SCAN_SCRIPT_PL")
   SECRETS_EXIT=$?
 else
   echo "🚨 No scanner found (scan_secrets.py or scan_secrets.pl) — secrets scan unavailable, push blocked"
   SECRETS_EXIT=1
 fi
 SCAN_TIME=$(($(date +%s) - SCAN_START))
-echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | Scan: ${SCAN_TIME}s"
+echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | Outgoing: $OUTGOING_MODE | Scan: ${SCAN_TIME}s"
 [ $SECRETS_EXIT -ne 0 ] && echo "$SECRETS_OUTPUT"
 ```
 
@@ -153,9 +210,9 @@ The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across 
 
 **Parity note**: `scripts/scan_secrets.py` began as a straight port of the Perl scanner but has since received independent anti-evasion hardening (Unicode/homoglyph normalization, reversed-line re-scan) not back-ported to `scan_secrets.pl`. Pattern coverage has also diverged: `scan_secrets.pl` has f11 and f12 but **lacks f13** (Slack webhook detection), so it covers 13 patterns, not 14 — the two implementations are **not** guaranteed to have identical coverage. Treat `scan_secrets.py` as the more complete/current scanner where they diverge.
 
-**Design note**: the scanner intentionally scans only **added (`+`) lines**, not removed (`-`) lines — this avoids blocking commits that are *removing* a secret. Merge conflict markers are an exception and checked on all lines.
+**Design note**: the scanner intentionally scans only **added (`+`) lines**, not removed (`-`) lines — this avoids blocking commits that are *removing* a secret. Merge conflict markers are an exception and checked on all lines. This applies identically to both diffs inside `$COMBINED_DIFF`.
 
-**Empty check**: If `$STAGED_FILES` is empty → inform the user and stop.
+**Empty check**: If `$STAGED_FILES` is empty → inform the user and stop (per Discard If, this skill doesn't engage at all in that case). Note this means outgoing-commit scanning above only ever runs as a supplement to a staged-diff review, not as a standalone "just push what's already committed" path — that scenario remains a known Discard-If gap, unchanged by this fix.
 
 **Protected branch block**: If `$CURRENT_BRANCH` is `main` or `master` → stop and ask for an explicit "yes" before proceeding.
 

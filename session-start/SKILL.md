@@ -24,8 +24,12 @@ depends_on:
     - ~/.claude/.harness/interventions/
     - ~/.claude/memory/model-diff-ledger.md
 concurrency_profile:
-  read_only: true
-  concurrency_safe: true
+  default:
+    read_only: true
+    concurrency_safe: true
+  promotion_write:
+    read_only: false
+    concurrency_safe: false
   destructive: none
 # (removed 2026-06-10) context: !cat — non-standard YAML tag, breaks parser. Handoff injection is handled by SessionStart hook
 not_for:
@@ -183,10 +187,12 @@ When loading handoff + lessons, apply a **sliding window** to prevent stale cont
 - **Older entries**: 1-line summary only (title + date + outcome)
 - **context-log.md**: entries older than 90 days with `ref:0` → skip (no one referenced them)
 
+**Age source — record timestamp, never file mtime**: `context-log.md` is append-only (never overwritten — see Dev Conventions), so the file's filesystem mtime only reflects the most recent append and cannot stand in for any individual entry's own date. Always read age from that entry's own `[DATE]` tag (the `[DATE][TYPE][ttl:Nd][ref:0]` prefix on its `## ` header, per memory-format.md convention) — never from `stat`/`Get-ChildItem` on the file itself.
+
 Deterministic commands:
 1. `grep -c "^## " memory/context-log.md` → `total_entries` (0 if file missing)
-2. `grep -c "\[ref:0\]" memory/context-log.md` → `ref0_entries` (skip candidates; grep alone cannot test the 90-day age cutoff, so confirm age only on entries actually surfaced, not the whole file)
-3. `skipped` = `ref0_entries` that also pass the 90-day age check
+2. `grep -c "\[ref:0\]" memory/context-log.md` → `ref0_entries` (skip candidates; grep alone cannot test the 90-day age cutoff, so confirm age only on entries actually surfaced, not the whole file — read each surfaced entry's own `[DATE]` tag for that check, not the file's mtime)
+3. `skipped` = `ref0_entries` that also pass the 90-day age check (age computed from each entry's `[DATE]` tag, not file mtime)
 
 Fixed stdout format: `context_rot: total=N skipped=M rate=X%` (`X` = `M`/`N` × 100, 1 decimal; `rate=N/A` if `total_entries=0`)
 
@@ -195,21 +201,41 @@ This prevents the "memory keeps growing but quality keeps dropping" pattern wher
 ### 2.4 Autoimmunity Rate
 
 The rate at which harness gates (verification/pre-push/goal-lock) incorrectly
-block normal behavior. Excessive intervention is a signal that the harness
-itself is a net negative (the harness paradox).
+block normal behavior — a **false positive**: the gate fired but the blocked
+action was actually fine. Excessive false positives are a signal that the
+harness itself is a net negative (the harness paradox).
+
+**Rejection ≠ false positive.** The interventions log only records *that* a
+gate declined/blocked something (`type == "rejection"`); it does not record
+*why*. A correct block (the gate did its job) and a genuine false positive
+(the gate wrongly flagged legitimate behavior) both produce the same
+`rejection` event. Counting every rejection as autoimmunity conflates
+"user declined because the recommendation didn't fit" (e.g., priority
+mismatch, unrelated to the gate being wrong) with "user declined because the
+gate was actually mistaken." Only the latter — an explicit false-positive
+label — belongs in the numerator; a plain rejection alone does not.
 
 Deterministic command:
 1. `python "scripts/harness_observability.py" rejection-rate --period 30d` → parse `rejections=N total=M rate=X%` from stdout (the script itself scans `~/.claude/.harness/interventions/*.jsonl`, returns `total=0` when the directory is missing/empty, and already computes `rate=N/A` on a zero denominator). Replaces a `find` + two summed `grep -c` passes with one deterministic script call.
 
-Fixed contract (same semantics as before, now sourced from the script): `autoimmunity: rejection=N total=M rate=X%`
+No current intervention producer writes an explicit false-positive label
+(e.g. a `false_positive: true` field, distinct from `type == "rejection"`) —
+so this command's `rejection=N` is a **rejection-rate proxy**, not a verified
+false-positive rate. Do not synthesize a label from `context`/`l0_clause`
+text ex post; report the number honestly as a proxy until a producer starts
+recording the distinction. If a future record does carry such a label,
+restrict the numerator to labeled records only and drop the proxy caveat.
+
+Fixed contract (same stdout parsing as before — labeling is a reporting-layer
+distinction, not a new script output field): `autoimmunity: rejection=N total=M rate=X% (proxy)`
 
 If the script invocation itself fails to run (interpreter missing, script not found): treat as `tool_failure` — skip this phase's output silently, do not block session start.
 
 Output conditions:
 - interventions directory missing or `total=0` → no output
 - `rate ≤ 5%` → no output (normal range)
-- `rate > 5%` → Phase 5 `**Immune rate:**` line: `⚠️ Autoimmunity rate X% (rejection N/total M) — review gate over-intervention`
-- `rate > 15%` → `🚨 Autoimmunity rate X% — recommend gate reduction or redesign`
+- `rate > 5%` → Phase 5 `**Immune rate:**` line: `⚠️ Autoimmunity rate X% (rejection N/total M, proxy — not a confirmed false-positive rate) — review gate over-intervention`
+- `rate > 15%` → `🚨 Autoimmunity rate X% (proxy) — recommend gate reduction or redesign`
 
 ---
 
@@ -252,7 +278,7 @@ Read `memory/MEMORY.md` but filter by tag.
 ### 4.2 Spot Check (existing)
 
 1. **Stale references** — if handoff mentions file paths or function names, verify 1–2 with Glob/Grep. Flag immediately if missing.
-2. **Promotion candidates** — scan `memory/context-log.md` for entries with `[ref:N]` where N≥3 → escalate now to MEMORY.md.
+2. **Promotion candidates** — scan `memory/context-log.md` for entries with `[ref:N]` where N≥3 → escalate now to MEMORY.md. This write uses the `promotion_write` profile, not `default` — it is not concurrency-safe (see Safety Layers for the CAS-guard requirement).
 
 Check only 1–2 items. Stop if elapsed time exceeds 60 seconds.
 
@@ -328,6 +354,8 @@ Next: `Ready. Where should we start?`
 
 - **L1 (Invariants)**: read-only by default. Promotion write is sole exception.
 - **L2 (Tool Restriction)**: Read + Write + Bash in frontmatter — Write is physically scoped to the MEMORY.md promotion exception only (Invariant 1); no other file may be modified. Bash is scoped in practice (not physically) to read-only grep/find one-liners and the bundled `scripts/harness_observability.py`/`scripts/secret_redact.py` — neither writes outside `~/.claude/.harness/` observability logs it already owns.
+- **concurrency_profile is split, not a single blanket claim**: the frontmatter's `default` profile (`read_only: true`, `concurrency_safe: true`) covers the common path — no ref≥3 item found, nothing written. The promotion path is its own `promotion_write` profile (`read_only: false`, `concurrency_safe: false`): declaring the whole skill read-only/concurrency-safe while a write step exists would contradict Invariant 1's own exception. Only the `default` profile licenses treating this skill as safe to run in parallel with other read-only agents; the `promotion_write` profile does not.
+- **Promotion write is not concurrency-safe**: MEMORY.md is a file other sessions (or another session-start/session-checkpoint instance) may also be promoting to. Before performing the write, re-read MEMORY.md immediately beforehand and diff it against the version read in Phase 4 (compare-and-swap pattern) — do not run the promotion write itself in parallel with another instance's write. On a mismatch, re-read and merge, or escalate, instead of overwriting.
 
 ## Error Recovery
 

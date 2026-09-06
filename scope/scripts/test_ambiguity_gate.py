@@ -99,7 +99,7 @@ case("min_items_check existing project (default) still requires constraints",
 
 # CLI entry-point coverage (quick/full/min-items all exercise the argparse path)
 case("CLI quick subcommand runs", lambda: _run_cli(
-    ["quick", "--scores", '{"a":8,"b":8,"c":8,"d":8}']).returncode == 0)
+    ["quick", "--scores", '{"function":8,"boundary":8,"verification":8,"assumptions":8}']).returncode == 0)
 case("CLI full subcommand runs", lambda: _run_cli(["full", "--scores", "5,5,5,5"]).returncode == 0)
 
 def _cli_min_items_new_project():

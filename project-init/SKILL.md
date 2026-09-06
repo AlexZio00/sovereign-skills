@@ -274,9 +274,8 @@ Approve → files confirmed
 | Language switch (Q2) | .gitignore, .env.example, folder structure, Quick Ref in CLAUDE.md |
 | DB layer change (Q3) | .env.example (DB section), Hard Rules suggestion |
 | LLM toggle (Q6) | .env.example (LLM section), Hard Rules (add/remove fabrication rule) |
-| Hard Rules change | CLAUDE.md only |
+| Hard Rules change | CLAUDE.md only; also update ADR-001 in docs/decisions/README.md if that file exists (Q8 > 1 month OR Q7 was flagged significant — same eligibility as 3-6) |
 | Timeline/scope change | ROADMAP only; re-evaluate docs/decisions/ eligibility |
-| Hard Rules change | CLAUDE.md + ADR-001 in docs/decisions/README.md |
 | All changes | Re-run Checklist after regeneration |
 
 ---

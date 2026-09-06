@@ -1,3 +1,3 @@
 name: project-check
-description: "Audit project harness maturity across 6 axes and 58-item checklist with static and behavioral analysis."
-instructions: "../SKILL.md"
+description: "Scan an existing project across four dimensions — Infrastructure, Security, Quality, Harness — and report gaps ordered by severity. Read-only."
+allow_implicit_invocation: true

@@ -1,6 +1,6 @@
 ---
 name: full-audit
-description: "Exhaustive, denominator-driven audit of an entire area (codebase, docs, memory, skills, DB, config). Runs a 6-phase pipeline: scope agreement + prior-map diff -> deterministic sweep (counts/versions/paths/parsing plus cross-index reconciliation) -> parallel read-only content review (citations forced, rule dry-run) -> judgment (false-positive/UNCERTAIN triage) -> fix-vs-addition split (fixes applied immediately, additions proposed only) -> coverage-map recording. NOT for single-file or single-question checks (use a regular code review instead) or harness-maturity scoring against a fixed checklist (use a dedicated scoring tool instead). Triggers: '/full-audit', 'audit everything', 'full audit', 'find every gap'."
+description: "Exhaustive, denominator-driven audit of an entire area (codebase, docs, memory, skills, DB, config). Runs a 6-phase pipeline: scope agreement + prior-map diff -> deterministic sweep (counts/versions/paths/parsing plus cross-index reconciliation) -> parallel read-only content review (citations forced, rule dry-run) -> judgment (false-positive/UNCERTAIN triage) -> fix-vs-addition split, gated by execution mode (AUDIT_ONLY default = read-only, PROPOSE = list only, APPLY_APPROVED = apply approved items only) -> coverage-map recording. A bare 'audit'/'analyze' request defaults to AUDIT_ONLY and never auto-advances to file writes. NOT for single-file or single-question checks (use a regular code review instead) or harness-maturity scoring against a fixed checklist (use a dedicated scoring tool instead). Triggers: '/full-audit', 'audit everything', 'full audit', 'find every gap'."
 skill_type: audit-orchestrator
 user_invocable: true
 triggers:
@@ -30,13 +30,14 @@ see_also:
     relation: "project-check=fixed-checklist health score, full-audit=open-ended exhaustive sweep with a denominator"
 ---
 
-# Full Audit — Exhaustive Area Review (v1.1)
+# Full Audit — Exhaustive Area Review (v1.2)
 
 ## Dominant Variable
 **Accuracy of the coverage claim** — the word "exhaustive" ships with a method label or it doesn't ship at all. The moment an unreviewed area gets reported as reviewed, this skill has failed its own purpose.
 
 ## Trigger
 - `/full-audit [area]` · "audit everything" · "exhaustive audit" · "full audit" · "double-check everything"
+- **Default mode on any of the above: `AUDIT_ONLY`.** These are analysis requests, not execution requests — see Execution Modes below. Advancing to `PROPOSE` or `APPLY_APPROVED` in the same invocation requires the user to say so explicitly (e.g. "audit everything and apply the fixes", "전수감사하고 바로 고쳐줘").
 
 ## Discard If
 - Single file / single question needs checking → use a regular code review instead
@@ -51,10 +52,22 @@ see_also:
 2. **Deterministic sweeping (scripts/grep) is available for the target** — if not, skip Phase 1 and never claim "exhaustive" from Phase 2 (LLM review) alone.
 3. **A prior coverage map can shrink the scope via diff** — if not, do a full re-scan.
 
+## Execution Modes: AUDIT_ONLY / PROPOSE / APPLY_APPROVED
+This skill keeps **analysis** and **execution** in separate, explicitly-named modes. A trigger phrase like "audit everything" or "분석해줘" selects a mode — it does not, by itself, authorize any file write.
+
+| Mode | When active | What runs | Writable scope |
+|------|---|---|---|
+| `AUDIT_ONLY` (**default**) | Any bare audit/analysis trigger, with no separate execution request | Phase 0-3 (scope, deterministic sweep, content review, judgment) + Phase 5 (coverage map) | None — read-only. No Edit/Write to any target file, protected or not. |
+| `PROPOSE` | User asks for fix proposals (after an `AUDIT_ONLY` pass, or up front) | `AUDIT_ONLY` output + a listed fix/addition bucket (Phase 4 framing, nothing applied) | None — still read-only, output is a proposal list |
+| `APPLY_APPROVED` | User explicitly approves specific items or the fix bucket as a whole ("이 항목들 적용해", "fix bucket 적용해") | Applies only the items the user named as approved | Limited to the approved items. A deny-listed path (rules/CLAUDE.md/settings — see Safety Layers) is reachable **only** here, only for that one named item, with its deny lifted for that single edit and restored immediately after — never as a routine step of "the edit procedure." |
+
+**One-way per pass**: `AUDIT_ONLY` never auto-advances into `PROPOSE` or `APPLY_APPROVED` within the same invocation. Advancing needs a new, explicit user statement. This closes the gap where "audit everything" silently walked all the way to Phase 4 fix-bucket execution — including temporarily lifting a Protect-Hooks deny — without the user ever approving execution, not just analysis.
+
 ## Phase 0: Agree Scope + Diff Against Prior Map
-1. Declare the target areas as a table (e.g. codebase / docs / global skills / memory / DB / settings).
-2. If a prior coverage map exists, read it and **queue its remaining gaps first**.
-3. Areas the user explicitly excludes go on the map as "intentionally excluded" — never silently dropped.
+1. **Declare the execution mode for this run** in the first line of the response (e.g. "Mode: AUDIT_ONLY — read-only, no files will change"). Default `AUDIT_ONLY` unless the request explicitly names `PROPOSE`/`APPLY_APPROVED` or explicitly approves specific items up front.
+2. Declare the target areas as a table (e.g. codebase / docs / global skills / memory / DB / settings).
+3. If a prior coverage map exists, read it and **queue its remaining gaps first**.
+4. Areas the user explicitly excludes go on the map as "intentionally excluded" — never silently dropped.
 
 ## Phase 1: Deterministic Sweep
 Whatever a machine can count, a script counts — never eyeball it:
@@ -89,9 +102,10 @@ Personally re-verify every reviewer report before classifying. Common false-posi
 - **Number conflicts**: reviewer's number vs. the Phase 1 deterministic number → deterministic wins
 - **Composite-accumulation-gate (death-by-thousand-cuts guard)** ([borrowed from PHP-AIO, arXiv 2607.15944v1]): even when every individual finding is separately dismissed as FALSE-POSITIVE/UNCERTAIN/NIT, if the same area (same file/module/component) accumulates 3+ UNCERTAIN findings, or 5+ combined (UNCERTAIN+NIT) findings, flag it separately as an "individually-passed, cumulatively-risky" signal — passing each individual threshold does not mean the composite threshold is also safe (structurally identical to the CRITICAL hard-cap principle in `agents/code-reviewer.md`). A flagged area is not promoted to CONFIRMED, but must be listed at least once in the Phase 4 addition bucket so the user sees it. [The 3/5 thresholds are initial estimates, subject to recalibration once operational data accumulates.]
 
-## Phase 4: Apply Fixes and Additions Separately
-- **Fix bucket** (apply immediately): stale numbers, dead references, policy violations, broken parsing — plain factual corrections
-- **Addition bucket** (propose only): new features, structural changes, deletions, upgrades — summarize and propose, execute only after user approval
+## Phase 4: Fix/Addition Split — Gated by Execution Mode
+- **Runs only in `PROPOSE` or `APPLY_APPROVED`.** In `AUDIT_ONLY` (the default for a bare audit/analysis request), stop after Phase 3 — the coverage map may still *list* what would land in each bucket, but nothing here executes.
+- **Fix bucket** (stale numbers, dead references, policy violations, broken parsing — plain factual corrections): listed under `PROPOSE`; applied only under `APPLY_APPROVED`, and only for items the user approved (a blanket "apply the fix bucket" covers non-protected paths — a deny-listed path always needs its own explicit approval, see Safety Layers)
+- **Addition bucket** (new features, structural changes, deletions, upgrades): listed under `PROPOSE`; executed under `APPLY_APPROVED` only per-item after explicit approval — never covered by a blanket approval
 - Re-verify after fixing: re-run any affected tests/checkers
 
 ## Phase 5: Record the Coverage Map
@@ -109,7 +123,7 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 |------|----------|
 | [BASH] Deterministic sweep (counts/versions/paths/parsing) | Compute a harness maturity score (a different tool's job) |
 | [AGENT] Dispatch parallel content review (read-only) | Grant reviewers edit access |
-| [EDIT] Apply fix-bucket edits immediately (stale/dead-refs/violations) | Execute addition-bucket changes without approval (propose-only) |
+| [EDIT] Apply fix-bucket edits (stale/dead-refs/violations) — **only in `APPLY_APPROVED` mode** | Apply any edit while in `AUDIT_ONLY` or `PROPOSE` mode; execute addition-bucket changes without per-item approval (propose-only) |
 | [WRITE] Record the coverage map | Declare "100% done" while hiding remaining gaps |
 | [READ] Read the prior coverage map and diff | Silently include areas the user excluded |
 
@@ -117,9 +131,9 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| Fix-bucket edit (existing file) | high (git) | L1 |
-| Delete/move a file (addition bucket) | medium | L1+L3 (explicit user approval required) |
-| Editing a protected config/rules path (deny-listed) | medium | L1+L2+L3 (temporarily lift the deny → edit → restore immediately) |
+| Fix-bucket edit (existing file) | high (git) | L1 + mode-gate (`APPLY_APPROVED` only) |
+| Delete/move a file (addition bucket) | medium | L1+L3 (explicit per-item user approval required) + mode-gate (`APPLY_APPROVED` only) |
+| Editing a protected config/rules path (deny-listed) | medium | L1+L2+L3+mode-gate: reachable **only** in `APPLY_APPROVED`, and only for the specific item the user named — deny is lifted for that one edit and restored immediately after. The deny-lift is never a routine step of Phase 4's general edit procedure. |
 
 **Guard-degradation observability**: if a Phase 1 checker can't run, don't silently skip it — record `⚠️ check unavailable: [reason]` on the coverage map.
 
@@ -128,6 +142,7 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 2. **Deterministic wins**: when an LLM's count/existence claim conflicts with a script's result, the script wins. Violation → hallucinated numbers get written into the source of truth.
 3. **Fixes and additions stay separate**: only apply plain factual corrections immediately; everything else is propose-only. Violation → scope creep, and the user's decision rights get bypassed.
 4. **Coverage map is mandatory**: never declare completion without recording it. A map with zero remaining gaps needs re-review. Violation → nobody in a future session can tell how far the last audit actually went.
+5. **Analysis and execution stay in separate modes**: a bare audit/analysis request defaults to `AUDIT_ONLY` and never auto-advances into Phase 4 execution, and a deny-listed path is never touched outside `APPLY_APPROVED` with that specific item named. Violation → a request to "look at X" silently becomes a request that changed X, including a Protect-Hooks-guarded file.
 
 ## Error Recovery
 | Failure | Detection | Recovery |
@@ -150,9 +165,10 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 | "It's a small addition, let's just fix it along the way" | Violates fix/addition separation (Invariant 3). Batch additions and propose them together |
 | "I'll do the map later if there's time" | An audit with no map resets to zero for the next session (Invariant 4) |
 | "A few UNCERTAINs here and there do not matter" | Individual passes do not hide accumulated risk — 3+ in the same area triggers the composite-accumulation-gate flag (Phase 3) |
+| "The user said 'audit', so finding an issue and just fixing it right there is helpful" | An audit/analysis trigger defaults to `AUDIT_ONLY` — fixing without an explicit mode-advance conflates analysis with execution (Invariant 5). Report it in the coverage map instead and wait for `PROPOSE`/`APPLY_APPROVED` |
 
 ## Output
 - Updated **coverage map** file
-- Chat report: list of applied fixes (with line anchors) / list of proposed additions / verification results (✅⚠️❌) / final status label / remaining gaps / Assumption ledger (if applicable)
+- Chat report: **execution mode used, stated first** (`AUDIT_ONLY`/`PROPOSE`/`APPLY_APPROVED`) / list of applied fixes with line anchors (`APPLY_APPROVED` only) / list of proposed fixes and additions (`PROPOSE`/`APPLY_APPROVED`) / verification results (✅⚠️❌) / final status label / remaining gaps / Assumption ledger (if applicable)
 
-> Changelog: v1.0 (initial release) → v1.1 (added the coverage-caps-intervention-value step to Phase 1)
+> Changelog: v1.0 (initial release) → v1.1 (added the coverage-caps-intervention-value step to Phase 1) → v1.2 (added the AUDIT_ONLY/PROPOSE/APPLY_APPROVED execution-mode gate — a bare audit/analysis trigger now defaults to read-only and never auto-advances to Phase 4 fix-bucket execution or a Protect-Hooks deny-lift; those now require an explicit mode-advance from the user)

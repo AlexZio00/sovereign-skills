@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+*.pyo
+.harness/test-count-floor.json
+.scope-draft.md

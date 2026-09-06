@@ -16,10 +16,36 @@ import argparse
 import json
 import sys
 
+_REQUIRED_QUICK_KEYS = ("function", "boundary", "verification", "assumptions")
+
+
+def _validate_quick_scores(scores) -> None:
+    """Validate quick-gate input: exactly the 4 required dimension keys, each a real
+    number (bool excluded — Python's bool is a subclass of int) within 0-10 inclusive.
+    Raises ValueError naming the specific problem; callers turn that into a clear
+    stdout error + exit 1 instead of silently passing malformed input."""
+    if not isinstance(scores, dict):
+        raise ValueError("scores must be a JSON object (dict)")
+    missing = [k for k in _REQUIRED_QUICK_KEYS if k not in scores]
+    if missing:
+        raise ValueError(
+            f"missing required keys: {', '.join(missing)} — need all of {_REQUIRED_QUICK_KEYS}"
+        )
+    extra = sorted(set(scores) - set(_REQUIRED_QUICK_KEYS))
+    if extra:
+        raise ValueError(f"unexpected keys: {', '.join(extra)} — only {_REQUIRED_QUICK_KEYS} allowed")
+    for k in _REQUIRED_QUICK_KEYS:
+        v = scores[k]
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError(f"'{k}' must be a number (int/float), got {type(v).__name__}: {v!r}")
+        if not (0 <= v <= 10):
+            raise ValueError(f"'{k}' must be within 0-10 inclusive, got {v}")
+
 
 def quick_gate(scores: dict) -> tuple:
     if not scores:
         raise ValueError("scores must not be empty")
+    _validate_quick_scores(scores)
     avg = sum(scores.values()) / len(scores)
     weakest = min(scores, key=scores.get)
     return (avg >= 7, avg, weakest)
@@ -95,7 +121,11 @@ def main(argv=None) -> int:
 
 def _run_quick(args) -> int:
     scores = json.loads(args.scores)
-    ok, avg, weakest = quick_gate(scores)
+    try:
+        ok, avg, weakest = quick_gate(scores)
+    except ValueError as e:
+        print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
+        return 1
     print(json.dumps({"ok": ok, "avg": avg, "weakest": weakest}, ensure_ascii=False))
     return 0
 

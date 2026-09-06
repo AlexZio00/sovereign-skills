@@ -1,3 +1,3 @@
 name: collab-audit
 description: "Analyze AI collaboration patterns across 14 sections with behavioral feedback and work pattern insights."
-instructions: "../SKILL.md"
+allow_implicit_invocation: true
