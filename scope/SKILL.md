@@ -204,12 +204,12 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 ## Invariants (never violate)
 
 1. **No implementation during scope**: no code changes during/after scope writing. Violation → scope becomes a post-hoc rationalization for code already written instead of a constraint that shapes it, and the OUT section stops meaning anything.
-2. **Scope OUT mandatory**: min 2 items. Write even if user says unnecessary. Violation → only IN is recorded, so anything not explicitly listed becomes fair game during implementation — scope creep with no written boundary to point back to.
+2. **Scope OUT mandatory**: baseline min 2 items — unless the scope is self-evidently a single item, in which case 1 item plus a stated reason is acceptable. Violation → only IN is recorded, so anything not explicitly listed becomes fair game during implementation — scope creep with no written boundary to point back to.
 3. **Exit Criteria = observable + measurable**: auto-reject vague items like "works correctly". Violation → "done" becomes a matter of opinion at handoff time, and disagreement about completion surfaces only after the work is finished.
-4. **Question limit 3** (Quick): exceed → conservative minimum scope. Violation → interrogation replaces scoping and the user abandons the flow instead of getting a usable brief.
+4. **Question limit 3** (Quick): exceed → conservative minimum scope — unless there is clear evidence a 4th question would change the direction, in which case one additional question is allowed once, with the reason stated. Violation → interrogation replaces scoping and the user abandons the flow instead of getting a usable brief.
 5. **Approval gate required**: save file only after explicit user approval. Violation → an unreviewed draft becomes the working spec, and errors in it propagate into implementation before anyone caught them.
 6. **Constraints mandatory** (existing project): 0 items → rescan. Violation → the brief looks complete but omits the existing system's real limits, so implementation collides with constraints nobody wrote down.
-7. **Risk Flags min 1**. Violation → a known failure mode goes unrecorded, so the same risk resurfaces later as a surprise instead of a tracked flag.
+7. **Risk Flags min 1** — unless there is truly no risk, in which case "no risk: <reason>" may be substituted. Violation → a known failure mode goes unrecorded, so the same risk resurfaces later as a surprise instead of a tracked flag.
 8. **Layer order immutable** (Full): L0→L1→L2→L3→L4. Violation → decisions (L2) get made on a foundation (L0/L1) that was never confirmed, so the spec inherits an unvalidated goal.
 9. **No spec overwrite** (Full): append or edit only. Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
 10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills.
@@ -228,7 +228,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 
 | Rationalization | Rebuttal |
 |--------|------|
-| "Skip OUT" | Invariant 2. Explicit even when clear prevents scope creep |
+| "Skip OUT" | Invariant 2. Explicit even when clear prevents scope creep — the single-item exception still requires a written item plus a stated reason, not silence |
 | "Clear enough, no questions" | Need immediate 1-sentence answer to 3 questions for Sufficient |
 | "L0-L1 obvious, skip" (Full) | L2 decisions have no foundation without them |
 | "Write spec in one go" (Full) | Mid-gates allow course correction |

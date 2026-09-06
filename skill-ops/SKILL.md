@@ -147,7 +147,7 @@ Save: `~/.claude/.harness/reports/skill-health-{date}.md`
 ### Phase 7: Invocation Frequency Scan
 Aggregate `Skill` tool calls from session JSONL to measure per-skill monthly invocation frequency.
 - **tool_use metadata only** — never read prompt text
-- **Windows**: prefer `D:/Python313/python.exe`, fallback to `python`/`python3`
+- **Windows**: use `python`/`python3` on PATH; if neither resolves, check common install locations before failing
 - Save: `~/.claude/.harness/invocations/YYYY-MM.json`
 
 Output:

@@ -1,6 +1,6 @@
 ---
 skill_type: analysis
-tools: Read, Write, Glob, Grep
+tools: Read, Write, Glob, Grep, Bash
 triggers:
   - "/doc-drift"
   - "문서 정합성"
@@ -12,22 +12,25 @@ description: |
   Use this skill when the user wants to audit the memory and documents Claude
   Code loads into context — CLAUDE.md (user global + project + nested),
   MEMORY.md, @imports, .claude/skills, .claude/agents, .claude/commands,
-  installed plugins — and detect three kinds of issues: outdated claims,
-  mutually contradictory statements, and risky-or-ambiguous wording. Produces
+  installed plugins — and detect four kinds of issues: outdated claims,
+  mutually contradictory statements, risky-or-ambiguous wording, and
+  session-only context leaked into skills/agents/commands docs. Produces
   a prioritized improvement list at `.drift-reports/`. Zero config.
   Trigger phrases: "doc drift", "memory drift", "memory audit", "context drift",
   "docs audit", "문서 점검", "문서 감사", "메모리 감사", "메모리 점검",
   "outdated 문서", "문서 충돌".
   NOT for: exhaustive content audit of an entire area (→ full-audit) · harness
   maturity scoring (→ check-harness) · single-file verification (→ verification).
-  doc-drift only covers drift (contradiction/staleness/risky wording) in
-  already-loaded context.
+  doc-drift only covers drift (contradiction/staleness/risky wording/session
+  leakage) in already-loaded context.
 depends_on:
   skills: []
   agents: []
   files:
     - CLAUDE.md
     - memory/MEMORY.md
+    - "scripts/slop_detector.py"
+    - "scripts/claude_md_lint.py"
 concurrency_profile:
   read_only: false
   concurrency_safe: false
@@ -45,8 +48,9 @@ see_also:
 ## Purpose
 
 Scan the memory and documents Claude loads for this project, and surface what's
-stale, what contradicts something else, and what's risky or ambiguous — sorted
-by priority.
+stale, what contradicts something else, what's risky or ambiguous, and what
+leaks session-only context into skills/agents/commands docs — sorted by
+priority.
 
 **Memory verification**: the CLAUDE.md / MEMORY.md / rules files this skill reads
 are past-point-in-time snapshots. Verify current state with Glob/Read before
@@ -92,27 +96,42 @@ This skill runs on the following assumptions (per reasoning-standard principles)
 
 ### Step 0 — Deterministic pre-filter
 
-Before the LLM read, run two grep-based scans over the same starting-point
-files Step 1 targets (CLAUDE.md, MEMORY.md, skills/agents/commands) — a
-lightweight Glob/Grep pass that doesn't need Step 1's full `@import`
-expansion to run first. No new tools, same Read/Glob/Grep this skill already
-uses. Sorting "what can be counted mechanically" from "what needs a judgment
-call" keeps the model's read in Step 2 focused and cheap.
+Before the LLM read, run two deterministic scripts over the same
+starting-point files Step 1 targets (CLAUDE.md, MEMORY.md,
+skills/agents/commands) — a scripted pass that doesn't need Step 1's full
+`@import` expansion to run first. Sorting "what can be counted mechanically"
+from "what needs a judgment call" keeps the model's read in Step 2 focused
+and cheap.
 
-1. **Ambiguous-wording density scan** — grep for a fixed hedge-phrase list
-   ("use your judgment", "as appropriate", "depending on the situation", "if
-   needed", "generally", open-ended delete/override instructions with no
-   explicit scope) and count hits per file. Files above the density threshold
-   become pre-flagged Risky/Ambiguous candidates.
-2. **CLAUDE.md-as-machine-prompt linter** — CLAUDE.md is a machine prompt, not
-   documentation prose. Flag paragraphs that read as background/rationale with
-   no attached actionable instruction (no imperative verb, no explicit scope,
-   nothing a model could act on) — that shape is itself Risky/Ambiguous.
+```bash
+SLOP_SCRIPT=$(find ~/.claude -name "slop_detector.py" -path "*/doc-drift/scripts/*" -type f 2>/dev/null | head -1)
+LINT_SCRIPT=$(find ~/.claude -name "claude_md_lint.py" -path "*/doc-drift/scripts/*" -type f 2>/dev/null | head -1)
+PYBIN=$(command -v python3 || command -v python)
+[ -n "$SLOP_SCRIPT" ] && "$PYBIN" "$SLOP_SCRIPT" <path> --json
+[ -n "$LINT_SCRIPT" ] && "$PYBIN" "$LINT_SCRIPT" <path> --json   # CLAUDE.md-style files only
+```
 
-Both scans produce **supporting evidence only** for the Risky/Ambiguous row in
-Step 2 — a high hit-count raises suspicion, it doesn't decide inclusion. The
-confidence ≥80% gate stays the actual gate (see Invariants); Step 0 output
-without a corroborating LLM read is not a finding on its own.
+1. **`slop_detector.py`** — Ambiguous-wording / AI-tell density scan: a fixed
+   additive-weight pattern list (hedging phrases, hype vocabulary, empty
+   intensifiers, antithesis constructions, stray em-dashes) scored per file,
+   returning `verdict: HIGH/MEDIUM/LOW` and the hit list. Files at HIGH become
+   pre-flagged Risky/Ambiguous candidates.
+2. **`claude_md_lint.py`** — CLAUDE.md-as-machine-prompt linter: CLAUDE.md is
+   a machine prompt, not documentation prose. Rewards concrete anchors (code
+   fences, file paths, shell commands, imperative-mood lines) and penalizes
+   vague directives ("use your judgment", "as appropriate", "depending on the
+   situation") and length over a 150-line budget, returning
+   `verdict: WEAK/OK/STRONG`. A WEAK verdict is itself a Risky/Ambiguous
+   signal — a paragraph with no actionable instruction a model could act on.
+
+If neither script is found on this install, skip Step 0 and proceed straight
+to Step 1 — it's an optional accelerant, not a hard dependency (see Error
+Recovery).
+
+Both scripts produce **supporting evidence only** for the Risky/Ambiguous row
+in Step 2 — a HIGH/WEAK verdict raises suspicion, it doesn't decide
+inclusion. The confidence ≥80% gate stays the actual gate (see Invariants);
+Step 0 output without a corroborating LLM read is not a finding on its own.
 
 ### Step 1 — Gather what gets loaded
 
@@ -145,15 +164,16 @@ Keep collecting until no new nodes appear. **Verify current state** — re-check
 with Glob that existing referenced paths still exist (per memory-discipline
 principles).
 
-### Step 2 — Detect three things
+### Step 2 — Detect four things
 
-Read every audited file and look for **only** these three things:
+Read every audited file and look for **only** these four things:
 
 | Kind | Criterion |
 |------|-----------|
 | **Outdated** | A claim that no longer matches the actual code/config (paths, commands, numbers, policy, versions, etc.) |
 | **Conflict** | Two documents describe the same topic differently |
 | **Risky / Ambiguous** | An instruction that's open to multiple readings, or dangerous if followed the wrong way (e.g. "use your judgment", "depending on the situation", delete/override instructions with no explicit scope) |
+| **Session Leakage** (applies only to `skills/*/SKILL.md`, `agents/*.md`, `commands/*.md`) | Single test: could a future reader with no access to this session's transcript resolve every reference and verify every claim in this sentence? If not, it's leakage. Examples: "in the previous session", "(decision 3)", "moved from v1 to v2", "as flagged in review", a PR/issue number cited with no explanation of its content. **Excluded**: intentional historical-record annotations in rules/lessons-style files (e.g. a dated correction note or a `%%why: ...%%`-style rationale comment) deliberately kept as an audit trail — that's the opposite extreme (deliberate preservation), not leakage. Finding format is the same as above (claim location + counter-evidence). If there's an unfalsifiable factual core (e.g. the actual reasoning behind a decision), propose "restore then delete" — keep that fact, strip only the session reference — instead of a flat delete. |
 
 Every finding needs **evidence**: where the claim was made (`file:line`) and
 the counter-evidence (`file:line` or a quote of the current code). No
@@ -165,7 +185,7 @@ be mechanically reconstructed from the code (directory layout, dependency
 list, build command, etc.), that's a structural Outdated risk even when the
 current value happens to be correct — the two will drift independently over
 time. Tag such findings `[derivable]` as supporting evidence for priority.
-Not a new category — it's a sub-signal of Outdated, the three-kind taxonomy
+Not a new category — it's a sub-signal of Outdated, the four-kind taxonomy
 above is unchanged.
 
 **If confidence is low, drop it. False positives are this tool's biggest
@@ -191,7 +211,7 @@ judge it with a single OK/NO.
 | Does | Does NOT |
 |------|----------|
 | [READ] Audit CLAUDE.md/MEMORY.md/rules/skills/agents/commands | Auto-edit file contents (proposals only) |
-| [READ] Classify into Outdated/Conflict/Ambiguous | Report other kinds of issues (style, typos) |
+| [READ] Classify into Outdated/Conflict/Ambiguous/Session Leakage | Report other kinds of issues (style, typos) |
 | [WRITE] Write reports to `.drift-reports/` | Auto-add the report dir to `.gitignore` |
 | [READ] Optional auto-fix PR (Outdated items with a clear fix only) | Auto-fix Conflict/Risky items (human judgment required) |
 | [READ] Recursively trace `@import` | Fetch external URLs (offline only) |
@@ -215,7 +235,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 
 | Failure type | Detection condition | Recovery path |
 |---------|---------|--------|
-| `tool_failure` | Failed to read a document file | State the analysis scope as limited to accessible files only, then continue |
+| `tool_failure` | Failed to read a document file, or Step 0 scripts not found on this install | State the analysis scope as limited to accessible files only (or skip Step 0), then continue |
 | `missing_data` | No docs/ directory, or zero documents | State "nothing to analyze". Never fabricate findings |
 | `input_error` | Unclear which documents to analyze | Ask one clarifying question — default to a full scan |
 

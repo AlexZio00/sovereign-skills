@@ -91,7 +91,10 @@ Check if `CLAUDE.md` exists in the project root.
    - Rules in CLAUDE.md not in project rules → propose adding them to project rules
    - Rules in CLAUDE.md weaker than project rules → flag: "CLAUDE.md has a weaker version, remove it"
 4. If identical or CLAUDE.md just has a reference link → no action needed
-5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see [.claude/rules/project rules](.claude/rules/project rules)`, actual rules live only in project rules
+5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see ~/.claude/rules/project rules`, actual rules live only in project rules
+6. **Existing governance-doc probe**: scan `~/.claude/rules/*.md` and any project `CLAUDE.md`/`.claude/rules/*.md` for a rules file that already covers truth-tagging (a Fact/Claim/Disclosure-style discipline for labeling verified vs. asserted vs. speculative content) and voice/prohibited-patterns conventions.
+   - Found → generate the corresponding sections of the new project rules file as a thin stub — a short pointer to the existing file plus only the domain-specific delta from Q5 — instead of re-typing the full text.
+   - Not found (true greenfield) → keep the full pre-filled template text unchanged. Do not convert it to a citation-only stub in this case — that recreates the "empty skeleton" anti-pattern this skill exists to avoid.
 
 Check if `~/.claude/` global structure exists.
 - Read existing rules to detect conflicts before generating.
@@ -418,7 +421,15 @@ Rows marked with a condition (Standard+, review gates) are only generated if the
 
 ### 3-1. Rules
 
-**project rules** — always generated, content from preset + Q5:
+**project rules** — always generated, content from preset + Q5. Sections II and III below are the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers this ground, replace them with a thin stub instead:
+
+```markdown
+## II. Truth & Clarity Discipline
+_Already covered by `<path to the detected file>` — see that file for the full tagging discipline. This project adds only:_
+- [domain-specific delta from Q5, if any — omit this section entirely if there is none]
+```
+
+Full greenfield template (used when no existing coverage was found):
 
 ```markdown
 # AI Constitution — [Project Name]
@@ -459,7 +470,7 @@ Each rule above is valid UNLESS:
 4. "It's in memory so it must be right" is a reasoning error. Memory is a starting point for verification, not a substitute for it.
 ```
 
-**agents.md** — only if complexity >= Standard:
+**agents.md** — only if complexity >= Standard. The Voice Guidelines block below is the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers voice/prohibited-patterns conventions, replace it with a thin stub instead (same form as the project rules stub above — a pointer to `<path to the detected file>` plus only the delta):
 
 ```markdown
 # Agent Orchestration

@@ -115,7 +115,7 @@ python ~/.claude/scripts/ct_promotion_queue.py scan \
 - If `enqueued` is 1 or more, surface a one-line summary verbatim to the user: `[CT Promotion Queue] {N} newly queued — drafts will be proposed at the next memory-dream run (queue: ~/.claude/.harness/ct-promotion-queue.jsonl)`.
 - If the output includes a `⚠️ Resurfaced: {topic}` line, surface that verbatim too (a previously-deleted fact resurfacing — never suppress this silently).
 
-**External source 3-Tier Reference Threshold** (→ `~/.claude/rules/memory-format.md` authoritative source)
+**External source 3-Tier Reference Threshold**
 | Tier | Criterion | Storage Location |
 |------|-----------|------------------|
 | T3 | Mentioned 1 time | context-log.md memo (ttl:90d) |
@@ -135,6 +135,7 @@ python ~/.claude/scripts/ct_promotion_queue.py scan \
 - **Redaction before verbatim capture**: if a raw observation carries personally identifying detail or a private remark unrelated to the technical task (names, contact info, health/financial/relationship disclosures, etc.), don't store it verbatim — generalize it to the underlying behavioral pattern first (e.g. "user repeated the same correction twice, with visible frustration" rather than quoting the frustrated remark word-for-word along with whatever personal context it was embedded in).
 - **lessons.md v2 metadata**: New lessons receive `> conf: 0.5 · seen: today · obs: 1` on next line after header. Existing lesson re-occurrence/application detected → `seen` → today, `obs +1`. When obs ≥ 3 accumulated → `conf +0.1` (max 0.9). User correction detected after violation → `conf -0.1` (min 0.3), `seen` → today
 - **regime/escalate_if optional fields** [borrowed from Governance Artifact Schema, arXiv 2607.16130]: If a lesson has been observed 3+ times under differing conditions (project / file type / session), append a one-line summary of that observed diversity to a `regime:` field. If a lesson has a clear re-evaluation trigger, append a one-line condition to an `escalate_if:` field. Both are appended after obs/conf/seen using a middle-dot separator — the parser is position-independent (regex-based). Both fields are optional (backward compatible with legacy lessons that lack them).
+- **`kill_if` optional field** [2026-09 paper-sweep intake — the inverse of `escalate_if`]: where `escalate_if` is the condition that **promotes** a lesson to a higher-level guard (a hook or rule), `kill_if` is the condition that **retires** it — a one-line natural-language description of what, if true, invalidates the lesson regardless of its conf/obs trajectory (e.g. `kill_if: "user explicitly corrects/rejects behavior that followed this lesson"`). Same position, same syntax (middle-dot separated, position-independent, optional). Actual retirement doesn't happen here — see **Regression Detection** at the end of Phase 1.8 below: a match only raises a candidate flag, a later review pass confirms or clears it.
 
 **④ Staleness detection** → force MEMORY.md promotion
 - Items from context-log.md with `[ref:N]` ≥ 3 → review if permanent fact
@@ -309,9 +310,10 @@ Scan session conversation to extract **3 reflection items** and immediately refl
 3. **How to do better next time** — concrete behavior change (no abstract "be more careful")
 4. **One judgment that worked well this session** — something user approved, efficient choice, good outcome. If only recording failures, over-defensive patterns harden. Record ≥1 success lesson to balance failure bias. Omit if none — do not force-create.
 
-**Before recording — 2 gates (run on every candidate item before it reaches lessons.md):**
+**Before recording — 3 gates (run on every candidate item before it reaches lessons.md):**
 1. **Generality filter**: will this apply beyond the circumstances of this one session, or is it a one-off incident tied to today's specific context? If it doesn't generalize, don't promote it to lessons.md — instead append it to context-log.md as a `ttl:30d` episode item. lessons.md is for behavior corrections the next session should carry forward; a non-generalizing incident is just today's history.
 2. **Diagnosis completeness check**: does the item state *why* the mistake happened (root cause), not just *what* happened? A lesson that only names the symptom, with no causal mechanism, gives the next session nothing to act on differently. If the root cause isn't known yet, still record the item but tag the header line `[DIAGNOSIS_MISSING]` so it's visibly incomplete rather than silently thin — revisit once the cause surfaces.
+3. **Postmortem 3-condition gate** [2026-09 paper-sweep intake — a lesson can clear gates 1-2 and still not be worth keeping]: record it only if it clears all three of subtle (not a typo-level or surface-level slip — genuinely non-obvious), systemic (a structural cause, not a one-time fluke), and costly-to-rediscover (re-diagnosing it from scratch next time would actually cost something). If any one of the three fails, don't add a new lessons.md entry — mention it in-conversation only, or downgrade it to a `context-log.md` `ttl:30d` entry. Without this filter, "I learned something today" becomes the bar, and lessons.md fills with noise that buries the entries actually worth carrying forward. **Scope**: this gate applies to extraction questions 1-3 above (a correction-shaped lesson drawn from a mistake, inefficiency, or dissatisfaction signal). It does not apply to item 4 (the success lesson) — "a judgment that worked well" is recorded for a separate purpose (balancing failure bias) regardless of whether it's subtle or systemic, and item 4's own "record at least one" requirement stands on its own.
 
 **When items exist** → add to lessons.md (v2 format):
 ```
@@ -375,6 +377,14 @@ If N=0, then `[Reflexion] This session new lessons: none` 1 line only.
 **Directory guarantee**: Before recording, verify `~/.claude/.harness/interventions/` exists. Create with `mkdir -p` if needed.
 
 **On failure**: Do not halt checkpoint if log write fails. Output `⚠️ Intervention log write failed: {reason}` 1 line then proceed to Phase 2.
+
+**Regression Detection** (`kill_if` cross-check) [2026-09 paper-sweep intake]: Runs only when the intervention detection above found 1+ `correction` or `rejection` type item this session — 0 detected means skip entirely (a cheap conditional check, not a full rescan every time). Compare the detected intervention's `context` summary against every `kill_if:` field in `tasks/lessons.md`. If one matches in meaning (e.g. the intervention context reads "graded exit code off `tail` output instead of `PIPESTATUS`" and some lesson's `kill_if` reads "if this pattern gets used again"-shaped):
+- **Don't delete it immediately** — confirming an actual retirement, independent of conf/obs, waits for a later full review pass rather than an in-session auto-delete (misattribution risk: one session's causal read isn't enough evidence to permanently destroy a lesson's regression-tracking history).
+- Output: `[REGRESSION_CANDIDATE] {lesson title} — possible kill_if match (evidence: {intervention context, 1 line})`
+- Append to `context-log.md` as a `[LESSON]` type, `ttl:90d`: `[YYYY-MM-DD] [LESSON] [ttl:90d] [ref:0] REGRESSION_CANDIDATE — {lesson title} kill_if needs review (intervention: {context})`
+- The next full review pass over lessons.md either confirms this candidate (retire the lesson) or clears it (misattribution — note why, keep the lesson as-is).
+
+No match (an intervention occurred, but it doesn't overlap any `kill_if`) → no output, skip silently.
 
 ## Phase 2: Handoff Writing (single file update)
 

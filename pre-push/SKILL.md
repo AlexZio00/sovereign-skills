@@ -6,10 +6,10 @@ triggers:
   - "git push"
   - "푸시해"
 name: "pre-push"
-description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials (12 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
+description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials + prompt-injection/exfiltration markers (14 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts, embedded prompt-injection strings, non-standard package sources, Slack webhooks), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.8.0"
+  version: "3.9.0"
   author: "coinangel"
 user_invocable: true
 not_for:
@@ -30,6 +30,23 @@ see_also:
 ---
 
 <!--
+  v3.9.0 (2026-09-06) — fixed a real regression: 9 spots in Steps 0/3/4/5a used the
+                        `cmd | tail -N` / `VAR=$?` pattern, which (with no `pipefail` in this
+                        shell) captures tail's exit code, not the underlying command's — lint,
+                        build, and test failures were silently swallowed and reported as pass.
+                        Switched each to `${PIPESTATUS[0]}` (or, where output is already captured
+                        via `$(...)`, split the exit-code capture from the truncation step so the
+                        exit code is read before `tail` runs). Step 4 Python gained an opt-in
+                        test-count-floor check (WARN-only, pattern credited to CopilotKit/openbot's
+                        scripts/test-ci.ts): compares the current pytest passed-count against the
+                        previous run's count (stored in a local, gitignored state file) and warns
+                        on a sharp drop — catches a whole file silently dropping out of collection
+                        (e.g. an import-time exception) that would otherwise still read as a clean
+                        pass. Also corrected a stale count: `scan_secrets.py` already implements
+                        14 patterns (f1-f13 + the merge-conflict marker) since the f11/f12/f13
+                        ports landed in v3.6.0/v3.8.0, but the frontmatter and Step 1 body text
+                        still said "12 patterns" from before those ports — `scan_secrets.pl` has
+                        f11 and f12 but not f13, so it covers 13.
   v3.8.0 (2026-07-24) — dual scanner support: scripts/scan_secrets.py added alongside scan_secrets.pl
                         (Python preferred when a Python runtime is available, Perl kept as fallback —
                         both are maintained). Step 6 deterministic claim-verification sub-step (generic
@@ -90,7 +107,7 @@ If your setup has a hook smoke-test script (a script that exercises your hooks e
 SMOKE_SCRIPT=$(find ~/.claude -maxdepth 3 -iname "hook_smoke_test*" -type f 2>/dev/null | head -1)
 if [ -n "$SMOKE_SCRIPT" ]; then
   "$SMOKE_SCRIPT" full 2>&1 | tail -20
-  SMOKE_EXIT=$?
+  SMOKE_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not the smoke test's
   [ $SMOKE_EXIT -ne 0 ] && echo "⚠️ hook smoke test FAIL — hook pipeline regression suspected, recommend investigating before Step 7 Gate Check (does not block)"
 else
   echo "➖ No hook smoke-test script found — skipping Step 0 (optional check)"
@@ -129,11 +146,12 @@ echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | S
 [ $SECRETS_EXIT -ne 0 ] && echo "$SECRETS_OUTPUT"
 ```
 
-The scanner (`scripts/scan_secrets.pl`) covers **12 patterns** across two categories:
+The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across three categories:
 - **Credentials** (f1–f10): AWS keys, private keys, connection-string passwords, hardcoded assignments (quoted/unquoted), platform tokens (Slack, GitHub 6 types, Stripe live), Dockerfile ENV secrets, Google/Gemini API keys, npm auth tokens, LLM provider keys (Anthropic/OpenAI/HuggingFace/Replicate/Groq), Azure Storage/SAS/connection strings.
+- **Injection & exfiltration channels** (f11–f13): embedded prompt-injection strings (supply-chain prompt attack), non-standard package install sources, Slack incoming webhook URLs.
 - **Code integrity** (f_merge): unresolved merge conflict markers.
 
-**Parity note**: `scripts/scan_secrets.py` began as a straight port of this scanner but has since received independent anti-evasion hardening (Unicode/homoglyph normalization, reversed-line re-scan, additional coverage such as Slack webhook URLs) not yet back-ported to the Perl version — the two implementations are **not** guaranteed to have identical pattern coverage. Treat `scan_secrets.py` as the more complete/current scanner where they diverge.
+**Parity note**: `scripts/scan_secrets.py` began as a straight port of the Perl scanner but has since received independent anti-evasion hardening (Unicode/homoglyph normalization, reversed-line re-scan) not back-ported to `scan_secrets.pl`. Pattern coverage has also diverged: `scan_secrets.pl` has f11 and f12 but **lacks f13** (Slack webhook detection), so it covers 13 patterns, not 14 — the two implementations are **not** guaranteed to have identical coverage. Treat `scan_secrets.py` as the more complete/current scanner where they diverge.
 
 **Design note**: the scanner intentionally scans only **added (`+`) lines**, not removed (`-`) lines — this avoids blocking commits that are *removing* a secret. Merge conflict markers are an exception and checked on all lines.
 
@@ -183,8 +201,10 @@ Scan `$STAGED_FILES` and list findings in the final report:
 ```bash
 CHANGED_REQS=$(echo "$STAGED_FILES" | grep -E "(requirements.*\.txt|pyproject\.toml|setup\.py)$")
 if [ -n "$CHANGED_REQS" ] && command -v pip-audit >/dev/null 2>&1; then
-  AUDIT_OUT=$(pip-audit --format=columns 2>&1 | tail -20)
-  AUDIT_EXIT=$?
+  # capture pip-audit's own exit code before truncating — piping straight into
+  # $(... | tail -20) would capture tail's exit code instead
+  AUDIT_RAW=$(pip-audit --format=columns 2>&1); AUDIT_EXIT=$?
+  AUDIT_OUT=$(echo "$AUDIT_RAW" | tail -20)
   [ $AUDIT_EXIT -ne 0 ] && echo "pip-audit: $AUDIT_OUT"
 fi
 ```
@@ -244,9 +264,29 @@ CHANGED_GO=$(echo "$STAGED_FILES" | grep -E "\.go$")
 ```bash
 if [ -n "$CHANGED_PY" ] && ([ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f "requirements.txt" ]); then
   TEST_START=$(date +%s)
-  timeout 120 pytest -q 2>&1 | tail -20
+  PYTEST_OUTPUT=$(timeout 120 pytest -q 2>&1)
   PYTEST_EXIT=$?
+  echo "$PYTEST_OUTPUT" | tail -20
   TEST_TIME=$(($(date +%s) - TEST_START))
+
+  # Test-count floor (WARN-only, pattern credited to CopilotKit/openbot's scripts/test-ci.ts) —
+  # exit=0 (all passed) doesn't mean nothing broke: if a whole file silently drops out of
+  # collection (e.g. an import-time exception), the suite just got smaller and still "passes".
+  # Track the previous run's passed-count in a local, gitignored state file and compare —
+  # warn only on a sharp drop; a first run (no state file yet) just records and passes.
+  PASSED_COUNT=$(echo "$PYTEST_OUTPUT" | grep -oE "[0-9]+ passed" | tail -1 | grep -oE "^[0-9]+")
+  FLOOR_FILE=".harness/test-count-floor.json"
+  if [ -n "$PASSED_COUNT" ]; then
+    if [ -f "$FLOOR_FILE" ]; then
+      LAST_COUNT=$(grep -oE '"count": *[0-9]+' "$FLOOR_FILE" | grep -oE '[0-9]+' | tail -1)
+      if [ -n "$LAST_COUNT" ] && [ "$LAST_COUNT" -gt 0 ]; then
+        DROP_PCT=$(( (LAST_COUNT - PASSED_COUNT) * 100 / LAST_COUNT ))
+        [ "$DROP_PCT" -ge 10 ] && echo "⚠️ TEST_COUNT_FLOOR: ${PASSED_COUNT} passed (down ${DROP_PCT}% from ${LAST_COUNT} last run) — a file may have silently dropped out of collection. Ignore if intentional deletion, otherwise check for a collection error."
+      fi
+    fi
+    mkdir -p "$(dirname "$FLOOR_FILE")"
+    printf '{"count": %s, "updated": "%s"}\n' "$PASSED_COUNT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FLOOR_FILE"
+  fi
 fi
 ```
 
@@ -255,7 +295,7 @@ fi
 if [ -n "$CHANGED_GO" ] && [ -f "go.mod" ]; then
   TEST_START=$(date +%s)
   timeout 120 go test ./... 2>&1 | tail -20
-  GO_TEST_EXIT=$?
+  GO_TEST_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not go test's
   TEST_TIME=$(($(date +%s) - TEST_START))
 fi
 ```
@@ -265,11 +305,11 @@ fi
 if [ -f "package.json" ] && [ -n "$CHANGED_JS" ]; then
   BUILD_START=$(date +%s)
   timeout 120 npm run build 2>&1 | tail -30
-  BUILD_EXIT=$?
+  BUILD_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not the build's
   BUILD_TIME=$(($(date +%s) - BUILD_START))
   if node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.test?0:1)" 2>/dev/null; then
     timeout 60 npm test -- --passWithNoTests 2>&1 | tail -20
-    JS_TEST_EXIT=$?
+    JS_TEST_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not the test run's
   fi
 fi
 ```
@@ -287,10 +327,11 @@ Run only for changed files of the matching language.
 **Python** — `ruff` preferred, `flake8` fallback:
 ```bash
 if [ -n "$CHANGED_PY" ]; then
+  # ${PIPESTATUS[0]} — not $? — is the linter's own exit code; $? here would be tail's
   if command -v ruff >/dev/null 2>&1; then
-    timeout 30 ruff check $CHANGED_PY 2>&1 | tail -20; LINT_EXIT=$?
+    timeout 30 ruff check $CHANGED_PY 2>&1 | tail -20; LINT_EXIT=${PIPESTATUS[0]}
   elif command -v flake8 >/dev/null 2>&1; then
-    timeout 30 flake8 $CHANGED_PY 2>&1 | tail -20; LINT_EXIT=$?
+    timeout 30 flake8 $CHANGED_PY 2>&1 | tail -20; LINT_EXIT=${PIPESTATUS[0]}
   fi
 fi
 ```
@@ -298,14 +339,14 @@ fi
 **Go** — `go vet` (always available):
 ```bash
 if [ -n "$CHANGED_GO" ]; then
-  timeout 30 go vet ./... 2>&1 | tail -20; GO_VET_EXIT=$?
+  timeout 30 go vet ./... 2>&1 | tail -20; GO_VET_EXIT=${PIPESTATUS[0]}  # not $? — tail's exit code
 fi
 ```
 
 **JS/TS** — `eslint` if config file present:
 ```bash
 if [ -n "$CHANGED_JS" ] && ls .eslintrc* eslint.config* 2>/dev/null | head -1 | grep -q .; then
-  timeout 30 npx eslint $CHANGED_JS 2>&1 | tail -20; ESLINT_EXIT=$?
+  timeout 30 npx eslint $CHANGED_JS 2>&1 | tail -20; ESLINT_EXIT=${PIPESTATUS[0]}  # not $? — tail's exit code
 fi
 ```
 

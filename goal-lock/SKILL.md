@@ -11,7 +11,9 @@ see_also:
   - skill: freeze
     relation: "freeze=zone freeze, goal-lock=goal loop"
   - skill: verification
-    relation: "goal-lock's VERIFY/REFINE loop is implementer self-check, not independent verification — route non-trivial code changes through a separate independent verification pass after FINALIZE"
+    relation: "goal-lock's VERIFY/REFINE loop is implementer self-check, not independent verification — an independent verification pass after FINALIZE is mandatory for any non-trivial code change, not merely recommended"
+  - skill: doubt-reviewer
+    relation: "ATTACK Tier-1 reuses doubt-reviewer's trigger conditions and defers to it via S8 rather than dispatching it directly — goal-lock has no sub-agent dispatch of its own (see B5), so the calling session must dispatch doubt-reviewer and resume goal-lock with its verdict"
 ---
 
 # /goal-lock — Agent Discipline Engine v1.0
@@ -257,6 +259,47 @@ fewer, more consequential steps beat more, smaller ones.
 
 Risk detected → return to PLAN with avoidance strategy.
 
+**ATTACK (mandatory sub-step in Full mode)**: if any RISKS item above is
+checked "yes," attack the plan yourself before executing it — enumerating
+risks and actually trying to break the plan are not the same exercise.
+
+*Self-assessed depth*: informally gauge your own reasoning capability tier
+and scale ATTACK's depth to it — a lighter-capability tier warrants the full
+RISKS list plus multiple lenses below, a stronger tier can compress this to
+a one-line self-check. When unsure which tier applies, default to the more
+thorough end rather than assuming a strong tier.
+
+**Tier-0 (always — reuses only the lens concept from an independent
+adversarial-review skill, not its full machinery)**: apply as many of these
+lenses as the self-assessed depth calls for — decompose / invert / draw an
+analogy / push to the extreme / follow the incentive / check for
+grandfathered assumptions — to attack your own plan. Don't import a full
+independent reviewer's claim/evidence separation or ground-truth testing
+here — doing so just turns this into a shrunken copy of that skill for no
+net benefit. Sort findings into four buckets — actionable / tradeoff /
+contract-misread / noise — and tag them `[self-attack, non-independent]`:
+this is goal-lock interrogating itself, not an independent check, and the
+label says so. An actionable finding sends you back to PLAN for an
+avoidance strategy. Tradeoff/contract-misread findings get logged in
+CONTEXT only. Discard noise.
+
+**Tier-1 (conditional — defer to doubt-reviewer, or an equivalent
+adversarial pre-implementation review skill, instead of judging further
+yourself)**: if GOAL/SCOPE/CONTEXT match any of the following, stop
+self-judging and halt with **S8**: a change to branching or module
+boundaries · a property the type system can't verify · an irreversible
+blast radius · a change to a core parameter · a change to data-collection
+logic · confidence that outruns the certainty actually behind it. (These
+six are a subset of a broader trigger set such a review skill might use on
+its own — two related conditions are deliberately handled elsewhere
+instead: the same approach failing repeatedly is S6's job, and "right
+before declaring a large task complete" is a known gap goal-lock doesn't
+cover by itself — the calling session should judge whether that review is
+warranted at FINALIZE time for large tasks.) goal-lock is a single-process
+skill with no sub-agent dispatch of its own (see B5) — it cannot invoke
+doubt-reviewer directly. The calling session dispatches it and resumes
+goal-lock with the resulting verdict.
+
 **First-Attempt Ledger**: before making any changes, run the DONE EVIDENCE
 command once and record the raw result under a `## First run (raw)` field in
 `.goal-lock-progress.md`. Root-causing, fixing, and re-running proceed as
@@ -377,6 +420,7 @@ validated through a self-review loop.
 | S5 | Insufficient confidence in root cause | "Not sure if cause is A or B" |
 | S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | "Same problem repeating. Need a different approach" — no auto-retry, escalate to human here |
 | S7 | Already aware that execution evidence (a deterministic oracle — a failing test, a broken existing contract) contradicts an explicit user instruction — an awareness-is-not-resistance response [borrowed from Blind Obedience 07385] | STOP before forcing the implementation through: "The instruction contradicts execution evidence: [evidence]. Proceed anyway?" Even after approval, do not paper over it with a later self-directed autonomous fix (a Ghost Error cannot be recovered by iterative post-hoc correction) — report the outcome exactly as it is |
+| S8 | ATTACK Tier-1 matches one of its six escalation conditions | "This change is a candidate for adversarial pre-implementation review: [matching condition]. Dispatch doubt-reviewer (or equivalent), then resume with its verdict (proceed / revise first / escalate)." If the user explicitly says "just proceed," continue on the Tier-0 result alone — that's an intentional override, not a bypass |
 
 > **S7 scope**: "execution evidence" applies only to a code context where a
 > deterministic oracle exists (tests, type checker, an existing API/contract).
@@ -446,21 +490,44 @@ This pattern implements the L2 (no tool provided / physical block) layer of a
 4-level safety framework: prompt rules alone (L1) can be forgotten by the
 model; a hook enforced at the tool/session layer (L2) cannot.
 
-### B5.2 Termination Handshake
+### B5.2 Ralph Mode — Context-Isolation Alternative
 
-Before force-terminating a long-running background task (timeout budget
-hit, user cancel-and-restart, a hung sub-step), look for a safe stop point
-first — a place where state is consistent and resumable, such as the last
-successful VERIFY or the last checkpoint written to
-`.goal-lock-progress.md`. If one is reachable within a short grace window,
-stop there instead of mid-step.
+The default B5 loop assumes context continuity — the same session carries
+forward, still referencing the accumulated conversation. In an unattended,
+long-running autonomous loop (an overnight unmanned batch, a pipeline that
+auto-retries N times with no approval gate between rounds), that continuity
+itself becomes the risk — a wrong assumption, an accumulated
+rationalization, or drift from one round carries straight into the next
+with nothing there to interrupt it. Ralph Mode [borrowed from the
+deepseek-harness intake's Ralph loop — the same "run fresh agent instances
+in a loop" pattern popularized as the Ralph Wiggum technique; not to be
+confused with the B1 "Ralph Wiggum" masquerading pattern above, which is
+about premature completion signaling, not context isolation] is a
+structural alternative for exactly that situation.
 
-If no safe stop point is reachable and termination can't wait (runaway
-loop, explicit kill request), terminate anyway — but immediately notify the
-user that termination happened mid-step, naming whatever state is now known
-to be inconsistent. A silent force-kill with no notification is a B1
-honesty violation: it hides an interrupted, unverified result behind
-apparent completion.
+- **Each round inherits nothing from prior rounds** — no carried-over
+  parent/child session context. Every round starts in a genuinely fresh
+  context.
+- **State crosses rounds through exactly two channels**: (1) the shared
+  workspace itself (the actual filesystem artifacts — a code/doc diff is
+  its own evidence), and (2) a single bounded, structured handoff — not a
+  free-text summary but fixed fields: `status (active|blocked|complete) /
+  summary (1-3 sentences) / evidence (commands run + results) / next_steps
+  (what the next round should do) / blocker (if any)`. The handoff
+  supplements the workspace, it doesn't replace it — it's an instruction
+  about what's left, not a narrative of what happened.
+- **When to use this instead of default B5**: only for unattended execution
+  stretches where no human is present between rounds to correct direction
+  (an autonomous overnight batch, an auto-retry pipeline running N times
+  without approval). In an ordinary session where a human is watching every
+  turn, default B5 stays more efficient (no context-rebuild cost) — don't
+  switch just because Ralph Mode is available.
+- **Relationship to B4 S6** (same blocker repeated 2+ times → escalate): S6
+  still applies under Ralph Mode. If the handoff's `blocker` field stays
+  the same across rounds — as long as a short history of recent handoffs is
+  kept — the repetition is detectable even with no memory carried forward,
+  and S6 still routes to human escalation instead of letting memoryless
+  restarts continue indefinitely.
 
 ---
 
@@ -473,7 +540,7 @@ anything above "trivially reversible" alone:
 | Reversibility | Example goal-lock action | Required defense |
 |---|---|---|
 | Easy — local, no external effect | Local file edit, `.goal-lock-progress.md` checkpoint write | Loop discipline (B1–B3) is sufficient |
-| Costly — local but expensive to redo | Local deletion, force-terminating a stalled sub-step (see B5.2) | Loop discipline + explicit stop-and-ask (S3/S4) |
+| Costly — local but expensive to redo | Local deletion, force-terminating a stalled sub-step | Loop discipline + explicit stop-and-ask (S3/S4) |
 | Hard — touches external/shared history | `git push`, remote branch changes, migrations | Loop discipline + STOP RULE + explicit user confirmation before executing |
 | Unrecoverable — external side effect, no undo | DB DROP/TRUNCATE, a live API call with real-world effect, secret exposure | Loop discipline + STOP RULE + user confirmation + an independent post-hoc review pass |
 

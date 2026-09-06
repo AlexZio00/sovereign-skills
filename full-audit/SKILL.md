@@ -30,7 +30,7 @@ see_also:
     relation: "project-check=fixed-checklist health score, full-audit=open-ended exhaustive sweep with a denominator"
 ---
 
-# Full Audit — Exhaustive Area Review (v1.0)
+# Full Audit — Exhaustive Area Review (v1.1)
 
 ## Dominant Variable
 **Accuracy of the coverage claim** — the word "exhaustive" ships with a method label or it doesn't ship at all. The moment an unreviewed area gets reported as reviewed, this skill has failed its own purpose.
@@ -70,6 +70,8 @@ The layer most easily missed in "exhaustive" audits is *"does the index/routing 
 - **Declared-dependency sweep**: for each unit's declared dependencies (other files/skills/agents it depends on), do all of them actually exist? (including malformed declarations, e.g. a flag where a name was expected)
 - **Frontmatter parsing integrity**: duplicate YAML keys in frontmatter (the later one silently wins — a safety profile could flip silently)
 - Rationale: in comparable audits, most of the gap came not from "reading more carefully" but from "did we actually sweep these specific things deterministically" — a model-independent, reproducible methodology improvement.
+
+**Coverage caps intervention value** (borrowed from arXiv 2608.04618): before starting Phase 2 content review, count how many items this audit could actually affect (e.g., "N files this rule change would apply to"). That count **caps the maximum value of the intervention before you've even seen the results** — if only 3 items are in scope, no amount of review sophistication can produce more improvement than those 3 items allow. Computing this cap up front prevents over-investing deep-review time in low-cap areas, and gives a concrete basis for shifting review effort toward higher-cap areas instead.
 
 ## Phase 2: Content Review + Rule Dry-Run (Three-Layer Principle)
 > **Structural checks (Phase 1) alone do NOT justify calling something "exhaustive"** — exhaustive = structure + content + rule dry-run, three layers. Rules and guards can't be confirmed as actually working just by reading their documentation — only running them against mock input fills in the third layer. The three layers are non-substitutable: structural checks can come back clean while the content is wrong, and the content can be correct while a rule still fails to fire at runtime.
@@ -152,3 +154,5 @@ Create or update a coverage-map file (same-day re-run = append a pass section):
 ## Output
 - Updated **coverage map** file
 - Chat report: list of applied fixes (with line anchors) / list of proposed additions / verification results (✅⚠️❌) / final status label / remaining gaps / Assumption ledger (if applicable)
+
+> Changelog: v1.0 (initial release) → v1.1 (added the coverage-caps-intervention-value step to Phase 1)

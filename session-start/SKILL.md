@@ -1,6 +1,6 @@
 ---
 skill_type: lifecycle
-tools: Read, Write
+tools: Read, Write, Bash
 triggers:
   - "/session-start"
   - "세션 시작"
@@ -66,6 +66,7 @@ Does the handoff document **what to do next**, or **what was done**? If it lists
 1. **memory/session-handoff-LATEST.md exists** — if broken: fallback to "new session" mode. Do not synthesize handoff.
 2. **tasks/lessons.md exists** — if broken: skip lesson review Phase.
 3. **settings.json parseable** — if broken: skip health-check Phase only; proceed normally with rest.
+4. **scripts/harness_observability.py runs under the available Python interpreter** — if broken: Phase 2.2/2.4 fall back to their own `tool_failure` handling (see those sections) rather than blocking session start.
 
 ## Phase 0.5: Environment Health Check
 
@@ -96,6 +97,23 @@ Does the handoff document **what to do next**, or **what was done**? If it lists
 ## Phase 1: Load Handoff
 
 Read `memory/session-handoff-LATEST.md` (auto-injected above).
+
+**Step 0 — state-snapshot fast path**: if the file has a `<!-- state-snapshot v1 -->`
+YAML block (fields: `ts`/`ctx`/`next`/`diff`/`blocked`) right after the frontmatter,
+**parse that first** — this is exactly the compact block session-checkpoint's Phase 2.3
+(Memento CoT Compression) produces for this consumption; the two phases are a paired
+contract, not independent features.
+
+- `next` → Priority 1 / Priority 2
+- `blocked` → Outstanding/active blockers
+- `ctx` → one-line session context, used only to decide which prose sections below
+  still need a full read
+- `diff` → one-line summary of the most recent changes (surfaced in Phase 5 as
+  "Recent changes")
+
+Only selectively read the prose sections below for items that need more detail than
+the compact block gives. If the block is absent (older-style handoff), fall back to
+the full prose extraction below as before.
 
 Extract:
 - **Priority 1** — most urgent task for this session
@@ -139,13 +157,15 @@ Flag one line per matching rule. Skip silently if file missing.
 
 > Trigger for converting accumulated model-tagged behavior observations into rules. Periodic reminder to digest model tag backlog into patterns → rules.
 
-Deterministic commands (run in order — each is a single grep/read, no manual scanning):
+Deterministic commands (run in order — each is a single command, no manual scanning):
 1. `grep -c "model:" tasks/lessons.md` → `lessons_tagged` (0 if file missing)
-2. `grep -c '"model"' <each file in ~/.claude/.harness/interventions/*.jsonl>`, summed across files → `jsonl_tagged` (0 if directory missing)
+2. `python "scripts/harness_observability.py" model-tag-count` → parse `count=N` from stdout → `jsonl_tagged` (the script returns `count=0` on its own when `~/.claude/.harness/interventions/` is missing or empty — no separate existence check needed). Replaces a per-file `grep -c '"model"'` sum with one deterministic script call.
 3. `grep "^last-analysis:" ~/.claude/memory/model-diff-ledger.md` → `baseline_date` (if the header or file is absent, fall back to the earliest `seen:`/`date:` value found in the two counts above)
 4. Count `seen:`/`date:` values dated after `baseline_date` across the same two sources → `new_tags`
 
 Fixed stdout format: `model_tags: total=N new=M days_elapsed=D` (`N` = `lessons_tagged` + `jsonl_tagged`; `D` = today − `baseline_date`; if `baseline_date` cannot be established, `days_elapsed=N/A`)
+
+If step 2's script invocation itself fails to run (interpreter missing, script not found): treat as `tool_failure` — fall back to `jsonl_tagged=0` with a one-line `⚠️ harness_observability.py unavailable — model-tag count may undercount` note, do not block the rest of this phase or session start.
 
 Remind condition (both must be true):
 - `days_elapsed ≥ 14` **AND** `new_tags ≥ 5`
@@ -178,15 +198,15 @@ The rate at which harness gates (verification/pre-push/goal-lock) incorrectly
 block normal behavior. Excessive intervention is a signal that the harness
 itself is a net negative (the harness paradox).
 
-Deterministic commands:
-1. `find ~/.claude/.harness/interventions/ -name "*.jsonl" -mtime -30` → `recent_files` (empty if directory missing)
-2. `grep -c '"type": *"rejection"'` on each file in `recent_files`, summed → `rejection_count`
-3. `grep -c '"type"'` on each file in `recent_files`, summed → `total_count`
+Deterministic command:
+1. `python "scripts/harness_observability.py" rejection-rate --period 30d` → parse `rejections=N total=M rate=X%` from stdout (the script itself scans `~/.claude/.harness/interventions/*.jsonl`, returns `total=0` when the directory is missing/empty, and already computes `rate=N/A` on a zero denominator). Replaces a `find` + two summed `grep -c` passes with one deterministic script call.
 
-Fixed stdout format: `autoimmunity: rejection=N total=M rate=X%` (`X` = `N`/`M` × 100, 1 decimal; `rate=N/A` if `total_count=0`)
+Fixed contract (same semantics as before, now sourced from the script): `autoimmunity: rejection=N total=M rate=X%`
+
+If the script invocation itself fails to run (interpreter missing, script not found): treat as `tool_failure` — skip this phase's output silently, do not block session start.
 
 Output conditions:
-- `recent_files` empty or `total_count=0` → no output
+- interventions directory missing or `total=0` → no output
 - `rate ≤ 5%` → no output (normal range)
 - `rate > 5%` → Phase 5 `**Immune rate:**` line: `⚠️ Autoimmunity rate X% (rejection N/total M) — review gate over-intervention`
 - `rate > 15%` → `🚨 Autoimmunity rate X% — recommend gate reduction or redesign`
@@ -248,6 +268,8 @@ Skip if MEMORY.md missing.
 **Priority 1:** [handoff's highest-priority item — concrete, actionable]
 **Priority 2:** [second item (if any)]
 
+**Recent changes:** [state-snapshot `diff` field, 1-line summary — omit this line if no state-snapshot block]
+
 **Outstanding decisions:** [list, or "none"]
 **Active blockers:** [list, or "none"]
 
@@ -293,7 +315,8 @@ Next: `Ready. Where should we start?`
 | [READ] Spot-check 1–2 stale references | Run full test suite or project scan |
 | [READ] Flag matching correction rules | Rewrite handoff file |
 | [READ] Escalate high-ref-count context-log items to MEMORY.md | Architecture or design decisions |
-| [READ] Verify settings.json model ID + settings.local.json allow count (Phase 0.5) | CLI version check (Bash not included — run `claude --version` directly in terminal) |
+| [READ] Verify settings.json model ID + settings.local.json allow count (Phase 0.5) | CLI version check (`claude --version`) — out of scope regardless of Bash availability |
+| [BASH, read-only] Run `scripts/harness_observability.py` (model-tag-count, rejection-rate) and the Phase 2.2–2.4 grep/find one-liners | Any Bash use that writes, deletes, or calls a network endpoint |
 
 ---
 
@@ -304,7 +327,7 @@ Next: `Ready. Where should we start?`
 | MEMORY.md promotion write (ref≥3 items) | high (git) | L1 (Invariant 1: only exception) |
 
 - **L1 (Invariants)**: read-only by default. Promotion write is sole exception.
-- **L2 (Tool Restriction)**: Read + Write in frontmatter — Write is physically scoped to the MEMORY.md promotion exception only (Invariant 1); no other file may be modified.
+- **L2 (Tool Restriction)**: Read + Write + Bash in frontmatter — Write is physically scoped to the MEMORY.md promotion exception only (Invariant 1); no other file may be modified. Bash is scoped in practice (not physically) to read-only grep/find one-liners and the bundled `scripts/harness_observability.py`/`scripts/secret_redact.py` — neither writes outside `~/.claude/.harness/` observability logs it already owns.
 
 ## Error Recovery
 

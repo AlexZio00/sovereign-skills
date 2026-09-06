@@ -251,16 +251,16 @@ Judge primary + secondary types:
 - **Explorer type**: Possibility exploration, immediate tool adoption. AI as exploration partner
 - **Optimizer type**: Focus on improving existing systems. AI as tuning tool
 
-**10-B. MBTI Indicators (behavioral evidence mandatory)**
+**10-B. MBTI Indicators (apply only when observation data actually supports it — if evidence is weak, mark that axis Observation unavailable/Low and it may be skipped)**
 4-axis direction + strength estimate per axis. Mark confidence.
 
-**10-C. DiSC Profile**
+**10-C. DiSC Profile (apply only when observation data actually supports it — if evidence is weak, mark that axis Observation unavailable/Low and it may be skipped)**
 D/i/S/C proportion estimate. Primary + secondary style.
 
-**10-D. Enneagram Hypothesis**
+**10-D. Enneagram Hypothesis (apply only when observation data actually supports it — if evidence is weak, mark that axis Observation unavailable/Low and it may be skipped)**
 Type + Wing hypothesis. Format "this behavior supports it" — minimum 2 evidence pieces.
 
-**10-E. Big Five Estimate**
+**10-E. Big Five Estimate (apply only when observation data actually supports it — if evidence is weak, mark that axis Observation unavailable/Low and it may be skipped)**
 O/C/E/A/N each High/Medium/Low. One behavioral basis per dimension.
 
 ### 11. Blind Spots + Development Direction
