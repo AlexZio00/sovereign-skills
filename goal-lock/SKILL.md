@@ -243,6 +243,7 @@ PLAN → DO → VERIFY(code) → FINALIZE → OUTPUT
 - **No immediate fixes.** Identify root cause + short plan first.
 - Big changes, schema changes, dependency additions, production behavior changes → **stop and get approval.**
 - Plan is 3 lines max. Steps, not documents.
+- **If several root-cause candidates exist and there isn't enough information to rank them**: don't just list the candidates and move on — first run the single cheapest check that discriminates between them, within this skill's own tools (Read, Bash, etc.). If you are still uncertain afterwards, STOP at S5.
 
 #### DO
 - **Minimum change** to achieve GOAL. Don't touch SCOPE Exclude.
@@ -430,8 +431,8 @@ validated through a self-review loop.
 | S2 | Input missing/contradictory | Specify exactly what's ambiguous |
 | S3 | Need to change SCOPE Exclude area | "Need to modify X but it's Excluded. Allow?" |
 | S4 | Destructive / external side effect needed | "DB deletion/API call/push needed. Proceed?" |
-| S5 | Insufficient confidence in root cause | "Not sure if cause is A or B" |
-| S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | "Same problem repeating. Need a different approach" — no auto-retry, escalate to human here |
+| S5 | Insufficient confidence in root cause **after** the PLAN GATE discriminating check | "Not sure if cause is A or B" |
+| S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | Ask one question before escalating: "Is this repetition a problem with how DO is attempting it, or was the GOAL input sheet (GOAL / DONE EVIDENCE / SCOPE) set up wrongly from the start?" If it looks like an **execution error** (approach problem), report "Same problem repeating. Need to change the DO approach" and escalate to a human. If it looks like a **design error** (the input sheet itself), report "This repetition looks like a problem with the GOAL input sheet design, not the execution approach — the input sheet needs rewriting" and propose rewriting the input sheet to a human instead of retrying DO. In both cases there is no auto-retry |
 | S7 | Already aware that execution evidence (a deterministic oracle — a failing test, a broken existing contract) contradicts an explicit user instruction — an awareness-is-not-resistance response [borrowed from Blind Obedience 07385] | STOP before forcing the implementation through: "The instruction contradicts execution evidence: [evidence]. Proceed anyway?" Even after approval, do not paper over it with a later self-directed autonomous fix (a Ghost Error cannot be recovered by iterative post-hoc correction) — report the outcome exactly as it is |
 | S8 | ATTACK Tier-1 matches one of its six escalation conditions | "This change is a candidate for adversarial pre-implementation review: [matching condition]. Dispatch doubt-reviewer (or equivalent), then resume with its verdict (proceed / revise first / escalate)." If the user explicitly says "just proceed," continue on the Tier-0 result alone — that's an intentional override, not a bypass |
 

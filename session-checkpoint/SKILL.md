@@ -77,10 +77,12 @@ Has it been clearly identified in this session **what the next session absolutel
 
 Extract things that compact could lose:
 
-- **Pending decisions** — discussed but not concluded
+- **Pending decisions** — discussed but not concluded. Attach `basis: run|doc|dialogue`: `run` = verified by executing a tool, `doc` = confirmed only by reading docs/code, `dialogue` = formed from the conversation alone. When unclear, use `dialogue` (the conservative choice).
 - **User priority signals** — emphasized items, repeated items, frustration → feedback memory
-- **Current mental model** — code flow, bug causation, failed approaches and reasons
+- **Current mental model** — code flow, bug causation, failed approaches and reasons. Attach the same `basis:` tag to causal and architectural conclusions.
 - **Things tried and failed** — prevent repeat attempts next session
+
+> **Why the `basis` tag** (borrowed from arXiv 2609.03407, "narrative captivity"): judgments can drift by tens of percentage points from self-accumulated multi-turn narration alone, with no explicit rebuttal. A conclusion formed only by in-session conversation (`dialogue`) and a fact verified by a tool run (`run`) or a document check (`doc`) look identical once handed to the next session — and a handoff chain that repeats across sessions can reproduce a small version of that re-summarize-and-reinforce loop. Tagging keeps the two apart.
 
 ### Phase 1.5: Entity Extraction (Dream Cycle Pattern)
 
@@ -387,6 +389,8 @@ If N=0, then `[Reflexion] This session new lessons: none` 1 line only.
 
 No match (an intervention occurred, but it doesn't overlap any `kill_if`) → no output, skip silently.
 
+**Basis auto-enforcement** (borrowed from arXiv 2609.03407): if 2+ `correction` / `rejection` / `override` interventions on the same topic were detected this session, force the `basis` that Phase 1 assigned to that topic to `dialogue` (regardless of the model's own judgment) and raise its urgency to at least M — a structural signal (repeated user interventions) outranks self-report.
+
 ## Phase 2: Handoff Writing (single file update)
 
 File: `memory/session-handoff-LATEST.md`
@@ -409,7 +413,8 @@ File: `memory/session-handoff-LATEST.md`
 - If none, this section can be omitted
 
 ## Pending decisions
-- [Topic]: [Options] — opinion: [if any] · urgency: H/M/L
+- [Topic]: [Options] — opinion: [if any] · urgency: H/M/L · basis: run/doc/dialogue
+  (only when `basis: dialogue` AND `urgency: H`: add `unverified counter-evidence: [1 line if this session contained evidence against the conclusion; omit the field if none]`)
 
 ## Outstanding issues
 - [Unresolved bug/problem] · risk: H/M/L
@@ -452,6 +457,7 @@ diff:
   - op: add|del|mod|decide
     item: "target (file/skill/decision name)"
     why: "reason"                            # max 10 words. Omit if none
+    basis: run|doc|dialogue                  # op:decide items only; one word to keep compression cost minimal
 blocked:
   - item: "issue"
     risk: H|M|L
@@ -463,7 +469,7 @@ blocked:
 |-------|--------|------------|
 | `ctx` | "User current interests → top priority" | Compress to 1 line. Remove tool sequence |
 | `next` | "What to do now" | Verb+object only. Remove inline code blocks. max 5 |
-| `diff` | "System understanding" changes list | Decompose to op+item+why. max 5 |
+| `diff` | "System understanding" changes list | Decompose to op+item+why (+`basis` for `decide` items). max 5 |
 | `blocked` | "Outstanding issues" | item+risk only. Remove description. max 3 |
 
 If exceeding limits: prioritize by impact — removed items stay in prose.

@@ -204,6 +204,10 @@ time. Tag such findings `[derivable]` as supporting evidence for priority.
 Not a new category — it's a sub-signal of Outdated, the four-kind taxonomy
 above is unchanged.
 
+**CLI interface sync signal** (borrowed from arXiv 2608.28497 — a special case of Derivability): when SKILL.md/rules text cites a script in prose (e.g. "run `script.py --flag N`"), the path existing and the **flags/arguments matching the script's actual definition (argparse, click, etc.)** are different questions — a path-existence check only catches the former. If a script's interface changes while the doc citation doesn't, the doc goes stale silently (no runtime failure, so there is no outdated signal). When the number of scripts under audit is small (roughly 10 or fewer), compare each cited command against the script's real argument definition and classify mismatches under Outdated with a `[cli-drift]` tag. When there are many scripts, skip and state "CLI interface sync not checked (N scripts)" in the report — no silent narrowing.
+
+**Invariant erosion signal** (borrowed from arXiv 2608.17597; applies only to `rules/*.md`, `skills/*/SKILL.md`, `agents/*.md`): distinct from malicious loosening, a legitimate maintenance edit (typo fix, wording polish) can **unintentionally** delete a Hard Rule / Invariant sentence in the same diff — the editor is neither malicious nor aware of it. Spot-check the target file's recent commits (`git log -p --follow -- {file}`, roughly the last 5–10) for imperative sentences ("never", "must", "forbidden", etc.) that existed in an earlier version but are gone now. If found and the commit message doesn't explicitly explain the deletion, classify it under Risky / Ambiguous with an `[invariant-erosion]` tag. When many files are in scope, skip and state "Invariant erosion not checked (N targets)" — no silent narrowing, same principle as the CLI signal.
+
 **No resolvable anchor → drop it (`asserted_without_anchor`). An anchor exists
 but confidence is below 80% → keep it, labeled `UNCERTAIN`, in its own report
 section instead of dropping it — false positives are this tool's biggest

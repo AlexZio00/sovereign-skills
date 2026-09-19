@@ -6,6 +6,20 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.12 — 2026-09-19
+
+Refinement release — no skills added or removed; a delta port from the internal fork covering 5 of the 20 skills. `pre-push` also changed upstream, but only in internal-only steps (harness regression-scan wiring, the public-mirror scrub step), so nothing was ported; 13 other skills had no upstream change since v6.5.11, and `code-autopsy` has no internal skill counterpart to diff.
+
+### Changed — per skill
+- **integration-intake**: Phase 1.6 gains a conflict-of-interest check and two new checks — (d) plugin lifecycle-hook supply chain and (e) MCP tool-description injection sanitization (now "five checks"). Phase 2.5 item 8's four-axis status is replaced by a seven-stage deployment pipeline (DRAFTED → REGISTERED → DISCOVERABLE → ROUTED → INVOKED → ENFORCED → OBSERVED) with a per-claim Capability Map (unconfirmed claims default to UNCONFIRMED), a descent principle, and a check-coverage caveat. The report template gains a Capability Map line.
+- **session-checkpoint**: pending decisions and causal/architectural conclusions carry a `basis: run|doc|dialogue` tag (arXiv 2609.03407, "narrative captivity"). 2+ user interventions on the same topic force `basis` to `dialogue` and raise urgency to at least M. Handoff decisions and the compact state-snapshot `decide` items carry `basis`.
+- **doc-drift**: two new sub-signals — CLI interface sync (`[cli-drift]`, arXiv 2608.28497) and invariant erosion (`[invariant-erosion]`, arXiv 2608.17597) — each with an explicit "not checked (N)" report line instead of silent narrowing when the scope is large.
+- **goal-lock**: the PLAN GATE runs the single cheapest discriminating check before declaring root-cause uncertainty (S5 now fires only afterwards). S6 asks whether a repeated blocker is an execution error or an input-sheet design error before escalating.
+- **full-audit** → v1.3: Phase 2 gains a single-reviewer batch-size cap (arXiv 2609.09696) — batch size per reviewer call is a separate axis from parallel-agent count.
+
+### Docs
+- `README.md` and the four translations (`docs/README.{ko,ja,zh,es}.md`) now keep only the latest release note; earlier notes live here. `v6.5.10`, which had existed only in the README, is added below.
+
 ## v6.5.11 — 2026-09-06
 
 Bug-fix release driven by an independent third-party audit of the v6.5.9 snapshot (read-only static review + test execution + boundary-input reproduction + official-doc cross-check). No skills added or removed; every one of the 20 skills received at least one fix. Full audit report available on request — this entry summarizes the applied fixes.
@@ -60,6 +74,26 @@ Refinement release — no skills added or removed; a delta port from the interna
 - **project-check**: investigated the internal fork's apparent routing change (merging `/project-init`+`/setup` and adding a `/team-init` step) and found it isn't a real upgrade — `/team-init` isn't a registered trigger anywhere internally (checked `setup`'s own trigger list), so the internal `project-check` is recommending a command that doesn't resolve to anything. The internal copy also dropped a user-level persistent-cache fallback for `Step 6.5: Score Delta Tracking` that the public version already has, and has an empty `depends_on.files` where the public version correctly declares three. On this skill, the public repo is currently more complete than the internal fork, not behind it — nothing ported.
 
 ---
+
+## v6.5.10 — 2026-09-06
+
+Refinement release — no skills added or removed; a delta port from the internal fork covering 11 of the 20 skills. (Recovered from the README release note, which was the only place this release had been recorded.)
+
+### Changed — per skill
+- **pre-push** → v3.9.0: fixed a real regression where 9 spots used `cmd | tail -N; $?`, which silently swallowed lint/build/test failures instead of reporting them — switched to `PIPESTATUS`; added an opt-in test-count-floor warning; corrected a stale "12 patterns" claim to the actual 14.
+- **eval-leakage-audit**: 18→21-pattern taxonomy — adds success-provenance-gap, lenient-judge-mode non-disclosure, and hardest-category denominator exclusion.
+- **doc-drift**: new 4th detection category, Session Leakage, backed by two new deterministic scripts.
+- **goal-lock**: B5.2 Termination Handshake replaced with Ralph Mode for unattended autonomous loops; new mandatory Tier-0/Tier-1 self-attack step; verification upgraded from recommended to mandatory.
+- **session-checkpoint**: new `kill_if` lesson field, a Regression Detection step, and a postmortem 3-condition gate on new lessons.
+- **full-audit** → v1.1: new "coverage caps intervention value" pre-audit step.
+- **integration-intake**: field-level merge operators — SUM/REPLACE/IMMUTABLE/PATCH — for frontmatter grafts.
+- **collab-audit**: psychological-framework sections now gate on evidence sufficiency instead of applying unconditionally.
+- **setup**: new existing-governance-doc probe that generates a thin stub instead of a full duplicate template when a project already has compatible rules.
+- **scope**: three Invariants — Scope OUT minimum, question-count cap, Risk Flags minimum — now allow a single stated exception each instead of being unconditional floors (a behavior change, not a bug fix).
+- **session-start**: ships the `harness_observability.py` script this release had originally deferred, plus a new fast-path that reads `session-checkpoint`'s compact state-snapshot block instead of the full prose handoff.
+
+### Not ported
+- **project-check**: investigated the internal fork's apparent routing change and found `/team-init` isn't a registered trigger anywhere, so it's a dead reference rather than a real upgrade; the public version is currently more complete on this skill than the internal fork.
 
 ## v6.5.9 — 2026-08-11
 
