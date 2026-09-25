@@ -1,10 +1,10 @@
 [English](../README.md) | 🌐 **한국어** | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.12
+# sovereign-skills v6.5.13
 
 Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
 
-> **v6.5.12 변경사항:** 정비 릴리즈 — 스킬 추가/제거 없음, 20개 중 5개 스킬에 대한 델타 이식. `integration-intake`에 이해상충 확인, 플러그인 라이프사이클 훅·MCP 도구 설명 주입 점검, 주장별 Capability Map을 갖춘 7단계 배치 파이프라인(DRAFTED → OBSERVED) 추가; `session-checkpoint`는 미결 결정과 인과 결론에 검증 근거 `basis`(`run|doc|dialogue`) 태그 부착; `doc-drift`에 CLI 인터페이스 동기화 신호와 불변조항 침식 신호 2종 추가; `goal-lock`은 근본원인이 불확실하다고 선언하기 전에 가장 저렴한 판별 검사 1건을 먼저 수행(S5)하고 반복 블로커가 실행 오류인지 입력판 설계 오류인지 구분(S6); `full-audit` → v1.3은 단일 리뷰어 배치 크기 상한 추가. 이전 릴리즈 노트는 [CHANGELOG.md](../CHANGELOG.md)로 이동했습니다.
+> **v6.5.13 변경사항:** 정비 릴리즈 — 스킬 추가/제거 없음, 20개 중 19개 스킬에 대한 델타 이식이며 공개판에도 있던 버그 수정 여러 건을 포함. `pre-push` → v3.11.0은 스테이징이 비어 있어도 푸시 안 된 커밋이 있으면 시크릿 스캔을 건너뛰지 않고, 호출 사이에 셸 상태가 사라져도 테스트·린트 게이트가 조용히 꺼지지 않으며, 건수를 세는 같은 줄 허용 마커를 추가; `full-audit` → v1.4는 선택형 canary 혼입(문제없는 파일과 결함 심은 파일을 리뷰 번들에 몰래 섞어 오탐·재현율 측정) 추가; `integration-intake`는 채택 대상을 강제 표면과 실행 표면으로 나눔; `goal-lock`에 판단 번복 규율 추가; 20개 스킬 모두 frontmatter 키를 공식 표기 `user-invocable`로 정정. 전체 목록은 [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 

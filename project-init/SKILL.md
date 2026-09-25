@@ -1,6 +1,6 @@
 ---
 skill_type: infrastructure
-tools: Read, Write, Bash
+tools: Read, Write, Bash, Glob  # `tools:` in skill frontmatter is documentation only — Claude Code does not enforce it (see project-check's Safety Layers section for what actually blocks writes)
 triggers:
   - "/project-init"
   - "새 프로젝트"
@@ -8,7 +8,7 @@ triggers:
   - "project setup"
 name: project-init
 description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', 'new project', 'project creation', 'project setup', 'project setup', 'new project', 'create project'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
-user_invocable: true
+user-invocable: true
 depends_on:
   skills: []
   agents: []

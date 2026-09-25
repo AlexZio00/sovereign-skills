@@ -7,7 +7,7 @@ triggers:
   - "overall status"
 name: project-overview
 description: "Use when the user wants a deterministic cross-project status map generated from registered projects' session handoffs. Triggers: '/project-overview', 'project map', 'overall status'. Reads ~/.claude/projects-registry.md (opt-in list), parses each project's memory/session-handoff-LATEST.md state-snapshot v1 block (ts+ctx only), and rewrites the AUTO:START/AUTO:END region of ~/.claude/OVERVIEW.md. Does not touch STATE.md. Does not scan directories automatically."
-user_invocable: true
+user-invocable: true
 depends_on:
   skills: [session-checkpoint]
   agents: []
@@ -60,7 +60,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
    fi
    ```
 3. Check the exit code:
-   - `0` → report the stdout `WORKING: N project(s) -> <output>` line verbatim to the user.
+   - `0` → report the stdout's first line verbatim to the user. Both `WORKING: N project(s) -> <output>` and `PARTIAL: N project(s) -> <output> (M with no snapshot)` are valid values the script itself produces (it counts the no-snapshot projects and picks the label itself) — don't assume exit 0 always means `WORKING`.
    - `1` → report the stderr `BLOCKED: ...` message verbatim to the user. Never proceed on assumption.
 4. On success, tell the user the `~/.claude/OVERVIEW.md` path.
 

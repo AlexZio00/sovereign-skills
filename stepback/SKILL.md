@@ -21,7 +21,7 @@ triggers:
   - "am I on track"
   - "big picture"
   - "what am I even doing"
-user_invocable: true
+user-invocable: true
 not_for:
   - "Next action recommendation -> next-action skill"
   - "Session start -> session-start"

@@ -1,7 +1,7 @@
 ---
 name: goal-lock
 description: "Agent Discipline Engine — lock the goal, run PLAN→DO→VERIFY→FINALIZE→OUTPUT loop, detect success masquerading. Triggers: '/goal-lock', '/goal-lock quick', 'goal lock', 'task harness'."
-user_invocable: true
+user-invocable: true
 not_for:
   - "Simple questions/conversation (no code changes)"
   - "Single file 1-line fix"
@@ -209,6 +209,8 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 - JavaScript: `test.skip`, `.only` left in, `jest.fn()` chains bypassing real logic
 - Go: `t.Skip()`, `//go:build ignore`
 - Rust: `#[ignore]`, `#[should_panic]` misuse
+
+**Judgment-reversal discipline** (arXiv 2608.11624, 2608.21377): when user pushback lands mid-loop, sort it into one of three buckets before reacting — (a) **a new fact** (a new log, a new requirement, a new constraint) → incorporate it, (b) **a pointed-out reasoning error** (they name which premise or step is wrong) → re-examine that specific point, (c) **pressure or preference with no new information** ("are you sure?", "look again", "that doesn't seem right") → restate your original reasoning once, and if nothing they said actually invalidates a specific premise, **keep the original judgment**. When a judgment does change, log it in OUTPUT as `prior conclusion → new conclusion (reason: ...)`. Reversing a conclusion under pressure alone, with no new information, is success masquerading of the same weight as the patterns above.
 
 ### B1.1 Evidence-Rigor Ladder + Reporting Order [borrowed from ultraprompt]
 
@@ -479,6 +481,19 @@ appears *after* the last file-modifying edit, block once as
 UNVERIFIED-CHANGE. This closes the loophole where verification passes, the
 agent makes one more edit, and then declares completion without
 re-verifying.
+
+**Document-edit exception**: the gate's own progress-tracking file
+self-updating its "current step" doesn't count as a real change requiring
+re-verification — otherwise the gate would perpetually re-trigger on its own
+bookkeeping writes. Other document edits (a report, a spec, a design doc) do
+still count as a change, but once that document has been re-read afterward
+(mirroring the REFINE loop's CRITIQUE re-read), the gate can pass without
+requiring a verification-class Bash command — code files get no such
+exception and still need one. **Recognize wrapped verification commands**:
+a verification-class command run through a package-manager wrapper (`poetry
+run pytest`, `uv run pytest`, `pipenv run pytest`, `npx jest`) or a named
+script segment (`npm run test:unit`) still counts as verification — don't
+require the bare binary name.
 
 **Status: reference implementation not shipped.** This section specifies the
 intended behavior a Stop hook of this kind should have — this repo does not

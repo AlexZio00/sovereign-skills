@@ -9,7 +9,7 @@ triggers:
   - "start session"
 name: session-start
 description: "Load handoff on session start, review lessons, output readiness signal. Triggers: '/session-start', 'start session'. Skip if: first session (no handoff), user requests 'start fresh', or standalone question unrelated to project context."
-user_invocable: true
+user-invocable: true
 depends_on:
   skills: []
   agents: []
@@ -353,7 +353,7 @@ Next: `Ready. Where should we start?`
 | MEMORY.md promotion write (ref≥3 items) | high (git) | L1 (Invariant 1: only exception) |
 
 - **L1 (Invariants)**: read-only by default. Promotion write is sole exception.
-- **L2 (Tool Restriction)**: Read + Write + Bash in frontmatter — Write is physically scoped to the MEMORY.md promotion exception only (Invariant 1); no other file may be modified. Bash is scoped in practice (not physically) to read-only grep/find one-liners and the bundled `scripts/harness_observability.py`/`scripts/secret_redact.py` — neither writes outside `~/.claude/.harness/` observability logs it already owns.
+- **No real L2 here — this is L1 (written rule) only**: the frontmatter `tools:` list is a documentation field that Claude Code does not enforce, so despite the label it is not a physical restriction. Write is used only for the MEMORY.md promotion exception (Invariant 1) — no other file is modified — but that boundary is held by the written rule, not by tool access being physically blocked. Bash is scoped in practice (not physically) to read-only grep/find one-liners and the bundled `scripts/harness_observability.py`/`scripts/secret_redact.py` — neither writes outside `~/.claude/.harness/` observability logs it already owns.
 - **concurrency_profile is split, not a single blanket claim**: the frontmatter's `default` profile (`read_only: true`, `concurrency_safe: true`) covers the common path — no ref≥3 item found, nothing written. The promotion path is its own `promotion_write` profile (`read_only: false`, `concurrency_safe: false`): declaring the whole skill read-only/concurrency-safe while a write step exists would contradict Invariant 1's own exception. Only the `default` profile licenses treating this skill as safe to run in parallel with other read-only agents; the `promotion_write` profile does not.
 - **Promotion write is not concurrency-safe**: MEMORY.md is a file other sessions (or another session-start/session-checkpoint instance) may also be promoting to. Before performing the write, re-read MEMORY.md immediately beforehand and diff it against the version read in Phase 4 (compare-and-swap pattern) — do not run the promotion write itself in parallel with another instance's write. On a mismatch, re-read and merge, or escalate, instead of overwriting.
 

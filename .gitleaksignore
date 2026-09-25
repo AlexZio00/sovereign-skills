@@ -1,0 +1,7 @@
+# gitleaks false positives - synthetic fixtures only.
+
+# full-audit canary pool: a file with a deliberately planted hardcoded-key defect
+# (random hex, not a real key) used to measure whether reviewers catch it.
+# An in-file allow comment would tell the reviewer the file is a control, so the
+# exemption lives here instead.
+full-audit/scripts/canaries/seeded/billing_client.py:generic-api-key:2

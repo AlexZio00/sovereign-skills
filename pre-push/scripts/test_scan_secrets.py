@@ -176,6 +176,16 @@ CASES = {
         # deferred f4b prefix-anchor item (see f4b_known_gap_* above).
         # Documented so it isn't mistaken for a new regression later.
         '+SECRET_ROTATION_ID=abc123def456', 1),  # gitleaks:allow (합성 테스트 픽스처)
+
+    # --- same-line allow marker (v2.4.0) ---
+    "allow_marker_scan_secrets_same_line": (
+        '+aws_key = "AKIAABCDEFGHIJKLMNOP"  # scan-secrets: allow (test fixture)', 0),  # gitleaks:allow
+    "allow_marker_gitleaks_same_line": (
+        '+aws_key = "AKIAABCDEFGHIJKLMNOP"  # gitleaks:allow', 0),  # gitleaks:allow
+    "allow_marker_on_other_line_does_not_suppress": (
+        '+# scan-secrets: allow\n+aws_key = "AKIAABCDEFGHIJKLMNOP"', 1),  # gitleaks:allow
+    "allow_marker_does_not_hide_merge_conflict": (
+        '+<<<<<<< HEAD  # scan-secrets: allow', 1),
 }
 
 

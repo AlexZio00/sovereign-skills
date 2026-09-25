@@ -1,6 +1,6 @@
 ---
 name: code-autopsy
-user_invocable: true
+user-invocable: true
 not_for:
   - "Simple lint/type check only -> use lint tools directly"
   - "Post-completion verification -> use verification agent"
@@ -118,7 +118,7 @@ Scores themselves can be gamed. Set a **legitimate performance ceiling** per cat
 - When reporting composite/category scores, label: "legitimate ceiling for this project: X"
 - Score exceeds ceiling → `⚠️ SCORE EXCEEDS LEGITIMATE CEILING (advisory)` → flag for a second look; downgrade to FIX FIRST only when corroborated by an actual finding, not on the ceiling breach alone
 - Ceiling: top 95th percentile of prior reviews or public benchmark — **advisory reference only, not an absolute quality ceiling**. Without a stated comparison group, sample size, and normalization (codebase size/language/domain), a 95th-percentile figure has no statistical grounding. Use it as a rough sanity-check signal, not as gating evidence by itself.
-- Q7/Q10: sudden coverage jump (+20pp) → cross-check with Q10 for mock-deception
+- Q10: sudden coverage jump (+20pp) → cross-check for mock-deception
 
 **Outcome-ceiling to process-metric switch**:
 Standard-difficulty coding tasks often converge to a tie on outcome (both implementations score full marks) across different implementations — that is a sign the outcome metric has lost discriminating power at that difficulty, not evidence the two are equally good.
@@ -200,6 +200,8 @@ Trigger: `--fast`, or an explicit request for something heavier than a lint pass
 - Output: same format as [QUICK MODE] below, but with a "Summary: N findings" line instead of "Overall Health".
 
 If the diff turns up no clear runtime bug: "No clear runtime bug found — re-request without a mode flag for the full design/performance pass."
+
+**When the caller has requested a different, narrower output format** (e.g. a lint-only pass, a bundle-only review inside a larger pipeline, or a cross-file joint-pass summary): keep that requested format, but if a CRITICAL finding exists, lead the response with `⚠️ CRITICAL {N} — Q{n}: {one line}` before anything else. A narrower requested format is not a license to bury a CRITICAL finding where the caller's own format has no slot for it.
 
 [QUICK MODE]
 ```

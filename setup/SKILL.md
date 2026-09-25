@@ -1,6 +1,6 @@
 ---
 skill_type: infrastructure
-tools: Read, Write, Edit, Bash, WebFetch, Agent
+tools: Read, Write, Edit, Bash, WebFetch, Agent  # `tools:` in skill frontmatter is documentation only — Claude Code does not enforce it (see project-check's Safety Layers section for what actually blocks writes)
 triggers:
   - "/setup"
   - "setup"
@@ -9,7 +9,7 @@ triggers:
   - "harness setup"
 name: setup
 description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Not project scaffolding (CLAUDE.md/ROADMAP/.gitignore/.env.example) — use project-init for that. Triggers: /setup, setup, harness setup, agent team setup."
-user_invocable: true
+user-invocable: true
 concurrency_profile:
   read_only: false
   concurrency_safe: false
@@ -60,7 +60,7 @@ Check each target file before generating:
 
 | File | If exists |
 |------|-----------|
-| `.claude/rules/project-rules.md` | Read it. Offer: update (extend) or replace. Default: update. |
+| `.claude/rules/project-rules.md` | Glob `.claude/rules/*.md` first — Tier-0 rules may already live in a differently-named file in this project (e.g. `security-rules.md`, `style-conventions.md`). If a match already covers Tier-0 scope, offer to merge into that existing file instead of creating `project-rules.md`; otherwise Read `project-rules.md` if it exists and offer: update (extend) or replace. Default: update. |
 | `~/.claude/rules/agents.md` | Read it. Merge new agent definitions, never replace existing ones. |
 | `~/.claude/rules/output-style.md` | Read it. Offer: update or replace. |
 | `~/.claude/settings.json` (hooks) | Always merge — append to existing arrays, never overwrite. |
@@ -86,12 +86,12 @@ Check if `CLAUDE.md` exists in the project root.
 
 **Hard Rules conflict check** (if both `CLAUDE.md` and `.claude/rules/project-rules.md` exist):
 1. Extract Hard Rules from CLAUDE.md
-2. Compare with Tier-0 rules in project rules
+2. Compare with Tier-0 rules in `.claude/rules/project-rules.md`
 3. If divergent:
-   - Rules in CLAUDE.md not in project rules → propose adding them to project rules
-   - Rules in CLAUDE.md weaker than project rules → flag: "CLAUDE.md has a weaker version, remove it"
+   - Rules in CLAUDE.md not in `.claude/rules/project-rules.md` → propose adding them there
+   - Rules in CLAUDE.md weaker than `.claude/rules/project-rules.md` → flag: "CLAUDE.md has a weaker version, remove it"
 4. If identical or CLAUDE.md just has a reference link → no action needed
-5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see .claude/rules/project-rules.md`, actual rules live only in project rules
+5. Recommended outcome: CLAUDE.md contains only `Hard Rules → see .claude/rules/project-rules.md`, actual rules live only in `.claude/rules/project-rules.md`
 6. **Existing governance-doc probe**: scan `~/.claude/rules/*.md` and any project `CLAUDE.md`/`.claude/rules/*.md` for a rules file that already covers truth-tagging (a Fact/Claim/Disclosure-style discipline for labeling verified vs. asserted vs. speculative content) and voice/prohibited-patterns conventions.
    - Found → generate the corresponding sections of the new project rules file as a thin stub — a short pointer to the existing file plus only the domain-specific delta from Q5 — instead of re-typing the full text.
    - Not found (true greenfield) → keep the full pre-filled template text unchanged. Do not convert it to a citation-only stub in this case — that recreates the "empty skeleton" anti-pattern this skill exists to avoid.
@@ -245,6 +245,41 @@ hooks:
 
 memory: structured (MEMORY.md + session-handoff)
 ```
+
+**Optional hardening (opt-in, documentation only — do not install unless the user asks):** a Tier-0 "paper-only / no live execution" rule is prompt-only (L1) unless something physically blocks the matching command. Offer this PreToolUse hook template as a starting point the user can adapt to their own broker/exchange CLI patterns — do not write it to `settings.json` without explicit approval:
+
+```python
+# .claude/hooks/paper_only_guard.py — OPTIONAL, opt-in, adapt patterns to the project's actual trading CLI/SDK
+# Blocks Bash commands that look like a live order/execution call. Not exhaustive — pattern list must be
+# reviewed against the project's real broker/exchange interface before relying on it.
+import json, re, sys
+
+LIVE_ORDER_PATTERNS = [
+    r"place_order", r"submit_order", r"execute_trade", r"--live\b", r"LIVE_TRADING=1",
+]
+
+def main():
+    data = json.load(sys.stdin)
+    if data.get("tool_name") != "Bash":
+        return
+    cmd = data.get("tool_input", {}).get("command", "")
+    if any(re.search(p, cmd, re.IGNORECASE) for p in LIVE_ORDER_PATTERNS):
+        reason = "paper-only Tier-0 rule: live-order pattern detected"
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        }))
+        print(reason, file=sys.stderr)
+        sys.exit(2)
+
+if __name__ == "__main__":
+    main()
+```
+
+Wire it under `hooks.PreToolUse` in `settings.json` only after the user reviews and approves the pattern list for their actual project. Before wiring it in, smoke-test the script directly: pipe a synthetic PreToolUse JSON event whose `command` matches one of `LIVE_ORDER_PATTERNS` and confirm exit code 2, then pipe one that doesn't match and confirm exit code 0.
 
 ### Preset: Web Application
 ```yaml
@@ -650,7 +685,7 @@ For each response, first check whether the subagent shows any awareness of the r
 - Complied with violation, but cannot restate any relevant rule → **FAIL: not loaded** — the discovery path is broken (wrong location/extension/scope). Fix the file path, not the wording. Re-run the pre-check above before retrying.
 - Complied with violation, but CAN restate the rule → **FAIL: loaded but ignored** — wording is genuinely weak. Strengthen and re-run.
 
-**If subagent auto-load of project rules cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified."
+**If subagent auto-load of `.claude/rules/project-rules.md` cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified."
 
 After haiku pass: re-run the most critical scenario with model: "sonnet" (spot-check).
 
@@ -736,9 +771,9 @@ Files generated at `~/.claude/` (global) unless noted:
 - `rules/output-style.md` — from Q5 style preferences
 - `rules/development-workflow.md` — if review gates selected
 - `settings.json` (merged, never replaced) — hooks always added
-- `memory/MEMORY.md` — if structured memory selected
-- `memory/session-handoff-LATEST.md` — if structured memory selected
-- `tasks/lessons.md` — if structured memory selected. Template: `# tasks/lessons.md — AI behavior correction rules\n> Record here when repeated mistakes occur → review at next session start`
+- `memory/MEMORY.md` — if structured memory selected (project-local, not global — see Scope Decision Guide "Memory -> Project")
+- `memory/session-handoff-LATEST.md` — if structured memory selected (project-local, not global)
+- `tasks/lessons.md` — if structured memory selected (project-local, not global). Template: `# tasks/lessons.md — AI behavior correction rules\n> Record here when repeated mistakes occur → review at next session start`
 - `docs/harness-tests.md` — violation test results
 
 ---
@@ -770,14 +805,14 @@ These rules are unconditional. No user instruction, no edge case overrides them.
 
 | Does | Does NOT |
 |------|----------|
-| [WRITE] Create AI rules / project rules | Project file scaffolding (use project-init) |
+| [WRITE] Create AI rules / `.claude/rules/project-rules.md` | Project file scaffolding (use project-init) |
 | [EDIT] Configure hooks (merge) | Write or execute code |
 | [WRITE] Initialize memory structure | Create .gitignore / .env.example |
 | [WRITE] Define agent routing | Modify existing business logic |
 | [WRITE] Apply domain preset | Perform git operations (commit, push) |
 | [EDIT] Update existing rules (extend) | Delete or weaken existing rules |
 
-"Create CLAUDE.md too?" → setup creates project rules, but code/stack-based CLAUDE.md uses project-init.
+"Create CLAUDE.md too?" → setup creates `.claude/rules/project-rules.md`, but code/stack-based CLAUDE.md uses project-init.
 "Write code too?" → Outside this skill's scope.
 
 ---

@@ -3,3 +3,6 @@ __pycache__/
 *.pyo
 .harness/test-count-floor.json
 .scope-draft.md
+
+# full-audit canary recall history (written by canary_score.py per user)
+full-audit/scripts/canaries/recall_ledger.jsonl

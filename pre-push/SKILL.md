@@ -9,9 +9,9 @@ name: "pre-push"
 description: "Mandatory pre-push security and quality pipeline. TRIGGER automatically whenever the user requests any git push: 'push my changes', 'push to origin', 'push this', 'push the code', 'commit and push', 'ship it', 'deploy to remote', 'deploy to prod/staging/production', or any git push command. Blocks hardcoded credentials + prompt-injection/exfiltration markers (14 patterns: AWS/GCP/Azure/LLM keys, private keys, connection strings, platform tokens, merge conflicts, embedded prompt-injection strings, non-standard package sources, Slack webhooks), supply chain risks (9-IOC), MCP tool poisoning (3 patterns), auth bypasses, and OWASP Top 10 vulnerabilities. Do NOT skip unless user says 'skip review' or 'force push'."
 license: "MIT"
 metadata:
-  version: "3.10.0"
+  version: "3.11.0"
   author: "coinangel"
-user_invocable: true
+user-invocable: true
 not_for:
   - "Code review only -> code-reviewer agent"
   - "Lint/type check only -> code-reviewer --quick"
@@ -30,6 +30,37 @@ see_also:
 ---
 
 <!--
+  v3.11.0 (2026-09-25) — delta port from the internal fork's own 90-day execution-log audit.
+                        (1) Discard If / Step 1's empty check used to stop as soon as staged
+                        files were 0, even when 1+ commits were already made and outgoing
+                        (not yet pushed) — a secret committed earlier in the session with
+                        staging now empty slipped past the scan entirely. Both checks now also
+                        look at the outgoing-commit count before stopping. (2) Step 4's Python
+                        gate only recognized pyproject.toml/setup.py/requirements.txt as "a test
+                        runner is configured", so a repo using only pytest.ini/setup.cfg/tox.ini/
+                        Pipfile/poetry.lock (or with tracked test_*.py files and no manifest at
+                        all) silently skipped pytest — trigger widened to cover those. (3) Step
+                        5a passed `$CHANGED_PY`/`$CHANGED_JS` unquoted into ruff/flake8/eslint, so
+                        a staged path containing a space broke the invocation — switched to
+                        `printf '%s\n' | xargs -d '\n'` and adjusted the `PIPESTATUS` index
+                        accordingly. (4) Steps 1-5a share shell variables, but a harness whose
+                        Bash tool doesn't keep state across separate calls silently emptied them
+                        when the steps ran as separate calls, turning Step 4/5a's gates into
+                        silent no-ops — Step 1 now persists the core variables (plus Step 4's
+                        `$CHANGED_*`) to a state file under `.git/`, keyed to the current push, and
+                        Steps 3/3.5/4/5a restore from it when their own copy is empty; an actually-
+                        empty `$CHANGED_*` now prints an explicit note instead of running quietly.
+                        (5) `FILE_COUNT=... grep -c . || echo 0` printed a spurious second "0" line
+                        on empty input (`grep -c` already returns 0) — fallback removed. (6) The
+                        pytest test-count-floor state file moved from the PWD-relative
+                        `.harness/test-count-floor.json` (which could get committed in a project
+                        that doesn't gitignore `.harness/`) to `.git/pre-push-test-count-floor.json`.
+                        (7) `scripts/scan_secrets.py` gained a same-line allow marker
+                        (`# scan-secrets: allow` / the pre-existing `# gitleaks:allow` convention)
+                        for a confirmed false positive — every skip is counted and printed to
+                        stderr as `[ALLOW] N ...` so it can't hide a real finding silently; Step 2's
+                        remediation table and a new Invariant both require a fresh `SECRETS_EXIT=0`
+                        re-scan after any block is cleared, not a hand-checked judgment call alone.
   v3.10.0 (2026-09-06) — fixed 3 external-audit findings. (1) Step 1 scanned only
                         `git diff --staged`, but `git push` sends every commit from
                         upstream (or the merge-base with the remote's default branch)
@@ -107,8 +138,8 @@ Does the secrets scanner run without exception — a single skip permanently rec
 
 ## Discard If
 - User explicitly says "skip review" or "force push" → proceed directly to Emergency Override
-- 0 staged files (nothing to commit)
-- `*.md` / `docs/**` changes only (fast-exit at Step 2, but agent review overhead unnecessary at this condition)
+- 0 staged files **AND** 0 outgoing (already-committed, not-yet-pushed) commits — check both before discarding: `git rev-list --count '@{upstream}'..HEAD 2>/dev/null || git rev-list --count origin/HEAD..HEAD 2>/dev/null`. If outgoing has 1+ commits, this is NOT a discard case — proceed to Step 1 so the outgoing commits get scanned too (a secret committed earlier this session, with staging now empty, used to slip past a staged-files-only check entirely).
+- `*.md` / `docs/**` changes only (fast-exit at Step 2, but agent review overhead unnecessary at this condition). **This skips the agent-review overhead only — Step 1/2/3.5 scanning still runs**; the Step 2 fast-exit fires only after `SECRETS_EXIT=0` is already known, not before scanning.
 
 ## Key Assumptions 
 1. **`scan_secrets.pl` script accessible** — if broken: secrets scan unavailable → push blocked.
@@ -117,7 +148,7 @@ Does the secrets scanner run without exception — a single skip permanently rec
 
 ## Autonomy Boundary
 
-Every step through Step 6 only *inspects git state* — `git diff`, `git status`, `git branch --show-current`, `git log`, linters, and the parallel review agents never mutate the repo or its remote, so none of them need a per-command confirmation to run. **Build and test runners (Step 4) are not fully read-only**: they don't touch git state (no commits, no staged-index changes), but they do have local filesystem side effects — `npm run build` writes build artifacts to the project's configured output directory, and the Python test-count-floor check writes/updates a local, gitignored state file (`.harness/test-count-floor.json`). These are non-git, locally-reversible outputs (re-running regenerates them), so they still need no per-command confirmation, but "read-only" is the wrong label for them — treat them as side-effecting-but-non-git. `git push` is the one write action against git/remote state in this entire pipeline, and it's exactly where the gates apply: it only fires after Step 8's Overall verdict is READY TO PUSH, and a push to `main`/`master` additionally needs an explicit "yes" (Step 1 protected-branch block, Safety Layers L3). Treat "runs freely" and "needs approval" as following directly from read-vs-write-to-git-state, not from step number or perceived risk.
+Every step through Step 6 only *inspects git state* — `git diff`, `git status`, `git branch --show-current`, `git log`, linters, and the parallel review agents never mutate the repo or its remote, so none of them need a per-command confirmation to run. **Build and test runners (Step 4) are not fully read-only**: they don't touch git state (no commits, no staged-index changes), but they do have local filesystem side effects — `npm run build` writes build artifacts to the project's configured output directory, and the Python test-count-floor check writes/updates a local state file under `.git/` (`pre-push-vars.sh`, `pre-push-test-count-floor.json` -- never staged or committed, so nothing to gitignore). These are non-git, locally-reversible outputs (re-running regenerates them), so they still need no per-command confirmation, but "read-only" is the wrong label for them — treat them as side-effecting-but-non-git. `git push` is the one write action against git/remote state in this entire pipeline, and it's exactly where the gates apply: it only fires after Step 8's Overall verdict is READY TO PUSH, and a push to `main`/`master` additionally needs an explicit "yes" (Step 1 protected-branch block, Safety Layers L3). Treat "runs freely" and "needs approval" as following directly from read-vs-write-to-git-state, not from step number or perceived risk.
 
 ## Step 0: Hook Pipeline Health (Fast, WARN-only)
 
@@ -142,6 +173,8 @@ WARN-only — a smoke failure does not block push (avoids introducing a new hard
 
 Run everything in **one bash call** — variables share the same shell session, so `$STAGED_DIFF` is reused for the secrets scan without a second `git diff` invocation.
 
+**This "one shell session" requirement is not limited to Step 1 alone**: `$STAGED_FILES`/`$STAGED_DIFF`/`$CURRENT_BRANCH`/`$DIFF_LINES`/`$FILE_COUNT` (set in Step 1) and `$CHANGED_PY`/`$CHANGED_JS`/`$CHANGED_GO` (set in Step 4) are reused all the way through **Step 1-Step 5a** (Step 6 only dispatches agents and runs no bash, so it is out of scope here). If your Bash tool does not keep shell state across separate tool calls (some agent harnesses reset the shell each call, keeping only the working directory), running Steps 1-5a as separate calls silently empties these variables in later steps — Step 4's Build & Test "Fail Fast" and Step 5a's Lint "BLOCK" gate can then no-op quietly (an empty `$CHANGED_PY` means nothing gets checked, which reads as "passed"). **Run Steps 1-5a as one continuous bash call whenever your environment allows it** — do not split each bash code fence into a separate tool call. When a split is unavoidable, Step 1 persists the core variables to `$(git rev-parse --git-dir)/pre-push-vars.sh` (inside `.git/`, never staged or committed) and Steps 3/3.5/4/5a each restore from it if their own copy is empty, keyed to the current `HEAD` plus the staged-diff hash so a stale file from an earlier push is never silently reused. Even with that fallback, Steps 4/5a print an explicit `⚠️ CHANGED_* empty` note instead of quietly doing nothing, so a genuinely empty list isn't mistaken for a passed check.
+
 **Scan scope — staged diff AND outgoing commits**: `git diff --staged` alone is not what `git push` actually sends. A push transmits every commit from the upstream (or the merge-base with the remote's default branch) up to `HEAD` — including commits made earlier in this session that were already committed and are therefore invisible to a staged-only scan. Step 1 scans **both**: the staged diff (about to be committed) and the outgoing-commit range (already committed, not yet on the remote), combined into one pass. Staged-diff scanning is not replaced by this — it stays a distinct check, since staged changes aren't part of any commit's history yet.
 
 **Scanner selection**: prefer `scan_secrets.py` when a Python runtime is available, otherwise fall back to `scan_secrets.pl` — both are maintained. Python needs no extra runtime install in most environments, but this package started as a Perl-based scanner, so both implementations are kept for compatibility.
@@ -152,7 +185,7 @@ Run everything in **one bash call** — variables share the same shell session, 
 STAGED_FILES=$(git diff --staged --name-only)
 STAGED_DIFF=$(git diff --staged)
 DIFF_LINES=$(echo "$STAGED_DIFF" | wc -l | tr -d ' ')
-FILE_COUNT=$(echo "$STAGED_FILES" | grep -c . || echo 0)
+FILE_COUNT=$(echo "$STAGED_FILES" | grep -c .)  # grep -c already prints 0 on no match -- a `|| echo 0` fallback prints a second "0" line on top of it
 CURRENT_BRANCH=$(git branch --show-current)
 
 # Outgoing-commit range (already committed, not yet pushed). Falls back to the
@@ -170,6 +203,7 @@ if [ -n "$MERGE_BASE" ]; then
   OUTGOING_MODE="${UPSTREAM_REF}..HEAD (${OUTGOING_COMMIT_COUNT} commit(s))"
 else
   OUTGOING_DIFF=""
+  OUTGOING_COMMIT_COUNT=0
   OUTGOING_MODE="unresolvable (no upstream, no origin/HEAD) — staged-only, degraded mode"
 fi
 COMBINED_DIFF="$STAGED_DIFF
@@ -201,6 +235,24 @@ fi
 SCAN_TIME=$(($(date +%s) - SCAN_START))
 echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | Outgoing: $OUTGOING_MODE | Scan: ${SCAN_TIME}s"
 [ $SECRETS_EXIT -ne 0 ] && echo "$SECRETS_OUTPUT"
+
+# Persist core vars so a later Step (3/3.5/4/5a) running in a fresh bash call
+# (see the note above this block) can restore them. Stored under .git/
+# (git-dir, not the worktree), so it is never staged or committed.
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+{
+  printf 'STAGED_FILES=%q\n' "$STAGED_FILES"
+  printf 'STAGED_DIFF=%q\n' "$STAGED_DIFF"
+  printf 'OUTGOING_DIFF=%q\n' "$OUTGOING_DIFF"
+  printf 'CURRENT_BRANCH=%q\n' "$CURRENT_BRANCH"
+  printf 'DIFF_LINES=%q\n' "$DIFF_LINES"
+  printf 'FILE_COUNT=%q\n' "$FILE_COUNT"
+  printf 'MERGE_BASE=%q\n' "$MERGE_BASE"
+  printf 'OUTGOING_MODE=%q\n' "$OUTGOING_MODE"
+  printf 'OUTGOING_COMMIT_COUNT=%q\n' "$OUTGOING_COMMIT_COUNT"
+  printf 'SECRETS_EXIT=%q\n' "$SECRETS_EXIT"
+  printf 'STATE_KEY=%s\n' "$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)"  # ties the file to this exact push
+} > "$STATE_FILE"
 ```
 
 The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across three categories:
@@ -212,7 +264,7 @@ The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across 
 
 **Design note**: the scanner intentionally scans only **added (`+`) lines**, not removed (`-`) lines — this avoids blocking commits that are *removing* a secret. Merge conflict markers are an exception and checked on all lines. This applies identically to both diffs inside `$COMBINED_DIFF`.
 
-**Empty check**: If `$STAGED_FILES` is empty → inform the user and stop (per Discard If, this skill doesn't engage at all in that case). Note this means outgoing-commit scanning above only ever runs as a supplement to a staged-diff review, not as a standalone "just push what's already committed" path — that scenario remains a known Discard-If gap, unchanged by this fix.
+**Empty check**: only stop when `$STAGED_FILES` **and** `$OUTGOING_COMMIT_COUNT` are **both** empty/zero (matches the Discard If condition above). If staged is empty but outgoing has 1+ commits, the scan above already ran against `$COMBINED_DIFF` (staged + outgoing) — carry that `$SECRETS_EXIT` forward into Step 2 rather than stopping early. This closes the "already committed, staging is empty" gap: a secret committed earlier in the session but never (re-)staged used to be treated as "nothing to check" and skipped entirely.
 
 **Protected branch block**: If `$CURRENT_BRANCH` is `main` or `master` → stop and ask for an explicit "yes" before proceeding.
 
@@ -231,6 +283,9 @@ The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across 
 | Azure credential | Replace with Managed Identity or environment variable. |
 | Dockerfile ENV secret | Use `--secret` mount or ARG with external injection. Never hardcode in ENV. |
 | Generic hardcoded credential | Move to `.env.local` → `process.env.YOUR_KEY`. Verify `.gitignore` covers `.env*`. |
+| False positive (scanner's own pattern-definition line, a synthetic test fixture) | Append `# scan-secrets: allow` (or the pre-existing `# gitleaks:allow` convention) to that **same line only**. Every skip is counted and printed as `[ALLOW] N ...` so it can't hide a real finding silently — never add this marker to a line that holds an actual value. |
+
+**Re-scan required after any fix**: once `SECRETS_EXIT=1` has fired, do not push on a hand-checked "that was a false positive" judgment alone — re-run Step 1's scan after fixing/marking the finding and paste the resulting `SECRETS_EXIT=0` output into the Step 8 report before pushing.
 
 **SECRETS_EXIT=0 AND only `*.md` / `docs/**` changed** → fast exit, push directly, skip all agents.
 
@@ -256,13 +311,20 @@ Scan `$STAGED_FILES` and list findings in the final report:
   Flag any match as `⚠️ SUPPLY_CHAIN_IOC` or `⚠️ MCP_POISONING` in the report.
 
 ```bash
-CHANGED_REQS=$(echo "$STAGED_FILES" | grep -E "(requirements.*\.txt|pyproject\.toml|setup\.py)$")
-if [ -n "$CHANGED_REQS" ] && command -v pip-audit >/dev/null 2>&1; then
-  # capture pip-audit's own exit code before truncating — piping straight into
-  # $(... | tail -20) would capture tail's exit code instead
-  AUDIT_RAW=$(pip-audit --format=columns 2>&1); AUDIT_EXIT=$?
-  AUDIT_OUT=$(echo "$AUDIT_RAW" | tail -20)
-  [ $AUDIT_EXIT -ne 0 ] && echo "pip-audit: $AUDIT_OUT"
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Step 3 skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+else
+  CHANGED_REQS=$(echo "$STAGED_FILES" | grep -E "(requirements.*\.txt|pyproject\.toml|setup\.py)$")
+  if [ -n "$CHANGED_REQS" ] && command -v pip-audit >/dev/null 2>&1; then
+    # capture pip-audit's own exit code before truncating -- piping straight into
+    # $(... | tail -20) would capture tail's exit code instead
+    AUDIT_RAW=$(pip-audit --format=columns 2>&1); AUDIT_EXIT=$?
+    AUDIT_OUT=$(echo "$AUDIT_RAW" | tail -20)
+    [ $AUDIT_EXIT -ne 0 ] && echo "pip-audit: $AUDIT_OUT"
+  fi
 fi
 ```
 
@@ -284,6 +346,14 @@ repo you've configured as a known public mirror. Private/internal repos
 should skip this step entirely.
 
 ```bash
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+[ -z "$COMBINED_DIFF" ] && COMBINED_DIFF="$STAGED_DIFF
+$OUTGOING_DIFF"
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Step 3.5 skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+else
 ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "")
 # Replace the pattern below with your own public-mirror repo name(s).
 if echo "$ORIGIN_URL" | grep -qiE "YOUR_PUBLIC_MIRROR_REPO_NAME_HERE"; then
@@ -301,6 +371,7 @@ if echo "$ORIGIN_URL" | grep -qiE "YOUR_PUBLIC_MIRROR_REPO_NAME_HERE"; then
   echo "$CURRENT_BRANCH" | grep -qiE "§|internal-only-path-pattern" \
     && echo "⚠️ PUBLIC_MIRROR_SCRUB: possible internal identifier in branch name — this surface isn't visible in the diff"
 fi
+fi
 ```
 
 WARN-only (advisory, never blocks) — mirrors the same explicit non-blocking
@@ -312,14 +383,36 @@ patterns to whatever your own internal-only vocabulary actually is.
 Detect changed languages first, then run only the relevant test/build commands. Skip entirely for config, docs, or style-only commits.
 
 ```bash
-CHANGED_PY=$(echo "$STAGED_FILES" | grep -E "\.py$")
-CHANGED_JS=$(echo "$STAGED_FILES" | grep -E "\.(ts|tsx|js|jsx)$")
-CHANGED_GO=$(echo "$STAGED_FILES" | grep -E "\.go$")
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Step 4 skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+else
+  CHANGED_PY=$(echo "$STAGED_FILES" | grep -E "\.py$")
+  CHANGED_JS=$(echo "$STAGED_FILES" | grep -E "\.(ts|tsx|js|jsx)$")
+  CHANGED_GO=$(echo "$STAGED_FILES" | grep -E "\.go$")
+  {
+    printf 'CHANGED_PY=%q\n' "$CHANGED_PY"
+    printf 'CHANGED_JS=%q\n' "$CHANGED_JS"
+    printf 'CHANGED_GO=%q\n' "$CHANGED_GO"
+  } >> "$STATE_FILE"  # append so a later split-off Step 5a call can restore these too
+fi
 ```
 
 **Python** — run when `.py` files changed and a test runner is configured:
 ```bash
-if [ -n "$CHANGED_PY" ] && ([ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f "requirements.txt" ]); then
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES$CHANGED_PY" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Python test step skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+elif [ -z "$CHANGED_PY" ]; then
+  echo "⚠️ CHANGED_PY empty -- nothing to test"
+elif [ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f "requirements.txt" ] || [ -f "pytest.ini" ] || [ -f "setup.cfg" ] || [ -f "tox.ini" ] || [ -f "Pipfile" ] || [ -f "poetry.lock" ] || git ls-files | grep -qE '(^|/)(test_[^/]+|[^/]+_test)\.py$'; then
+  # Trigger widened beyond pyproject.toml/setup.py/requirements.txt -- repos using only
+  # pytest.ini/setup.cfg/tox.ini/Pipfile/poetry.lock, or with tracked test_*.py/*_test.py
+  # files and no manifest at all, previously skipped pytest silently.
   TEST_START=$(date +%s)
   PYTEST_OUTPUT=$(timeout 120 pytest -q 2>&1)
   PYTEST_EXIT=$?
@@ -332,7 +425,7 @@ if [ -n "$CHANGED_PY" ] && ([ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f
   # Track the previous run's passed-count in a local, gitignored state file and compare —
   # warn only on a sharp drop; a first run (no state file yet) just records and passes.
   PASSED_COUNT=$(echo "$PYTEST_OUTPUT" | grep -oE "[0-9]+ passed" | tail -1 | grep -oE "^[0-9]+")
-  FLOOR_FILE=".harness/test-count-floor.json"
+  FLOOR_FILE="$(git rev-parse --git-dir)/pre-push-test-count-floor.json"  # was PWD-relative .harness/test-count-floor.json -- could get committed in other repos; .git/ is never tracked
   if [ -n "$PASSED_COUNT" ]; then
     if [ -f "$FLOOR_FILE" ]; then
       LAST_COUNT=$(grep -oE '"count": *[0-9]+' "$FLOOR_FILE" | grep -oE '[0-9]+' | tail -1)
@@ -344,22 +437,40 @@ if [ -n "$CHANGED_PY" ] && ([ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f
     mkdir -p "$(dirname "$FLOOR_FILE")"
     printf '{"count": %s, "updated": "%s"}\n' "$PASSED_COUNT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FLOOR_FILE"
   fi
+else
+  echo "➖ Python test runner config not found -- skipping pytest"
 fi
 ```
 
 **Go** — run when `.go` files changed and `go.mod` exists:
 ```bash
-if [ -n "$CHANGED_GO" ] && [ -f "go.mod" ]; then
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES$CHANGED_GO" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Go test step skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+elif [ -z "$CHANGED_GO" ]; then
+  echo "⚠️ CHANGED_GO empty -- nothing to test"
+elif [ -f "go.mod" ]; then
   TEST_START=$(date +%s)
   timeout 120 go test ./... 2>&1 | tail -20
   GO_TEST_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not go test's
   TEST_TIME=$(($(date +%s) - TEST_START))
+else
+  echo "➖ go.mod not found -- skipping go test"
 fi
 ```
 
 **JS/TS** — build then test when source files changed:
 ```bash
-if [ -f "package.json" ] && [ -n "$CHANGED_JS" ]; then
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES$CHANGED_JS" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ JS/TS build&test step skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+elif [ -z "$CHANGED_JS" ]; then
+  echo "⚠️ CHANGED_JS empty -- nothing to build/test"
+elif [ -f "package.json" ]; then
   BUILD_START=$(date +%s)
   timeout 120 npm run build 2>&1 | tail -30
   BUILD_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not the build's
@@ -368,6 +479,8 @@ if [ -f "package.json" ] && [ -n "$CHANGED_JS" ]; then
     timeout 60 npm test -- --passWithNoTests 2>&1 | tail -20
     JS_TEST_EXIT=${PIPESTATUS[0]}  # not $? — that would capture tail's exit code, not the test run's
   fi
+else
+  echo "➖ package.json not found -- skipping build/test"
 fi
 ```
 
@@ -383,27 +496,56 @@ Run only for changed files of the matching language.
 
 **Python** — `ruff` preferred, `flake8` fallback:
 ```bash
-if [ -n "$CHANGED_PY" ]; then
-  # ${PIPESTATUS[0]} — not $? — is the linter's own exit code; $? here would be tail's
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES$CHANGED_PY" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Python lint step skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+elif [ -z "$CHANGED_PY" ]; then
+  echo "⚠️ CHANGED_PY empty -- nothing to lint"
+else
+  # printf+xargs -d '\n' keeps paths with spaces intact ($CHANGED_PY was previously passed
+  # unquoted and word-split on spaces, breaking on any staged path containing a space).
+  # PIPESTATUS[1] is xargs here (printf | xargs | tail pipeline, not [0]) -- xargs maps the
+  # linter's own nonzero exit to 123 (GNU xargs convention); any nonzero from xargs still
+  # means the linter found issues, so it's still treated as BLOCK below.
   if command -v ruff >/dev/null 2>&1; then
-    timeout 30 ruff check $CHANGED_PY 2>&1 | tail -20; LINT_EXIT=${PIPESTATUS[0]}
+    printf '%s\n' "$CHANGED_PY" | xargs -d '\n' -r timeout 30 ruff check 2>&1 | tail -20; LINT_EXIT=${PIPESTATUS[1]}
   elif command -v flake8 >/dev/null 2>&1; then
-    timeout 30 flake8 $CHANGED_PY 2>&1 | tail -20; LINT_EXIT=${PIPESTATUS[0]}
+    printf '%s\n' "$CHANGED_PY" | xargs -d '\n' -r timeout 30 flake8 2>&1 | tail -20; LINT_EXIT=${PIPESTATUS[1]}
   fi
 fi
 ```
 
 **Go** — `go vet` (always available):
 ```bash
-if [ -n "$CHANGED_GO" ]; then
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES$CHANGED_GO" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ Go vet step skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+elif [ -z "$CHANGED_GO" ]; then
+  echo "⚠️ CHANGED_GO empty -- nothing to lint"
+else
   timeout 30 go vet ./... 2>&1 | tail -20; GO_VET_EXIT=${PIPESTATUS[0]}  # not $? — tail's exit code
 fi
 ```
 
 **JS/TS** — `eslint` if config file present:
 ```bash
-if [ -n "$CHANGED_JS" ] && ls .eslintrc* eslint.config* 2>/dev/null | head -1 | grep -q .; then
-  timeout 30 npx eslint $CHANGED_JS 2>&1 | tail -20; ESLINT_EXIT=${PIPESTATUS[0]}  # not $? — tail's exit code
+STATE_FILE="$(git rev-parse --git-dir)/pre-push-vars.sh"
+[ -z "$STAGED_FILES$CHANGED_JS" ] && [ -f "$STATE_FILE" ] && { grep -qxF "STATE_KEY=$(git rev-parse HEAD 2>/dev/null):$(git diff --staged | git hash-object --stdin)" "$STATE_FILE" && . "$STATE_FILE" || { echo "⚠️ pre-push-vars.sh does not match this push (HEAD or staged diff changed since Step 1) -- rerun from Step 1"; SECRETS_EXIT=1; }; }
+
+if [ "${SECRETS_EXIT:-1}" -ne 0 ]; then
+  echo "⏭️ ESLint step skipped -- SECRETS_EXIT=${SECRETS_EXIT:-unset} (secrets scan failed/unknown, push already BLOCKED)"
+elif [ -z "$CHANGED_JS" ]; then
+  echo "⚠️ CHANGED_JS empty -- nothing to lint"
+elif ls .eslintrc* eslint.config* 2>/dev/null | head -1 | grep -q .; then
+  # printf+xargs -d '\n' keeps paths with spaces intact. PIPESTATUS[1] is xargs here
+  # (printf | xargs | tail pipeline) -- xargs maps eslint's nonzero exit to 123; treat as BLOCK.
+  printf '%s\n' "$CHANGED_JS" | xargs -d '\n' -r timeout 30 npx eslint 2>&1 | tail -20; ESLINT_EXIT=${PIPESTATUS[1]}  # not $? — tail's exit code
+else
+  echo "➖ No eslint config found -- skipping eslint"
 fi
 ```
 
@@ -543,6 +685,11 @@ Overall: ✅ READY TO PUSH / ❌ BLOCKED — <reason>
 
 Execute `git push` only when Overall = **READY TO PUSH**.
 
+Once the pipeline ends (push succeeded or BLOCKED, either way), delete the persisted-variable file so a later push never reads this run's values (each step's key check is the first line of defense, this deletion is the second):
+```bash
+rm -f "$(git rev-parse --git-dir)/pre-push-vars.sh"
+```
+
 ### Memory Sync Reminder (only when READY TO PUSH)
 
 If push target files include memory path changes:
@@ -621,6 +768,8 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 3. **Critical/High blocks push**: if agent review finds Critical/High, no push without fix. Medium: fix within 5 min or add TODO tag. Violation → known vulnerabilities deployed to remote.
 
 4. **Added lines only scanned**: `-` (removed) lines are not scanned. Violation → secret removal commits get BLOCKED, cleanup becomes impossible.
+
+5. **Re-scan after a block, don't eyeball it**: once `SECRETS_EXIT=1` has fired, only push after re-running Step 1's scan and getting `SECRETS_EXIT=0` -- a manual "that's a false positive" judgment without a fresh scan run is not sufficient. Violation → a genuine finding gets waved through on a hurried visual check.
 
 These rules are unconditional. Emergency Override applies only when user explicitly says "skip review" or "force push".
 

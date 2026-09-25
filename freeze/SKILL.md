@@ -22,10 +22,11 @@ triggers:
   - "이것만 건드려"
   - "나머지 건드리지 마"
   - "범위 잠가"
-user_invocable: true
+user-invocable: true
 not_for:
   - "Scope planning -> scope skill"
   - "Execution loop -> goal-lock"
+  - "One-shot direction check on an in-progress decision -> stepback"
 see_also:
   - skill: scope
     relation: "freeze=zone lock, scope=planning scope"

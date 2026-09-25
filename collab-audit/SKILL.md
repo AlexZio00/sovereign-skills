@@ -8,7 +8,7 @@ triggers:
   - "AI 협업 진단해줘"
 name: collab-audit
 description: "This skill should be used when the user types /collab-audit or requests AI collaboration diagnosis. Analyzes conversation history, artifacts, and work patterns to generate a 14-section AI Collaboration Audit. Behavioral analysis and feedback are bundled by design — separating them causes users to skip one, defeating the purpose. Saves to ~/.claude/collab-audits/YYYY-MM-DD.md. Compare mode: /collab-audit compare (diffs latest 2 audits). Triggers: '/collab-audit', '/collab-audit compare', 'AI 협업 진단해줘', '협업 진단', '행동 패턴 분석', '나 어떤 사람이야', 'AI collaboration audit', 'work pattern analysis', 'compare audits'. Requires minimum 2 sessions or 100+ messages. Do NOT use self-report surveys — observation-only."
-user_invocable: true
+user-invocable: true
 not_for:
   - "Single feedback -> direct conversation"
   - "Auditing a skill's own quality/structure — this audits collaboration patterns, not skill content"
@@ -490,10 +490,9 @@ Based on previous development direction + current patterns, one next focus point
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
 | Save new `~/.claude/collab-audits/YYYY-MM-DD.md` | high | L1 |
-| Modify `~/.claude/.gitignore` (gitignore protection) | medium | L1+L3 |
+| Modify `~/.claude/.gitignore` (gitignore protection) | medium | L1 |
 
-- **L1 (Invariants)**: save audit result files only. Forbid modify existing session/memory files.
-- **L3 (User Approval)**: check file existence before adding `collab-audits/` to .gitignore. Auto-save sufficient at L1 (easy to revert).
+- **L1 (Invariants)**: save audit result files only. Forbid modify existing session/memory files. Checking file existence before adding `collab-audits/` to `.gitignore` is a deterministic automatic check (L1), not a user-approval gate (L3) — Step 5.3 adds/creates the entry without waiting for confirmation. Easy to revert via git, so L1 alone is sufficient (corrected: this was previously mislabeled as requiring L3).
 
 ---
 

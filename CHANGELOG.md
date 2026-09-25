@@ -6,6 +6,38 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.13 — 2026-09-25
+
+Refinement release — no skills added or removed; a delta port from the internal fork covering 19 of the 20 skills (`stepback` had only internal-only changes). Several ports fix real bugs that also existed in the public copy.
+
+### Fixed — bugs present in the public copy
+- **All 20 skills**: the frontmatter key was `user_invocable` (underscore). Claude Code's documented key is `user-invocable`, and unrecognized keys are ignored silently. Renamed repo-wide. No behavior change here — every skill sets it to `true`, which is also the default.
+- **pre-push**: an empty staging area with already-committed, not-yet-pushed commits used to skip the secret scan entirely (a secret committed earlier in the session got pushed unscanned). Discard If and Step 1 now require both staged files *and* outgoing commits to be zero.
+- **pre-push**: Steps 1–5a share shell variables; a harness whose Bash tool does not keep state between calls emptied them and turned the Step 4 test gate and Step 5a lint gate into silent no-ops. Core variables are now persisted to a `.git/`-local state file keyed to the current push and restored when missing; empty file lists print an explicit warning instead of passing quietly.
+- **pre-push**: staged paths containing spaces broke ruff/flake8/eslint (unquoted expansion) — now passed via `printf | xargs -d '\n'`. `FILE_COUNT` no longer prints a spurious second `0`.
+- **scope**: referenced an agent (`L2-reviewer`) that does not exist in four places; now `doubt-reviewer`. `BLOCKED` added to the final status labels.
+- **skill-ops**: Quality Mode piped the JSON output of steps 2/3 into an `sq` subcommand that takes plain floats. Phase 4 cleanup no longer runs `rm -rf` itself — it lists old snapshots and prints the command for the user.
+- **project-overview**: `generate_overview.py` mixed native and forward-slash separators on Windows; now pathlib throughout.
+- **session-start**, **project-check**, **project-init**, **next-action**, **eval-leakage-audit**: the `tools:` frontmatter was described as a hard block, but Claude Code does not enforce it for skills. Read-only skills now also set `disallowed-tools: Edit, Write, NotebookEdit`, and the docs say plainly that `tools:` is documentation only.
+- **collab-audit**: the Safety Layers table labeled an automatic `.gitignore` check as needing user approval.
+- **code-autopsy**: a coverage-jump signal was filed under Q7 (performance) instead of Q10 (test quality).
+
+### Changed — per skill
+- **pre-push** → v3.11.0: same-line allow marker for the secret scanner (`# scan-secrets: allow` or the existing `# gitleaks:allow` convention); every skipped line is counted and printed as `[ALLOW] N ...`, and merge-conflict detection cannot be suppressed. After any `SECRETS_EXIT=1`, push only after a re-run shows `SECRETS_EXIT=0` — a hand-checked "false positive" call is not enough. The Python test trigger also recognizes `pytest.ini`/`setup.cfg`/`tox.ini`/`Pipfile`/`poetry.lock` and tracked `test_*.py` files. The test-count floor file moved into `.git/` so it cannot be committed by accident.
+- **full-audit** → v1.4: opt-in **canary mixing** — `scripts/canary_mix.py` stages a known-clean file and a file with one planted defect into the review bundles without telling the reviewers, and `scripts/canary_score.py` records false positives on the clean file and misses on the seeded one, with a `recall: k/n` line (`RECALL_UNMEASURED` until 5 runs). Ships a small example pool under `scripts/canaries/` (override with `--canaries-dir`). Review dispatches use neutral framing ("judge whether this bundle satisfies policy P, with equal strictness either way") instead of "find problems". Corrected the claim that the model can lift a `settings.json` deny: it drafts an edit and an apply script for the user to run.
+- **integration-intake**: Phase 1.6 gains check (f), composition risk with already-installed assets. When several surfaces answer "yes", the result is split into an enforcement surface (hook/rule) and an execution surface (skill/agent), with a flag when execution has no owner — placing one pattern in several places is now normal, not ambiguity. New small-delta fast path, a multi-candidate report template, and a justification gate before grafting (frequency for internal patterns, 2-of-3 evidence for external or paper-sourced ones).
+- **goal-lock**: judgment-reversal discipline (arXiv 2608.11624, 2608.21377) — classify user feedback as a new fact, a pointed reasoning error, or pressure without new information; on the last, restate the original grounds and keep the verdict unless one of them is shown invalid. The Stop-hook order gate excludes the progress file's own writes and recognizes package-manager-wrapped test commands (`poetry run`, `uv run`, `npm run test:*`, …).
+- **session-checkpoint**: a lesson's `obs` is not incremented twice on the same day; first-person-looking preference instructions without a user-original source are quarantined; new `rule_gap: A|B` field; urgent handoff items can carry `stop:`/`owner:`/`fallback:`; `prior_session_id` must be an exact copy or the literal `"unknown"`.
+- **doc-drift**: flags injected-instruction signals in recently added lines — `[injected-imperative]`, `[dormant-trigger]`, `[self-propagation]` (arXiv 2607.14611, 2607.14651). `.drift-reports/` guidance now checks the target project's `.gitignore` instead of an absolute rule.
+- **setup**: checks for an existing, differently named rules file before assuming `project-rules.md`; opt-in "paper-only" PreToolUse hook template for the Trading/Finance preset.
+- **project-check**: dependency and build directories are excluded from scans; the skill never writes the history file itself.
+- **clean-room**: the FRAME step's precedent citations obey the same exposure limit as the LEDGER step, closing an earlier-stage leak.
+- **freeze**: `not_for` points one-shot direction checks to `stepback`.
+- **code-autopsy**: when a caller asks for a narrower output format, a CRITICAL finding still leads the output.
+
+### Not ported (internal-only)
+Model-tier relabeling, internal hook/script dependencies with no public equivalent, and internal path or incident references.
+
 ## v6.5.12 — 2026-09-19
 
 Refinement release — no skills added or removed; a delta port from the internal fork covering 5 of the 20 skills. `pre-push` also changed upstream, but only in internal-only steps (harness regression-scan wiring, the public-mirror scrub step), so nothing was ported; 13 other skills had no upstream change since v6.5.11, and `code-autopsy` has no internal skill counterpart to diff.

@@ -2,8 +2,9 @@
 name: eval-leakage-audit
 skill_type: analysis
 tools: Read, Grep, Glob
+disallowed-tools: Edit, Write, NotebookEdit  # tools: alone is not enforced by the skill loader -- disallowed-tools is what the harness actually applies
 description: "Audits whether a verification (eval/metric/experiment/holdout) actually secures independent external ground truth, or whether the designer, the model, and the scorer are just confirming each other in a circle — via a 21-pattern taxonomy. Read-only. Use before trusting any 'how we'll know it worked' — A/B tests, holdouts, scores, validation — especially when a result feels too clean or self-confirming. 한국어: '이 검증 순환논리 아닌지 봐줘', '이 평가 편파적이야?', '이 벤치마크 셀프체크야?'."
-user_invocable: true
+user-invocable: true
 concurrency_profile:
   read_only: true
   concurrency_safe: true
@@ -87,7 +88,7 @@ When some verification (eval/metric/experiment/holdout) gives you confidence tha
 | "We hid the output values, so it's independent now" | Violates Invariant 3. Output blinding and collection-recipe independence are different problems |
 | "Let's show we checked all 21" | Violates Invariant 2. Listing unfired patterns is a laundry list — completion theater without evidence |
 | "This looks independent enough" | Violates the Gate≠Oracle principle. "Looks similar" is a feeling, not evidence — judge only by which of the 21 patterns actually fired |
-| "The auditor designed this experiment too, but it's fine" | Exactly the self-check Invariant 4 calls for — this is precisely the Verifier=designer case (#5) |
+| "The auditor designed this experiment too, but it's fine" | Exactly the self-check Workflow step 5 calls for — this is precisely the Verifier=designer case (#5) (corrected: this is not Invariant 4, which is the single-root-cause convergence rule and is unrelated to self-checking) |
 | "Both sides failed, so both implementations are bad" | Violates Dual-fail-flag (#9). If two independent implementations fail on exactly the same hidden case, check the scorer for a defect first — don't default to blaming the subjects |
 
 ## Output

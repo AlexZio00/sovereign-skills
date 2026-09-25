@@ -1,0 +1,1 @@
+{"defect_id": "seeded-secret-001", "expected_finding_keywords": ["hardcoded", "credential", "api key", "secret"], "category": "secrets", "note": "The reviewer-visible file name and body must never contain anything that gives away the defect. The key value is a random hex string (not a real credential)."}

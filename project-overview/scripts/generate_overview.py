@@ -20,10 +20,15 @@ import argparse
 import os
 import re
 import sys
+from pathlib import Path
 
-DEFAULT_REGISTRY = os.path.expanduser("~/.claude/projects-registry.md")
-DEFAULT_OUTPUT = os.path.expanduser("~/.claude/OVERVIEW.md")
-HANDOFF_RELATIVE_PATH = os.path.join("memory", "session-handoff-LATEST.md")
+# pathlib (not os.path.expanduser + a forward-slash string literal) so the
+# separator is consistently native — expanduser only replaces the leading
+# "~" segment, leaving the rest of a "~/.claude/..." literal as forward
+# slashes on Windows and producing a mixed-separator path in printed output.
+DEFAULT_REGISTRY = str(Path.home() / ".claude" / "projects-registry.md")
+DEFAULT_OUTPUT = str(Path.home() / ".claude" / "OVERVIEW.md")
+HANDOFF_RELATIVE_PATH = str(Path("memory") / "session-handoff-LATEST.md")
 
 AUTO_START = "<!-- AUTO:START -->"
 AUTO_END = "<!-- AUTO:END -->"

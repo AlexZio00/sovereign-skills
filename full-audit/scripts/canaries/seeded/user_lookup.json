@@ -1,0 +1,1 @@
+{"defect_id": "seeded-sqli-001", "expected_finding_keywords": ["injection", "parameteriz", "string concatenation"], "category": "owasp-a03", "note": "The reviewer-visible file name and body must never contain anything that gives away the defect."}

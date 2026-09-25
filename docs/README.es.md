@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.5.12
+# sovereign-skills v6.5.13
 
 20 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
-> **Cambios en v6.5.12:** Versión de refinamiento — no se añadieron ni eliminaron habilidades; un port selectivo (delta) que cubre 5 de las 20 habilidades. `integration-intake` incorpora una comprobación de conflicto de intereses, controles de inyección en hooks de ciclo de vida de plugins y en descripciones de herramientas MCP, y un pipeline de despliegue de 7 etapas (DRAFTED → OBSERVED) con un Capability Map por afirmación; `session-checkpoint` etiqueta las decisiones pendientes y las conclusiones causales con una base de verificación `basis` (`run|doc|dialogue`); `doc-drift` añade dos señales: sincronización de interfaz CLI y erosión de invariantes; `goal-lock` ejecuta la comprobación discriminante más barata antes de declarar incertidumbre sobre la causa raíz (S5) y distingue si un bloqueo repetido es un error de ejecución o de diseño de la hoja de entrada (S6); `full-audit` → v1.3 añade un límite al tamaño de lote por revisor. Las notas de versiones anteriores se movieron a [CHANGELOG.md](../CHANGELOG.md).
+> **Cambios en v6.5.13:** Versión de refinamiento — no se añadieron ni eliminaron habilidades; un port delta que cubre 19 de las 20 habilidades, con varias correcciones de errores que también existían en la copia pública. `pre-push` → v3.11.0 ya no omite el escaneo de secretos cuando el área de preparación está vacía pero hay commits sin enviar, mantiene activas sus compuertas de pruebas y lint cuando el estado del shell se pierde entre llamadas, y añade un marcador de permiso en la misma línea que se contabiliza; `full-audit` → v1.4 añade mezcla opcional de canarios (un archivo limpio y otro con un defecto plantado, insertados en los paquetes de revisión para medir falsos positivos y recall); `integration-intake` separa la adopción en superficie de aplicación y superficie de ejecución; `goal-lock` añade disciplina de revocación de juicio; la clave de frontmatter pasa a ser la documentada `user-invocable` en las 20 habilidades. Lista completa en [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 

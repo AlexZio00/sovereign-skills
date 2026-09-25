@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.12
+# sovereign-skills v6.5.13
 
 覆盖 Claude Code 项目完整生命周期的 20 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
-> **v6.5.12 变更：** 精炼版本 — 未新增或移除任何技能；对 20 个技能中的 5 个进行增量移植。`integration-intake` 新增利益冲突检查、插件生命周期钩子与 MCP 工具描述注入检查，以及带有逐项声明 Capability Map 的 7 阶段部署流水线（DRAFTED → OBSERVED）；`session-checkpoint` 为未决决策和因果结论标注验证依据 `basis`（`run|doc|dialogue`）；`doc-drift` 新增两个信号：CLI 接口同步与不变条款侵蚀；`goal-lock` 在宣布根因不确定之前先执行一次最廉价的判别检查（S5），并区分重复出现的阻塞是执行错误还是输入表设计错误（S6）；`full-audit` → v1.3 新增单个审阅者批次大小上限。更早的发布说明已移至 [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.5.13 变更：** 精炼版本 — 未新增或移除任何技能；对 20 个技能中的 19 个进行增量移植，并包含多项公开版中同样存在的缺陷修复。`pre-push` → v3.11.0：暂存区为空但存在未推送提交时不再跳过密钥扫描；调用之间 shell 状态丢失时测试/lint 闸门不再静默失效；新增计数的同行放行标记。`full-audit` → v1.4 新增可选的金丝雀混入（将无问题文件与植入缺陷的文件悄悄混入评审包，以测量误报与召回率）。`integration-intake` 将采纳目标拆分为强制面与执行面。`goal-lock` 新增判断反转纪律。全部 20 个技能的 frontmatter 键更正为官方写法 `user-invocable`。完整列表见 [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 

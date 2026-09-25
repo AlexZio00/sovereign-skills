@@ -1,10 +1,10 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.5.12
+# sovereign-skills v6.5.13
 
 20 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
-> **What changed in v6.5.12:** Refinement release — no skills added or removed; a delta port covering 5 of the 20 skills. `integration-intake` gains a conflict-of-interest check, plugin lifecycle-hook and MCP tool-description injection checks, and a 7-stage deployment pipeline (DRAFTED → OBSERVED) with a per-claim Capability Map; `session-checkpoint` tags pending decisions and causal conclusions with a verification `basis` (`run|doc|dialogue`); `doc-drift` adds two signals — CLI interface sync and invariant erosion; `goal-lock` runs one cheapest discriminating check before declaring root-cause uncertainty (S5) and asks whether a repeated blocker is an execution error or an input-sheet design error (S6); `full-audit` → v1.3 adds a single-reviewer batch-size cap. Earlier release notes moved to [CHANGELOG.md](CHANGELOG.md).
+> **What changed in v6.5.13:** Refinement release — no skills added or removed; a delta port covering 19 of the 20 skills, including several bug fixes that also existed in the public copy. `pre-push` → v3.11.0 no longer skips the secret scan when staging is empty but unpushed commits exist, keeps its test/lint gates working when shell state is lost between calls, and adds a counted same-line allow marker; `full-audit` → v1.4 adds opt-in canary mixing (a clean file and a planted-defect file slipped into review bundles to measure false positives and recall); `integration-intake` splits adoption into enforcement and execution surfaces; `goal-lock` adds judgment-reversal discipline; the frontmatter key is now the documented `user-invocable` in all 20 skills. Full list in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

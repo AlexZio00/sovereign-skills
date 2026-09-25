@@ -2,7 +2,7 @@
 skill_type: workflow
 tools: Read, Write, Edit, Glob, Grep, Agent, Bash, AskUserQuestion
 name: scope
-user_invocable: true
+user-invocable: true
 description: |
   Scope definition before implementation — two modes.
   Quick mode (default): IN/OUT/exit criteria brief → BRIEF.md.
@@ -21,7 +21,7 @@ see_also:
     relation: "scope=define boundaries, freeze=enforce boundaries"
 depends_on:
   skills: []
-  agents: []
+  agents: [doubt-reviewer]  # L2's reviewer role names doubt-reviewer (adversarial pre-implementation review), not a separate "L2-reviewer" agent
   files:
     - "CLAUDE.md"
     - "scripts/ambiguity_gate.py"
@@ -144,14 +144,14 @@ Request approval only once the script reports `ok: true`. **On approval**: write
 |-------|------|------|
 | L0 | Mirror → Goal, Non-goals, Confirmed Goal | User confirmation |
 | L1 | Codebase research → Research section | Automatic |
-| L2 | Interview → Decisions + Constraints | L2-reviewer + user approval |
+| L2 | Interview → Decisions + Constraints | doubt-reviewer + user approval |
 | L3 | Requirements (GWT sub-requirements) | User approval |
 | L4 | Tasks (Fulfills links) + Plan Summary | User approval |
 
 ### Core Rules
 1. Layer order is immutable — no skipping, no backward traversal
 2. Append, don't overwrite — Read existing spec.md first
-3. L2-reviewer independent validation required (if skipped: mark `Reviewer: SKIPPED`)
+3. doubt-reviewer independent validation required (if skipped: mark `Reviewer: SKIPPED`)
 4. Tasks must link to Requirements (`Fulfills: R{n}.{m}`)
 
 ### L2 Self-Validation
@@ -197,7 +197,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 | [READ] Idea → structured brief/spec | Write or modify code |
 | [READ] IN/OUT explicit + exit criteria | Decide implementation method (how is implementer's job) |
 | [WRITE] Save BRIEF.md or spec.md | Analyze existing code (quick scan only) |
-| [AGENT] L2-reviewer independent validation (Full) | Make design decisions (brainstorming's role) |
+| [AGENT] doubt-reviewer independent validation (Full) | Make design decisions (brainstorming's role) |
 
 ## Safety Layers 
 
@@ -253,7 +253,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 - Quick → `BRIEF.md` written to disk (Step 4, gated by the min-items script above), scratch file deleted.
 - Full → `specs/{kebab-name}/spec.md` written/appended per layer (L0→L4), each layer gated by its own user-approval checkpoint.
 
-**Final status label** (required on completion): `WORKING` (brief/spec saved, all gates passed) / `PARTIAL` (saved with a documented gap — e.g. `[assumed]` tags from a question-limit exit, or a section marked `⚠️`) / `BROKEN` (approval never reached, or the save itself failed). Conditions per label are the same as Truthful Reporting above.
+**Final status label** (required on completion): `WORKING` (brief/spec saved, all gates passed) / `PARTIAL` (saved with a documented gap — e.g. `[assumed]` tags from a question-limit exit, or a section marked `⚠️`) / `BROKEN` (an approved draft turns out structurally contradictory or unusable after saving) / `BLOCKED` (waiting on user approval or another unresolved external dependency). Conditions per label are the same as Truthful Reporting above.
 
 ## Principles
 - **OUT matters more than IN** — people say what to do but skip what NOT to do.

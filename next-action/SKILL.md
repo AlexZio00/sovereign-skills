@@ -1,8 +1,9 @@
 ---
 name: next-action
 description: "Use when the user wants a next-action recommendation based on current state — reads handoff/git/lessons/STATE and proposes top-3 by impact. Trigger: '/next', 'what should I do next', 'next action'. Proposes only, never executes."
-user_invocable: true
-tools: Read, Bash, Glob
+user-invocable: true
+tools: Read, Bash, Glob  # documentation only — Claude Code does not enforce this field
+disallowed-tools: Edit, Write, NotebookEdit  # physical lock for this propose-only skill, until the user's next message
 not_for:
   - "Right after session start (session-start already outputs state)"
   - "User already gave a specific task"
@@ -75,10 +76,10 @@ Narrow candidates to 3. Sort criteria:
 2. **[action]** — [rationale]
 3. **[action]** — [rationale]
 
-Pick a number to proceed immediately.
+Tell me the number and I'll start that work in the next message.
 ```
 
-Output and stop immediately. If the user picks a number, start that work.
+Output then stop immediately — this skill's own execution ends here (Invariant 1). If the user picks a number, the *main session* starts that work on the next turn; this skill does not continue and execute it itself.
 
 ---
 

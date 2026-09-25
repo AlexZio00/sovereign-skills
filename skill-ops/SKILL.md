@@ -1,6 +1,6 @@
 ---
 name: skill-ops
-user_invocable: true
+user-invocable: true
 description: "Skill ops hub: snapshot/rollback + usage health + invocations."
 not_for:
   - "Creating/editing skills — this only manages existing skills, it doesn't author new ones"
@@ -28,7 +28,7 @@ concurrency_profile:
 
 1. **Permission to create `~/.claude/.harness/snapshots/`** — if broken: report permission issue + provide manual mkdir command.
 2. **Target file is `~/.claude/skills/*/SKILL.md` or `~/.claude/agents/*.md`** — if broken: ask for the skill name directly.
-3. **Retention policy: keep last 5** — 6th and older are deleted oldest-first. Ignore if deletion fails.
+3. **Retention policy: keep last 5** — 6th and older are flagged for deletion oldest-first (command printed, not auto-run — see Phase 4). If listing fails, skip cleanup reporting for that skill.
 4. **Invocation logs: session-checkpoint Phase 3.7 appends to `invocations/YYYY-MM.jsonl`** — if broken: state "no logs".
 5. **SKILLS/AGENTS_INVENTORY.md is the source of truth** — if broken: analyze from log-derived names only (mark incomplete).
 
@@ -77,19 +77,20 @@ mkdir -p ${SKILL_SNAP_DIR}/${TIMESTAMP}
 - `[WRITE]` snapshot → `[READ]` re-verify → compare its SHA-256 hash against `ORIGINAL_HASH`
 - Mismatch → `⚠️ Snapshot verification failed` + end with PARTIAL
 
-### Phase 4: Clean Up Old Snapshots (delete beyond 5)
+### Phase 4: Clean Up Old Snapshots (list + print delete commands beyond 5 — never deletes automatically)
 ```bash
 SNAP_DIR=~/.claude/.harness/snapshots/{skill-name}
 COUNT=$(find "${SNAP_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
 if [ "${COUNT}" -gt 5 ]; then
+  echo "Cleanup candidates (oldest first, beyond the 5 kept) — run these yourself:"
   find "${SNAP_DIR}" -mindepth 1 -maxdepth 1 -type d | sort | head -n "$((COUNT-5))" | while IFS= read -r path; do
-    [ -n "${path}" ] && rm -rf -- "${path}"
+    [ -n "${path}" ] && echo "rm -rf -- \"${path}\""
   done
 fi
 ```
 - `COUNT` is computed explicitly (previously undefined) and cleanup is skipped entirely when `COUNT` ≤ 5, so `head -n` never receives a zero/negative argument.
 - The `while IFS= read -r path` loop replaces `xargs` — `xargs`' default whitespace-delimited splitting mishandles snapshot paths containing spaces, while `read -r` consumes each line whole.
-- `[ -n "${path}" ]` guards against an empty line reaching `rm -rf`.
+- **This phase never runs `rm -rf` itself** — it only lists candidates and prints the exact command; running it is the user's call (same propose-then-user-executes pattern as Phase 6's rollback command). A skill silently deleting a user's files in bulk is a worse failure mode than asking them to paste one line.
 
 ### Phase 5: Show Prior Score Store Score
 - Extract `harness_score` (0-100 scale — check-harness's project/user-level aggregate score; a different schema from this skill's own 0-10 `S_Q` metric in Quality Mode below) + `date` from the latest `~/.claude/.harness/scores/*.json` file
@@ -187,16 +188,18 @@ Structure score, usage score, and their sum are computed by the script — never
    ```bash
    python scripts/skill_health_bucket.py structural --file <path to SKILL.md>
    ```
-   Checks, +1 each: Dominant Variable present · Discard If present · Invariants has a violation-consequence clause · Scope Boundary has 2+ rows on each side · Rationalization Table has 3+ rows.
+   Output is JSON: `{"structural_score": N.N}`. Checks, +1 each: Dominant Variable present · Discard If present · Invariants has a violation-consequence clause · Scope Boundary has 2+ rows on each side · Rationalization Table has 3+ rows.
 3. **Usage score (0-5)**:
    ```bash
    python scripts/skill_health_bucket.py usage --invocation-count-30d {N} --discard-rate {F} \
        --days-since-modified {N} [--has-related-lesson]
    ```
-   Weights: 5+ invocations in 30 days (+2) / 1-4 (+1) / 0 (0) · Discard If trigger rate < 30% (+1) · last modified within 30 days (+1) or within 90 days (+0.5) · related lesson exists (correction history = usage evidence) (+0.5).
-4. **S_Q = structure + usage (0-10)**:
+   Output is JSON: `{"usage_score": N.N}`. Weights: 5+ invocations in 30 days (+2) / 1-4 (+1) / 0 (0) · Discard If trigger rate < 30% (+1) · last modified within 30 days (+1) or within 90 days (+0.5) · related lesson exists (correction history = usage evidence) (+0.5).
+4. **S_Q = structure + usage (0-10)** — the `sq` subcommand takes `--structural`/`--usage` as plain floats, so piping step 2/3's JSON straight in fails argparse. Extract the numeric field first:
    ```bash
-   python scripts/skill_health_bucket.py sq --structural {F} --usage {F}
+   S=$(python scripts/skill_health_bucket.py structural --file <path to SKILL.md> | python -c "import json,sys; print(json.load(sys.stdin)['structural_score'])")
+   U=$(python scripts/skill_health_bucket.py usage --invocation-count-30d {N} --discard-rate {F} --days-since-modified {N} | python -c "import json,sys; print(json.load(sys.stdin)['usage_score'])")
+   python scripts/skill_health_bucket.py sq --structural "$S" --usage "$U"
    ```
 5. **Bottom 25%** = optimization targets. Top 75% = keep as-is.
 
@@ -219,7 +222,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 |------|----------|
 | [READ] Read the original snapshot target file | Directly modify skill/agent files |
 | [WRITE] Save timestamped snapshot file | Execute automatic restoration (proposal only) |
-| [BASH] Delete old snapshots (beyond 5) | Upload to external storage/cloud |
+| [BASH] List old snapshots beyond 5 + print the delete command | Directly delete a snapshot (execution is the user's job) / Upload to external storage/cloud |
 | [READ] Check prior Score Store score | Run a quality audit itself |
 | [READ] Parse invocations JSONL (tool_use only) | Read session prompt text |
 | [WRITE] health report / invocations JSON | Judge skill quality or decide deletion |
@@ -232,7 +235,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| Delete old snapshots (`rm -rf`) | medium | L1+L3 |
+| Clean up old snapshots (list + print `rm -rf`, user runs it) | medium | L1+L3 |
 | Roll back a skill file (Write overwrite) | medium | L1+L3 |
 
 - **L1 (Invariants)**: mandatory SHA-256 hash re-verification after save. No automatic restoration.
@@ -252,7 +255,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 1. **Confirm original exists before snapshotting**: Write only after successful Read. Abort if original is missing. Violation → empty snapshot.
 2. **Re-verify Read after Write**: SHA-256 hash mismatch → PARTIAL. Violation → reporting a corrupted snapshot as "done".
 3. **No automatic restoration**: only output the restore `cp` command. Execution is the user's job. Violation → unintended file overwrite.
-4. **Keep last 5**: delete 6th and beyond. Violation → unbounded directory growth.
+4. **Keep last 5**: 6th-and-beyond are listed as cleanup candidates with the delete command printed for the user to run — this phase never calls `rm -rf` itself (same propose-then-user-executes pattern as Phase 6's rollback). Violation → unreported cleanup targets let the directory grow unbounded.
 5. **No automatic deletion (Health)**: never delete/move files even at 0 usage. Report only. Violation → No Action default violation.
 6. **No logs ≠ unused (Health)**: sessions that skipped session-checkpoint may still have been used despite missing logs. Treat as Unknown. Violation → truthful-reporting violation.
 7. **Below threshold ≠ Dead (Health)**: Low (below threshold) and Dead (0x for 90+ days) are distinct. Violation → misclassifying an in-use skill.

@@ -11,7 +11,7 @@ Ported from scan_secrets.pl (coinangel/claude-pre-push-skill, MIT) — de-vendor
 2026-07-20 to fold local hardening into this repo's own tracked history and
 match this harness's all-Python script convention (scripts/*.py). Regex
 patterns and anti-evasion defenses preserved 1:1 from the Perl original;
-regression suite (test_scan_secrets.py, 44 fixtures) re-verifies parity.
+regression suite (test_scan_secrets.py, 53 fixtures) re-verifies parity.
 
 # v2.2.0 (2026-07-16): hardening pass after adversarial evasion probe
 # (~/.claude/.harness/evasion-corpus/pre-push-scan-secrets.md, 21 confirmed
@@ -28,6 +28,13 @@ regression suite (test_scan_secrets.py, 44 fixtures) re-verifies parity.
 # looser f4b prefix-tolerant anchor — needs a value-shape calibration corpus
 # to bound false-positive risk (e.g. SECRET_ROTATION_ID-style names), not a
 # plain regex tweak.
+#
+# v2.4.0 (2026-09-24): same-line allow marker. An added line ending in
+# `# scan-secrets: allow` or the pre-existing convention `# gitleaks:allow`
+# skips credential checks for that one line only (merge-conflict detection
+# is never suppressible). Every skip is counted and printed to stderr as
+# `[ALLOW] N added line(s) skipped by an allow marker ...` so a marker can't
+# silently swallow a real finding without leaving a trace in the output.
 """
 from __future__ import annotations
 
@@ -66,6 +73,12 @@ def _normalize(line: str) -> str:
 
 # ── Merge conflict markers — checked on ALL lines (added + unchanged context) ──
 _MERGE_RE = re.compile(r"^[+ ](<{7} |={7}\s*$|>{7} )")
+
+# ── Same-line allow marker: skips credential checks for that one added line
+# only. Merge-conflict detection above still applies (never suppressible).
+# Skips are counted and reported by main() so a silent bypass isn't possible. ──
+_ALLOW_RE = re.compile(r"scan-secrets:\s*allow\b|gitleaks:allow\b")
+LAST_ALLOWED_COUNT = 0
 
 # ── f1: AWS Access Key ID (AKIA=long-term, ASIA=STS/temporary) ──
 _F1_RE = re.compile(r"(?:AKIA|ASIA)[0-9A-Z]{16}")
@@ -185,7 +198,9 @@ _MESSAGES = (
 def scan_lines(lines: Iterable[str]) -> dict:
     """순수 판정: 이미 분리된 diff 라인 시퀀스를 스캔해 플래그 dict를 반환.
     파일/STDIN I/O 없음 — 테스트에서 직접 호출 가능(subprocess/perl 불필요)."""
+    global LAST_ALLOWED_COUNT
     flags = {key: False for key, _, _ in _MESSAGES}
+    allowed = 0
 
     for raw_line in lines:
         line = _normalize(raw_line)
@@ -197,12 +212,15 @@ def scan_lines(lines: Iterable[str]) -> dict:
             continue
         if line.startswith("+++"):
             continue
+        if _ALLOW_RE.search(line):
+            allowed += 1
+            continue
 
         # Runtime-reversal defense: a value written backwards in source
         # contains the real secret as a contiguous substring once the WHOLE
         # LINE is reversed. Only unanchored, tight-form rules are re-checked.
         reversed_line = line[::-1]
-        for key, pattern in zip(_REVERSED_KEYS, _REVERSED_PATTERNS):
+        for key, pattern in zip(_REVERSED_KEYS, _REVERSED_PATTERNS, strict=True):
             if pattern.search(reversed_line):
                 flags[key] = True
 
@@ -239,6 +257,7 @@ def scan_lines(lines: Iterable[str]) -> dict:
         if _F13_RE.search(line):
             flags["f13"] = True
 
+    LAST_ALLOWED_COUNT = allowed
     return flags
 
 
@@ -253,6 +272,12 @@ def format_report(flags: dict) -> str:
 def main() -> int:
     lines = [line.rstrip("\r\n") for line in sys.stdin]
     flags = scan_lines(lines)
+    if LAST_ALLOWED_COUNT:
+        print(
+            f"[ALLOW] {LAST_ALLOWED_COUNT} added line(s) skipped by an allow marker "
+            "(scan-secrets: allow / gitleaks:allow) - review them in the diff",
+            file=sys.stderr,
+        )
     if any(flags.values()):
         print(format_report(flags))
         return 1

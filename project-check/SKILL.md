@@ -6,8 +6,9 @@ triggers:
   - "what's wrong"
 name: project-check
 description: "Existing project health scan — audits Infrastructure, Security, Quality, and Harness setup. Read-only. Use when: '/project-check', 'project health check', 'project audit', 'what\\'s missing', 'analyze my project', 'check setup'. Ends with /project-init and /setup recommendations. NOT for new projects (use /project-init); project-check = shallow health scan."
-user_invocable: true
+user-invocable: true
 tools: Read, Bash, Glob, Grep
+disallowed-tools: Edit, Write, NotebookEdit  # skill frontmatter `tools:` is not enforced by Claude Code — this field is what actually blocks writes
 depends_on:
   skills: []
   agents: []
@@ -24,7 +25,7 @@ not_for:
   - "Deep, scored harness-maturity audit against a fixed multi-axis checklist -> check-harness (project-check is a shallow one-pass scan, not a maturity score)"
 see_also:
   - skill: setup
-    relation: "project-check=existing audit, setup=new project"
+    relation: "project-check=existing audit, setup=new harness setup (project-init is a separate skill for project scaffolding)"
   - skill: check-harness
     relation: "project-check=shallow one-time 4-dimension scan with no persistent scoring model, check-harness=deep multi-axis maturity scoring with trend tracking"
 ---
@@ -70,7 +71,9 @@ Count source files to calibrate warning thresholds:
 
 ```
 Scan: *.py, *.ts, *.tsx, *.js, *.go, *.rs, *.java, *.kt, *.swift, *.c, *.cpp, *.h
+Exclude dirs: node_modules/, .venv/, venv/, __pycache__/, vendor/, dist/, build/, .git/, .next/, target/
 ```
+(Without this exclusion, dependency/build directories get swept into the file/LOC count and skew the Step 0 scale classification.)
 
 Classify:
 - **script**: < 10 source files or < 500 LOC → minimal structure expected, skip ROADMAP/ADR warnings
@@ -93,7 +96,7 @@ For CLAUDE.md: count Hard Rules entries (lines starting with `-` under `## Hard 
 
 ### Step 2: Security Scan
 
-Grep these patterns across all source files (case-insensitive). Exclude: `*.example`, `.env.example`, files in `tests/`, `__tests__/`, `spec/`:
+Grep these patterns across all source files (case-insensitive). Exclude: `*.example`, `.env.example`, files in `tests/`, `__tests__/`, `spec/`, and dependency/build directories (`node_modules/`, `.venv/`, `venv/`, `__pycache__/`, `vendor/`, `dist/`, `build/`, `.git/`, `.next/`, `target/` — same list as Step 0):
 
 ```
 API_KEY\s*=\s*["'][^$({]      → hardcoded API key
@@ -116,6 +119,8 @@ A string match for `.env` inside `.gitignore` is not proof of protection — the
 - `.env.local`, `.env.*.local` in `.gitignore` → ⚠ if missing (TypeScript/Next.js projects). Apply the same `git check-ignore -v` verification when a matching line is present.
 
 ### Step 3: Quality Scan
+
+Apply the same exclusion list as Step 0 (`node_modules/`, `.venv/`, `__pycache__/`, `vendor/`, `dist/`, `build/`, `.git/`, etc.) to every file count and grep below.
 
 **Test coverage proxy:**
 
@@ -255,7 +260,7 @@ If neither exists, suggest saving current result — project-root file by defaul
 ```
 `"Next /project-check will show score delta."` — one line.
 
-**No auto-save** — suggest only. User must approve before writing, at either location.
+**No auto-save — this skill never writes it, period.** The JSON snippet above is printed to the chat as text only. Actually creating or appending to `.project-check-history.json` is something the user does themselves — it is outside this skill's execution scope (this skill has no Write/Edit tool; see Invariant 1).
 
 ---
 
@@ -291,6 +296,7 @@ If neither exists, suggest saving current result — project-root file by defaul
 | Test execution (`pytest`, `jest`, etc.) | medium | L1 (BLOCK) |
 
 - **L1 (Invariants)**: Invariant 1 — read-only. When secrets are found, report location only; never remove directly. Invariant 4 — never run test runners (prevents DB writes, API calls, network side effects).
+- ⚠️ **`disallowed-tools` scope limit**: `disallowed-tools: Edit, Write, NotebookEdit` blocks only those three tools — it does not stop the remaining `Bash` tool from writing directly (e.g. `echo x > file`, `git commit`). There is no physical (L2) block on that path for a skill loaded into the main loop like this one; enforcement currently relies on L1 prompt compliance (Invariant 1) alone, unless the host project wires its own PreToolUse hook to intercept write-shaped Bash commands.
 
 ---
 
