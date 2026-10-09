@@ -51,7 +51,7 @@ Whether the analysis infers reasons behind observed patterns, not just lists fac
 ---
 
 ## Key Assumptions 
-1. **2+ observed sessions + 100+ messages** — if broken: Discard If triggers.
+1. **2+ observed sessions OR 100+ messages** (meeting either one is enough) — if both are broken: Discard If triggers.
 2. **Access to memory/session-handoff-LATEST.md** — if broken: handoff pattern analysis unavailable, skip that dimension.
 
 ## Mode Detection (execute first)
@@ -70,6 +70,13 @@ Minimum conditions — one of:
 
 **Deterministic gate (preferred)**: if session-meta JSON files are available (one per session, with fields such as `message_count`, `artifact_count`, `originator`, `first_message`, `cwd`), run `scripts/session_hygiene_scan.py --meta-dir <DIR>` and read `meets_minimum` / `single_session_exception` straight from its JSON output — do not re-derive these booleans by eyeballing the transcripts. Fall back to manual counting only when no such metadata directory exists (e.g. a single live conversation with no file access).
 
+If session-meta JSON does not exist yet, build it first from real Claude Code session JSONL (the gate cannot run on raw JSONL):
+```bash
+python scripts/extract_session_meta.py --out-dir <scratchpad>/collab-meta --days 30 --max 20
+python scripts/session_hygiene_scan.py --meta-dir <scratchpad>/collab-meta
+```
+The extractor reads `~/.claude/projects` by default (`--projects-dir` overrides) and stores counts only, never prompt text; its docstring is the canonical field definition.
+
 If all unmet:
 > "Insufficient data — minimum 2 sessions or 100 messages required. Currently [N] messages, [M] artifacts observed."
 
@@ -83,7 +90,7 @@ Output and **stop immediately**. Reject even "prediction-based" requests.
 
 Determines **delivery intensity** for Section 11 blind spots only. Other sections are factual, so tone variance is minimal.
 
-Read signals from conversation patterns:
+Read signals from conversation patterns. Long messages mix two causes — explaining feelings/context and pasting code or logs — so exclude long messages that are more than half code blocks (```) or log lines from the style signal. If the deterministic gate (Step 0.6) was not actually run, write "manual count — script not run" in the report; never present it as a script result.
 - High ratio of short, direct messages / "facts only" / speed-first requests → **Direct** (maintain current default)
 - High emotion expression frequency / preference for long explanations / feedback-receptive signals → **Calibrated** (same blind spot content, but provide context before delivery)
 
@@ -96,7 +103,7 @@ Mark result 1 line before Section 11: `[Delivery intensity: Direct / Calibrated]
 ### Step 0.6: Source Hygiene Filter (deterministic-first measurement)
 When multiple observation sources exist (e.g. session JSONLs), determine — before analysis — whether **each source is an organic user session or an automation byproduct**. A qualitative caveat alone (the old Step 1 approach) is not enough; automated sessions can be mistaken for user behavior.
 
-**Deterministic gate**: run `scripts/session_hygiene_scan.py --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session into **one of three states** — `include` (organic) / `uncertain` (cannot confirm either way) / `exclude` (confidently auto-derived) — and returns `included_count`, `excluded_count`, `uncertain_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye.
+**Deterministic gate**: run `scripts/session_hygiene_scan.py --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session into **one of three states** — `include` (organic) / `uncertain` (cannot confirm either way) / `exclude` (confidently auto-derived) — and returns `included_count`, `excluded_count`, `uncertain_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye. `--meta-dir` reads `*.json` files **non-recursively** (files in subfolders are ignored). Required field types: `message_count` (int), `artifact_count` (int), `deep_conversation_ratio` (float), `session_meta.source.thread_spawn` (bool) — a wrong type classifies the session as unreadable. If `unreadable` > 0, report the count of unreadable sessions and mark the result `PARTIAL`.
 
 Detection criteria the script applies:
 - **Confident exclude**: session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`; OR cwd matches a naming convention specific to paired/multi-arm experiment harnesses (e.g. `pair-run`, `arm-a`/`arm-b`, `ab-test`); OR `originator` is an SDK/bot/exec-type process with no direct user-input signal (natural conversational opening message) present.
@@ -138,7 +145,7 @@ For data-empty sections, mark "Observation unavailable" then proceed to next.
 1. Include file header:
    ```
    ---
-   profile_version: 1.0
+   profile_version: 1.0 # bump when the section count or section names change; a report without this frontmatter is treated as `legacy` in compare mode
    sections: 14
    date: YYYY-MM-DD
    language: [ko|en]
@@ -348,14 +355,14 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 | Failure type | Detection condition | Recovery path |
 |---------|---------|--------|
 | `tool_failure` | Session JSONL read fail / audit file Write fail | JSONL read fail → mark scope reduced to accessible sessions. Write fail → substitute dialog output |
-| `missing_data` | Sessions < 2 or messages < 100 | Mark minimum unmet + generate reduced report. No arbitrary fill-in |
+| `missing_data` | Sessions < 2 AND messages < 100 | Insufficient-data message, then stop immediately (Invariant 4). Only if the single-session high-density exception is met: mark `⚠ single-session limits` and proceed in limited form. No arbitrary fill-in |
 | `input_error` | Range/period unclear | 1 clarification question — no guessed scope |
 
 ## Truthful Reporting
 
 On audit report save and output:
 1. **no mock deception**: sections inferred without sufficient observation evidence mark `⚠️ insufficient evidence`. Do not disguise as "insight".
-2. **no test façade**: if sessions/messages minimum (2 sessions / 100 msgs) unmet, generate reduced report. No arbitrary padding.
+2. **no test façade**: if both minimums (2 sessions / 100 msgs) are unmet, stop immediately (Invariant 4) — only if the single-session high-density exception is met, mark `⚠ single-session limits` and proceed in limited form. No arbitrary padding.
 3. **no silent brokenness**: if save fails, mark `BROKEN` status. If partial save, mark `PARTIAL` + list omitted sections.
 
 ---
@@ -366,6 +373,7 @@ On audit report save and output:
 - Dialog: structured 14-section report in order. Final section must be "13. One Line".
 - File save: `~/.claude/collab-audits/YYYY-MM-DD.md` (auto-save, no overwrite — use `-2.md` suffix if re-run same day)
 - After save, show path in dialog: `Saved: ~/.claude/collab-audits/YYYY-MM-DD.md`
+- **Retention**: the report contains session conversation content and a behavioral profile, so treat it as sensitive. Keep it only in `~/.claude/collab-audits/`, minimize verbatim quotes from conversations, and clean up old reports manually (there is no automatic deletion).
 
 **Compare mode (`/collab-audit compare`):**
 - Auto-select latest 2 files from `~/.claude/collab-audits/`
@@ -417,7 +425,7 @@ Based on previous development direction + current patterns, one next focus point
 - **Read**: MEMORY.md, artifact files, `~/.claude/collab-audits/*.md` (Compare mode)
 - **Write**: save `~/.claude/collab-audits/YYYY-MM-DD.md` and `~/.claude/.gitignore` (gitignore protection only)
 - **Glob**: list `~/.claude/collab-audits/` files (Compare mode)
-- **Bash**: scoped to invoking `scripts/session_hygiene_scan.py` for the Step 0/0.6 deterministic gate, and read-only `git rev-parse`/`git ls-files` for the Step 5 tracked-status check only — not general-purpose execution. Never runs `git rm`, `git add`, or `git commit` itself.
+- **Bash**: scoped to invoking `scripts/extract_session_meta.py` (writes session-meta JSON via `--out-dir`) and `scripts/session_hygiene_scan.py` for the Step 0/0.6 deterministic gate, and read-only `git rev-parse`/`git ls-files` for the Step 5 tracked-status check only — not general-purpose execution. Never runs `git rm`, `git add`, or `git commit` itself.
 - Delete and other execute tools forbidden
 
 ## Recommended Usage Times

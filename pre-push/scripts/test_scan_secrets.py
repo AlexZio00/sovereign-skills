@@ -207,5 +207,15 @@ def main():
     sys.exit(0)
 
 
+def test_all_cases():
+    """pytest entry point: this file uses its own runner, so without this wrapper `pytest` collects
+    0 tests and exits 0 (looks like a pass)."""
+    try:
+        rc = main()
+    except SystemExit as e:
+        rc = e.code
+    assert rc in (0, None)
+
+
 if __name__ == "__main__":
     main()

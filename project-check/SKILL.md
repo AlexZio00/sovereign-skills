@@ -108,12 +108,12 @@ secret\s*=\s*["'][^$({]       → hardcoded secret
 token\s*=\s*["'][^$({]        → hardcoded token
 ```
 
-Each match → 🔴 with `file:line` reference.
+Each match → 🔴 with `file:line` reference. Read the matched line before judging: a placeholder value (`your_key_here`, `xxx`, `changeme`, `<...>`) is ℹ info, not 🔴. Never print the found value — report `file:line` and the pattern name only.
 
 Additional checks — `.env` protection (skip entirely if not a git repo, per Key Assumption 2):
 
 A string match for `.env` inside `.gitignore` is not proof of protection — the pattern can be malformed (wrong path, typo, wrong glob syntax) and never actually match, or the file can already be tracked in git, in which case `.gitignore` has no effect on it at all. Verify both:
-1. `git check-ignore -v .env` — confirms the pattern actually matches the file. No output / non-zero exit → the listed pattern doesn't cover `.env` → 🔴 "`.env` present in `.gitignore` text but the pattern doesn't actually match (git check-ignore reports it as not ignored)".
+1. `git check-ignore -v .env` — confirms the pattern actually matches the file. No output / non-zero exit → the listed pattern doesn't cover `.env` → 🔴 "`.env` present in `.gitignore` text but the pattern doesn't actually match (git check-ignore reports it as not ignored)". If the command is denied or fails (e.g. the target is outside the worktree), report "⚠️ cannot verify — string presence only" instead of a red finding.
 2. `git ls-files --error-unmatch .env` (exit 0 means tracked) — if `.env` is already tracked, → 🔴 "`.env` is already tracked in git — `.gitignore` cannot retroactively untrack it. Needs `git rm --cached .env` (manual step; this skill does not run it)".
 - `.env` missing from `.gitignore` entirely (no string match) → 🔴 as before.
 - `.env.local`, `.env.*.local` in `.gitignore` → ⚠ if missing (TypeScript/Next.js projects). Apply the same `git check-ignore -v` verification when a matching line is present.
@@ -273,6 +273,9 @@ If neither exists, suggest saving current result — project-root file by defaul
 | "ROADMAP is unnecessary for small projects" | If scale=script, warnings are auto-skipped. Don't manually skip — let calibration work. |
 | "Harness checks only apply to Claude Code users" | Missing agent infrastructure = re-explaining context every session. Costs accumulate. |
 | "The score is low, but we can't fix it right now" | The score is priority information. Deferring is different from ignoring. |
+| "`.gitignore` contains `.env`, so it is protected" | String presence is not proof. Step 2 verifies the real match and tracked status with `git check-ignore -v` and `git ls-files --error-unmatch`. |
+| "0 agents means a setup deduction" | Check the project profile first. Under a Minimal profile, no agents is an intended choice, not a gap. |
+| "Just delete the secret" | Invariant 1 — read-only. Report the location only; never remove it directly. |
 
 ---
 
@@ -307,7 +310,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 | Failure Type | Detection | Recovery Path |
 |---------|---------|--------|
 | `tool_failure` | File read fails (permission/path error) | Narrow scan scope to accessible files only; state scope reduction. |
-| `missing_data` | CLAUDE.md missing / project root unclear | State "CLAUDE.md not found". Never guess content of missing files. |
+| `missing_data` | CLAUDE.md missing / project root unclear | State "CLAUDE.md not found". Never guess content of missing files. Recommend `/setup` and keep scanning the remaining steps. |
 | `input_error` | Unclear which project to check | Auto-scan from current directory. If that fails, ask one clarifying question. |
 
 ---

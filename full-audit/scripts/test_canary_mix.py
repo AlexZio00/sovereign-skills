@@ -51,12 +51,25 @@ with tempfile.TemporaryDirectory() as td:
     ok = (all(pathlib.Path(s["staged_path"]).is_file() for s in staged)
           and not any(w in s["staged_path"] for s in staged for w in ("canaries", "clean", "seeded"))
           and all(pathlib.Path(s["staged_path"]).read_text(encoding="utf-8")
-                  == pathlib.Path(s["path"]).read_text(encoding="utf-8") for s in staged))
+                  == pathlib.Path(s["path"]).read_text(encoding="utf-8") for s in staged)
+          # the original file name is hidden too - the same name would let a reviewer grep
+          # for it and find the pool original, revealing that the file is a control
+          and not any(pathlib.Path(s["path"]).stem in pathlib.Path(s["staged_path"]).name for s in staged)
+          and all(pathlib.Path(s["staged_path"]).suffix == pathlib.Path(s["path"]).suffix for s in staged))
     results.append(("5 stage_canaries path-neutral + content identical", ok, staged))
 
 fails = [r for r in results if not r[1]]
-for name, ok, detail in results:
-    if not ok:
-        print(f"FAIL {name}: {detail}")
-print(f"\n{len(results) - len(fails)}/{len(results)} passed")
-sys.exit(1 if fails else 0)
+
+
+def test_all_cases():
+    """pytest entry point: this file uses its own runner, so without this wrapper `pytest` collects
+    0 tests and exits 0 (looks like a pass)."""
+    assert not fails, fails
+
+
+if __name__ == "__main__":
+    for name, ok, detail in results:
+        if not ok:
+            print(f"FAIL {name}: {detail}")
+    print(f"\n{len(results) - len(fails)}/{len(results)} passed")
+    sys.exit(1 if fails else 0)

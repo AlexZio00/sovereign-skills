@@ -127,5 +127,12 @@ def main():
     print(f"\n{len(CASES) - len(fails)}/{len(CASES)} passed")
     return 1 if fails else 0
 
+
+def test_all_cases():
+    """pytest entry point: this file uses its own runner, so without this wrapper `pytest` collects
+    0 tests and exits 0 (looks like a pass)."""
+    assert main() == 0
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

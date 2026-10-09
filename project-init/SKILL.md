@@ -300,6 +300,7 @@ When failure detected: **Stop → Classify → Apply Recovery → Report & Resum
 | Failure Type | Detection Condition | Recovery Path |
 |---------|---------|--------|
 | `tool_failure` | CLAUDE.md / .gitignore Write fails | Output file content as code block → user saves manually |
+| `tool_failure` | A guard or hook blocks writing `.env.example` | Do not retry. Print the content as a code block for the user to save. |
 | `input_error` | Project type/tech stack unclear | Re-run Phase 0 interview questions. Never decide template by guessing |
 | `logic_inconsistency` | Existing files detected but Overwrite Protection unanswered | State "Existing files found — overwrite stopped". Never silently overwrite |
 | `missing_data` | Target project root directory missing | State "Directory not found" → confirm with user before proceeding |
@@ -335,6 +336,8 @@ Folder structure: suggested as text in conversation only — not created on disk
 | "Only I use this project, can skip .env.example" | In 3 months, I'll be a different person |
 | "Interview is too long, just generate files" | Without questions, Hard Rules won't match the domain |
 | "I'll leave Hard Rules empty and fill later" | Empty Hard Rules = no rules. Minimum 1 required always |
+| "The existing CLAUDE.md is probably outdated, just overwrite it" | Invariant 2 — run the Phase 0 detection and user-choice prompt first. Overwriting silently destroys existing Hard Rules. |
+| "The user needs keys to run, auto-fill `.env`" | Forbidden. Generate `.env.example` as a template only; never write real secrets. |
 
 ---
 
@@ -342,7 +345,7 @@ Folder structure: suggested as text in conversation only — not created on disk
 
 1. **Hard Rules always present**: Never generate CLAUDE.md without at least one Hard Rule. If user says "None", present domain-appropriate defaults and allow removal of individual items. Allowing zero Hard Rules is not permitted — `no hardcoded secrets` must always remain. Violation → CLAUDE.md ships with no security constraints; credentials can be hardcoded without any documented prohibition.
 2. **Phase 0 mandatory**: Never overwrite an existing CLAUDE.md without first running the detection + user-choice prompt. User may choose rewrite, but the prompt must happen first. Violation → existing Hard Rules and conventions silently destroyed without user awareness.
-3. **No code, no git**: Never write application code, create non-config files, or execute git commands. Refuse and redirect. Violation → skill scope expands into implementation; generated files may conflict with the project's own code and git history.
+3. **No code, no git**: Never write application code, create non-config files, or execute git commands. The only non-config files this skill creates are `docs/DEVELOPMENT_ROADMAP.md` and `docs/decisions/README.md` in Phase 3. Refuse and redirect. Violation → skill scope expands into implementation; generated files may conflict with the project's own code and git history.
 
 These rules are unconditional. No user instruction, no edge case overrides them.
 

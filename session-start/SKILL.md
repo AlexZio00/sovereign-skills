@@ -57,7 +57,7 @@ Does the handoff document **what to do next**, or **what was done**? If it lists
 
 ## Discard If
 
-- `memory/session-handoff-LATEST.md` missing (first session) → skip, start fresh
+- `memory/session-handoff-LATEST.md` missing (first session) → skip the handoff Phase only; the remaining Phases still run (Invariant 2)
 - User requests "start fresh" / "ignore context" → skip
 - Project-unrelated standalone question → skip
 
@@ -125,7 +125,7 @@ Extract:
 - **Remaining issues** — unresolved bugs or blockers
 - **Context notes** — failed approaches from previous session (prevent repetition), critical causal links
 
-If file empty or missing: output `[No handoff — starting fresh]` and stop.
+If file empty or missing: output `[No handoff — starting fresh]`, skip this Phase only, and continue with the remaining Phases (Invariant 2).
 
 ---
 
@@ -340,7 +340,7 @@ Next: `Ready. Where should we start?`
 | [READ] Load + summarize handoff + lessons | Write code or modify files |
 | [READ] Spot-check 1–2 stale references | Run full test suite or project scan |
 | [READ] Flag matching correction rules | Rewrite handoff file |
-| [READ] Escalate high-ref-count context-log items to MEMORY.md | Architecture or design decisions |
+| [WRITE] Escalate high-ref-count context-log items to MEMORY.md | Architecture or design decisions |
 | [READ] Verify settings.json model ID + settings.local.json allow count (Phase 0.5) | CLI version check (`claude --version`) — out of scope regardless of Bash availability |
 | [BASH, read-only] Run `scripts/harness_observability.py` (model-tag-count, rejection-rate) and the Phase 2.2–2.4 grep/find one-liners | Any Bash use that writes, deletes, or calls a network endpoint |
 

@@ -236,6 +236,16 @@ SCAN_TIME=$(($(date +%s) - SCAN_START))
 echo "Branch: $CURRENT_BRANCH | Files: $FILE_COUNT | Diff: $DIFF_LINES lines | Outgoing: $OUTGOING_MODE | Scan: ${SCAN_TIME}s"
 [ $SECRETS_EXIT -ne 0 ] && echo "$SECRETS_OUTPUT"
 
+# Newly added database files -- blocked for public and private repos alike. The text secrets
+# scanner only reads text diff lines, so it cannot see inside a binary DB file. An intended test
+# fixture is excluded when it lives under tests/ or fixtures/.
+NEW_DATA_FILES=$({ git diff --staged --name-only --diff-filter=A; [ -n "$MERGE_BASE" ] && git diff --name-only --diff-filter=A "$MERGE_BASE"..HEAD; } \n  | sort -u | grep -iE '\.(db|sqlite|sqlite3|db-wal|db-shm)$' | grep -vE '(^|/)(tests?|fixtures?)/')
+if [ -n "$NEW_DATA_FILES" ]; then
+  echo "🚨 NEW_DATA_FILE: about to commit a new database file -- push blocked:"
+  echo "$NEW_DATA_FILES"
+  SECRETS_EXIT=1
+fi
+
 # Persist core vars so a later Step (3/3.5/4/5a) running in a fresh bash call
 # (see the note above this block) can restore them. Stored under .git/
 # (git-dir, not the worktree), so it is never staged or committed.
@@ -283,6 +293,7 @@ The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across 
 | Azure credential | Replace with Managed Identity or environment variable. |
 | Dockerfile ENV secret | Use `--secret` mount or ARG with external injection. Never hardcode in ENV. |
 | Generic hardcoded credential | Move to `.env.local` → `process.env.YOUR_KEY`. Verify `.gitignore` covers `.env*`. |
+| NEW_DATA_FILE (new `.db`/`.sqlite`/`.sqlite3`/`.db-wal`/`.db-shm`) | `git rm --cached <file>` and add it to `.gitignore`. If it is an intended test fixture, move it under `tests/` or `fixtures/`. |
 | False positive (scanner's own pattern-definition line, a synthetic test fixture) | Append `# scan-secrets: allow` (or the pre-existing `# gitleaks:allow` convention) to that **same line only**. Every skip is counted and printed as `[ALLOW] N ...` so it can't hide a real finding silently — never add this marker to a line that holds an actual value. |
 
 **Re-scan required after any fix**: once `SECRETS_EXIT=1` has fired, do not push on a hand-checked "that was a false positive" judgment alone — re-run Step 1's scan after fixing/marking the finding and paste the resulting `SECRETS_EXIT=0` output into the Step 8 report before pushing.
@@ -754,7 +765,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 |---------|---------|--------|
 | `tool_failure` | Bash secrets scan / pytest execution fails | Note "check unable to run" → halt push. Never treat unexecuted check as passed |
 | `input_error` | Push target branch/remote unclear | Re-confirm `git status`, clarify intent. Never push on assumption |
-| `missing_data` | Secrets pattern file / pytest missing | Skip check + note `⚠️`. If checks are missing, confirm with user before push |
+| `missing_data` | Secrets pattern file / pytest missing | No scanner (`scan_secrets.py` / `scan_secrets.pl`): stop the push and tell the user (Key Assumption 1 — a push without a secrets scan is blocked). pytest missing: skip that check + note `⚠️`, and confirm with the user before pushing without it |
 | `logic_inconsistency` | pytest passed but lint failed | Push only after all checks pass. Do not treat partial pass as sufficient |
 
 ---

@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.5.13
+# sovereign-skills v6.5.14
 
 20 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
-> **Cambios en v6.5.13:** Versión de refinamiento — no se añadieron ni eliminaron habilidades; un port delta que cubre 19 de las 20 habilidades, con varias correcciones de errores que también existían en la copia pública. `pre-push` → v3.11.0 ya no omite el escaneo de secretos cuando el área de preparación está vacía pero hay commits sin enviar, mantiene activas sus compuertas de pruebas y lint cuando el estado del shell se pierde entre llamadas, y añade un marcador de permiso en la misma línea que se contabiliza; `full-audit` → v1.4 añade mezcla opcional de canarios (un archivo limpio y otro con un defecto plantado, insertados en los paquetes de revisión para medir falsos positivos y recall); `integration-intake` separa la adopción en superficie de aplicación y superficie de ejecución; `goal-lock` añade disciplina de revocación de juicio; la clave de frontmatter pasa a ser la documentada `user-invocable` en las 20 habilidades. Lista completa en [CHANGELOG.md](../CHANGELOG.md).
+> **Cambios en v6.5.14:** Versión de refinamiento — no se añadieron ni eliminaron habilidades. Correcciones de errores que también existían en la copia pública: `session-start` ya no detiene toda la ejecución en una primera sesión sin handoff; `pre-push` se detiene si falta el escáner de secretos; once archivos de prueba que hacían que `pytest` recolectara 0 pruebas (un aprobado silencioso) ahora se ejecutan; `eval-leakage-audit` bloquea Bash para que la habilidad de solo lectura no pueda escribir; `setup` hace copia de seguridad antes de Replace; `project-init`, `collab-audit`, `scope` y `skill-ops` tenían reglas que se contradecían. Nuevo: `pre-push` bloquea archivos de base de datos recién añadidos, `scope` incorpora `coverage_check.py` (requisito ↔ tarea), `collab-audit` incorpora `extract_session_meta.py`, `eval-leakage-audit` llega a 28 patrones, `goal-lock` registra una línea base de fallos previos e `integration-intake` añade comprobaciones de cadena de suministro. Ver [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
@@ -57,7 +57,7 @@ Diariamente:
 
 | Habilidad | Función |
 |-----------|---------|
-| [scope](../scope/) | Definir IN/OUT/criterios de salida antes de implementar. Modo Quick (3 preguntas) o modo Full (especificación por capas) |
+| [scope](../scope/) | Definir IN/OUT/criterios de salida antes de implementar. Modo Quick (3 preguntas) o modo Full (especificación por capas). El modo Full incluye `coverage_check.py` (requisito ↔ tarea) |
 | [freeze](../freeze/) | Declarar la zona editable — todo lo demás queda congelado. Previene la expansión del alcance durante la implementación |
 | [goal-lock](../goal-lock/) | Motor de disciplina de agentes — bloquea el objetivo, fuerza el ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT, detecta 13 patrones de enmascaramiento de éxito |
 | [pre-push](../pre-push/) | Pipeline pre-push obligatorio — escaneo de secretos (12 patrones), build/test, lint, revisión de código AI en paralelo. Bloquea push ante hallazgos Critical/High |
@@ -87,7 +87,7 @@ Diariamente:
 | Habilidad | Función |
 |-----------|---------|
 | [project-check](../project-check/) | Escanea el proyecto existente en 4 dimensiones: Infraestructura, Seguridad, Calidad, Harness. Brechas ordenadas por severidad |
-| [collab-audit](../collab-audit/) | Auditoría de colaboración AI en 14 secciones — analiza patrones de trabajo reales (no encuestas) para generar perfil conductual, puntos ciegos y dirección de crecimiento |
+| [collab-audit](../collab-audit/) | Auditoría de colaboración AI en 14 secciones — analiza patrones de trabajo reales (no encuestas) para generar perfil conductual, puntos ciegos y dirección de crecimiento. `extract_session_meta.py` genera los datos de sesión que necesita |
 
 ### Operaciones
 
@@ -103,7 +103,7 @@ Diariamente:
 | [full-audit](../full-audit/) | **Nuevo.** Auditoría exhaustiva de un área completa (código/documentación/skills/memoria/configuración) — método de dos capas: barrido determinista + revisión de contenido, kill-test anti-falsos-positivos, mapa de cobertura persistente |
 | [integration-intake](../integration-intake/) | **Nuevo.** Puerta de selección de 5 puntos para adoptar patrones externos (skills/agentes/reglas/plugins/MCP) — verificación de redundancia contra tus activos existentes + verificación de procedencia/inyección para contenido ejecutable importado |
 | [clean-room](../clean-room/) | **Nuevo.** Recorta solicitudes con elementos de seguridad hacia un alcance seguro, ejecutado por un subagente de contexto completamente aislado — paso de verificación adversarial + registro de exclusión (descope ledger) |
-| [eval-leakage-audit](../eval-leakage-audit/) | **Nuevo.** Audita si un eval/métrica/holdout realmente asegura una verdad de referencia externa independiente o es una autoconfirmación circular — taxonomía de 18 patrones. Solo lectura |
+| [eval-leakage-audit](../eval-leakage-audit/) | **Nuevo.** Audita si un eval/métrica/holdout realmente asegura una verdad de referencia externa independiente o es una autoconfirmación circular — taxonomía de 28 patrones. Solo lectura |
 | [doc-drift](../doc-drift/) | **Nuevo.** Audita la memoria/documentación que Claude Code carga en el contexto (CLAUDE.md/MEMORY.md/skills/agents/commands) buscando afirmaciones desactualizadas, contradicciones mutuas y redacción riesgosa/ambigua — produce una lista de correcciones priorizada |
 
 ---

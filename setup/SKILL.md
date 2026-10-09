@@ -62,10 +62,12 @@ Check each target file before generating:
 |------|-----------|
 | `.claude/rules/project-rules.md` | Glob `.claude/rules/*.md` first — Tier-0 rules may already live in a differently-named file in this project (e.g. `security-rules.md`, `style-conventions.md`). If a match already covers Tier-0 scope, offer to merge into that existing file instead of creating `project-rules.md`; otherwise Read `project-rules.md` if it exists and offer: update (extend) or replace. Default: update. |
 | `~/.claude/rules/agents.md` | Read it. Merge new agent definitions, never replace existing ones. |
-| `~/.claude/rules/output-style.md` | Read it. Offer: update or replace. |
+| `~/.claude/rules/output-style.md` | Read it. Offer: update or replace (replace only after a `.bak-YYYYMMDD` backup and explicit user confirmation — see 3-0). |
 | `~/.claude/settings.json` (hooks) | Always merge — append to existing arrays, never overwrite. |
 | `memory/MEMORY.md` | Read it. Append new sections, preserve existing entries. |
 | `tasks/lessons.md` | If exists → read it. Contains AI behavior correction rules from past sessions. |
+| (all append/update rows above) | Before appending, Grep the target for the section heading you are about to add — if it already exists, update that section in place instead of appending a second copy (a re-run otherwise duplicates the section). |
+| (global targets `~/.claude/rules/*`, `~/.claude/settings.json`) | Probe writability first (these are often permission-denied). If denied, switch to paste-block mode immediately: print the exact block and target location for the user to apply — do not discover the denial mid-Phase 3. |
 
 **Merge algorithm for hooks (settings.json):**
 ```
@@ -454,6 +456,9 @@ Rows marked with a condition (Standard+, review gates) are only generated if the
 
 ## Phase 3: File Generation
 
+### 3-0. Backup before write (HIGH-RISK targets)
+Immediately before writing or merging into an existing `settings.json` or `rules/*.md`, copy the target to `<file>.bak-YYYYMMDD` (`cp <file> <file>.bak-$(date +%Y%m%d)`); skip if it doesn't exist yet. Recovery: `cp <file>.bak-YYYYMMDD <file>`, or restore only the setup-added block. In paste-block mode (write denied) no backup is needed — the user applies the block.
+
 ### 3-1. Rules
 
 **project-rules.md** (`.claude/rules/project-rules.md`, project-local) — always generated, content from preset + Q5. Sections II and III below are the greenfield default — if the Phase 0 governance-doc probe found an existing rules file that already covers this ground, replace them with a thin stub instead:
@@ -610,6 +615,12 @@ Generate actual working commands, not placeholders:
 }
 ```
 
+**Optional: end-of-turn deferred check** (off by default — add only if the project has a type checker or fast tests and the user wants it; without measured in-turn regressions it only adds cost):
+- PostToolUse(`Edit|Write`) does not run checks; it only appends the edited file path as one line to `.claude/.pending-checks` (no expensive check on every edit).
+- The Stop hook runs one project check (`mypy` / `tsc --noEmit` / `pytest -x -q <related tests>`) only if that file exists. Pass → delete the file and exit 0. Fail → write a failure summary to stderr and exit 2 (Claude then fixes it instead of ending the turn).
+- If the input JSON has `stop_hook_active` true, skip the check and exit 0 — otherwise a persistent failure makes Stop loop forever.
+- Write the hook in python, not jq (jq may be missing on Windows).
+
 ### 3-3. Memory Structure
 
 ```
@@ -685,7 +696,7 @@ For each response, first check whether the subagent shows any awareness of the r
 - Complied with violation, but cannot restate any relevant rule → **FAIL: not loaded** — the discovery path is broken (wrong location/extension/scope). Fix the file path, not the wording. Re-run the pre-check above before retrying.
 - Complied with violation, but CAN restate the rule → **FAIL: loaded but ignored** — wording is genuinely weak. Strengthen and re-run.
 
-**If subagent auto-load of `.claude/rules/project-rules.md` cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified."
+**If subagent auto-load of `.claude/rules/project-rules.md` cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified." In Claude Code, `.claude/rules/*.md` auto-load is bound to the live session's cwd — an Agent dispatch cannot point a subagent at another project's rules (a subagent may quote the orchestrator's own project rules instead). So an in-session dispatch always counts as PROMPT-LEVEL unless the restated rule text is checked against the target file (the quote must match the written file).
 
 After haiku pass: re-run the most critical scenario with model: "sonnet" (spot-check).
 
@@ -738,7 +749,7 @@ Approve → files confirmed
 | Create `memory/*.md` | medium | L1+L3 |
 | Create `agents/*.md` | medium | L1+L3 |
 
-- **L1 (Invariants)**: Enforce Phase 0 Existing File Check (3-option: Update/Replace/Cancel).
+- **L1 (Invariants)**: Enforce Phase 0 Existing File Check (3-option: Update/Replace/Cancel; for the Invariant 2 targets, Replace requires a `.bak-YYYYMMDD` backup + explicit user confirmation).
 - **L3 (User Approval)**: Per-file confirmation in Phase 3 File Generation. `settings.json` must never be fully replaced (merge only).
 - **Forbids**: Delete existing hooks in `settings.json`, overwrite existing rules (without explicit Update).
 
@@ -751,7 +762,7 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 | `tool_failure` | Write to `~/.claude/rules/` (global files) or `.claude/rules/` (project-rules.md) fails, directory missing | Create directory, retry once. Re-fail → report to user + BROKEN |
 | `tool_failure` (rule not loaded) | Violation testing (Phase 4-2) shows the subagent has no awareness of the rule at all — discovery path is broken, not the wording | Fix file path/location/extension, re-run the Phase 4-2 pre-check. Re-fail → BROKEN label |
 | `input_error` | Interview answers contradict (domain requested without domain set, etc.) | Re-ask that question. 3 contradictions → select conservative default, then inform user |
-| `logic_inconsistency` | Violation testing marks generated file as FAIL (loaded-but-ignored — see Phase 4-2) | Rewrite file (rollback to template defaults). Re-fail → PARTIAL label |
+| `logic_inconsistency` | Violation testing marks generated file as FAIL (loaded-but-ignored — see Phase 4-2) | Rewrite only the part setup added (rollback to template defaults for that part; merged pre-existing rules stay untouched — Invariant 2). Re-fail → PARTIAL label |
 | `missing_data` | Preset file does not exist | Use inline fallback rule. Inform user that fallback was used |
 
 ## Truthful Reporting
@@ -786,6 +797,8 @@ Files generated at `~/.claude/` (global) unless noted:
 | "It's faster to just overwrite settings.json entirely" | All existing hooks disappear. There is no recovery path. |
 | "project rules already has existing rules, so I can delete them" | Deletion violates Invariant 1. Only extension is allowed. |
 | "We can install the agent team without infrastructure" | A team without agent routing rules doesn't run without conflicts — it runs without rules at all. |
+| "A short positive reply to the Phase 2 summary counts as approval, so I'll generate the files" | Phase 2 requires explicit approval before generation — an ambiguous reaction is not approval. |
+| "The subagent refused the violation scenario, so the rule must be loaded" | Phase 4-2 also checks whether the rule can be restated — a refusal alone cannot separate "not loaded" from "loaded but ignored". |
 | "The domain preset is too generic for my case" | You can add/modify in Q5. The preset is a starting point, not the complete solution. |
 
 ---

@@ -35,7 +35,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 ## Key Assumptions
 
 1. **`session-handoff-LATEST.md` is a hint, not a fact** — parsed results (ts/ctx) are carried over as-is without fact-checking. The generated overview reflects "what each project last reported," not "current ground truth."
-2. **Registry is opt-in** — never pull in unowned projects or auto-scanned directories. Only projects explicitly listed in `projects-registry.md` are in scope.
+2. **Registry is opt-in** — never pull in unowned projects or auto-scanned directories. Only projects explicitly listed in `projects-registry.md` are in scope. Write exactly one `- name: /abs/path` line per project; a multi-line YAML entry parses silently wrong because the script matches one line at a time.
 3. **AUTO block generation is fully deterministic** — a regex-based script (`scripts/generate_overview.py`) does all the parsing/rendering, including neutralizing markdown-table-breaking characters in the text it pulls from other projects' handoffs, isolating a single non-UTF-8 handoff file so it can't abort the whole run, and refusing (BLOCKED, no write) instead of guessing when the AUTO marker pair itself is mangled. The model only triggers execution and reports the result — no LLM inference in the parsing/rendering logic itself.
 
 ## Trigger

@@ -250,10 +250,18 @@ check(
     "decode error" in decode_error_block.lower(),
 )
 
-print()
-if FAILURES:
-    print(f"{len(FAILURES)} FAILURE(S): {FAILURES}")
-    sys.exit(1)
-else:
-    print("ALL PASS")
-    sys.exit(0)
+
+def test_all_cases():
+    """pytest entry point: this file uses its own runner, so without this wrapper `pytest` collects
+    0 tests and exits 0 (looks like a pass)."""
+    assert not FAILURES, FAILURES
+
+
+if __name__ == "__main__":
+    print()
+    if FAILURES:
+        print(f"{len(FAILURES)} FAILURE(S): {FAILURES}")
+        sys.exit(1)
+    else:
+        print("ALL PASS")
+        sys.exit(0)

@@ -320,6 +320,15 @@ normal after that. OUTPUT reports the first-run result side by side with the
 final result — hiding the first failure and reporting only the final pass is
 success masquerading.
 
+**Pre-DO failure baseline**: at that same first run, record the items that
+already fail (test names, lint rules, error lines) as the baseline. VERIFY
+then judges only failures that are not in the baseline as regressions of
+this change; failures that exist only in the baseline are reported in
+OUTPUT as "pre-existing, out of scope" (never silently ignored). If the
+baseline failure is the GOAL itself (a bug you were asked to fix), it is
+the goal, not a baseline. Without a baseline, pre-existing failures burn
+retries or get misreported as your own regressions.
+
 #### VERIFY (Code) / REFINE (Non-code)
 
 Branches by artifact type:
@@ -434,7 +443,7 @@ validated through a self-review loop.
 | S3 | Need to change SCOPE Exclude area | "Need to modify X but it's Excluded. Allow?" |
 | S4 | Destructive / external side effect needed | "DB deletion/API call/push needed. Proceed?" |
 | S5 | Insufficient confidence in root cause **after** the PLAN GATE discriminating check | "Not sure if cause is A or B" |
-| S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | Ask one question before escalating: "Is this repetition a problem with how DO is attempting it, or was the GOAL input sheet (GOAL / DONE EVIDENCE / SCOPE) set up wrongly from the start?" If it looks like an **execution error** (approach problem), report "Same problem repeating. Need to change the DO approach" and escalate to a human. If it looks like a **design error** (the input sheet itself), report "This repetition looks like a problem with the GOAL input sheet design, not the execution approach — the input sheet needs rewriting" and propose rewriting the input sheet to a human instead of retrying DO. In both cases there is no auto-retry |
+| S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | Ask one question before escalating: "Is this repetition a problem with how DO is attempting it, or was the GOAL input sheet (GOAL / DONE EVIDENCE / SCOPE) set up wrongly from the start?" If it looks like an **execution error** (approach problem), report "Same problem repeating. Need to change the DO approach" and escalate to a human. If it looks like a **design error** (the input sheet itself), report "This repetition looks like a problem with the GOAL input sheet design, not the execution approach — the input sheet needs rewriting" and propose rewriting the input sheet to a human instead of retrying DO. In both cases there is no auto-retry. **What counts as a repeat**: count a repeat only when the command, input, working tree and environment are unchanged and no new information arrived. If the cause is outside the code (missing dependency or command, permissions, service down, port in use, auth, disk), report it separately as an **environment error** — distinct from execution and design errors — and give the human one command to run instead of retrying source edits. A timeout or forced kill is not automatically classified as an environment error |
 | S7 | Already aware that execution evidence (a deterministic oracle — a failing test, a broken existing contract) contradicts an explicit user instruction — an awareness-is-not-resistance response [borrowed from Blind Obedience 07385] | STOP before forcing the implementation through: "The instruction contradicts execution evidence: [evidence]. Proceed anyway?" Even after approval, do not paper over it with a later self-directed autonomous fix (a Ghost Error cannot be recovered by iterative post-hoc correction) — report the outcome exactly as it is |
 | S8 | ATTACK Tier-1 matches one of its six escalation conditions | "This change is a candidate for adversarial pre-implementation review: [matching condition]. Dispatch doubt-reviewer (or equivalent), then resume with its verdict (proceed / revise first / escalate)." If the user explicitly says "just proceed," continue on the Tier-0 result alone — that's an intentional override, not a bypass |
 
@@ -560,6 +569,8 @@ structural alternative for exactly that situation.
   kept — the repetition is detectable even with no memory carried forward,
   and S6 still routes to human escalation instead of letting memoryless
   restarts continue indefinitely.
+  The same repeat definition applies: a round only counts as a repeat if
+  nothing (input, tree, environment, information) changed between rounds.
 
 ---
 
@@ -631,7 +642,7 @@ CONSTRAINTS: Existing data must be preserved, destructive changes require approv
 
 2. **SCOPE Exclude is absolute**: Need to touch Exclude → S3 STOP. Only proceed after user approval. Violation → unintended changes reach production.
 
-3. **Success masquerading detected → OUTPUT BROKEN**: If B1 pattern found in code, mark that verification as FAIL and downgrade OUTPUT to PARTIAL/BROKEN. Violation → false success report.
+3. **Success masquerading detected → OUTPUT PARTIAL/BROKEN**: If B1 pattern found in code, mark that verification as FAIL and downgrade OUTPUT to PARTIAL/BROKEN. Violation → false success report.
 
 4. **Incomplete input sheet → no work**: Any of 7 (Quick: 3) fields missing/contradictory → STOP. Don't guess. Violation → unclear goal → rework.
 

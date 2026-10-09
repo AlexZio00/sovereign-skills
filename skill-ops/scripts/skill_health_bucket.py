@@ -72,7 +72,8 @@ def usage_score(invocation_count_30d: int, discard_rate: float, days_since_modif
         score += 2
     elif invocation_count_30d >= 1:
         score += 1
-    if discard_rate < 0.30:
+    # Discard bonus needs a denominator: with 0 invocations the rate is undefined.
+    if invocation_count_30d >= 1 and discard_rate < 0.30:
         score += 1
     if days_since_modified <= 30:
         score += 1

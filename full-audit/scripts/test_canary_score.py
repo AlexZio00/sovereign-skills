@@ -85,8 +85,17 @@ with tempfile.TemporaryDirectory() as td:
                     summ == {"detected": 1, "total": 2, "unmeasured": True}, summ))
 
 fails = [r for r in results if not r[1]]
-for name, ok, detail in results:
-    if not ok:
-        print(f"FAIL {name}: {detail}")
-print(f"\n{len(results) - len(fails)}/{len(results)} passed")
-sys.exit(1 if fails else 0)
+
+
+def test_all_cases():
+    """pytest entry point: this file uses its own runner, so without this wrapper `pytest` collects
+    0 tests and exits 0 (looks like a pass)."""
+    assert not fails, fails
+
+
+if __name__ == "__main__":
+    for name, ok, detail in results:
+        if not ok:
+            print(f"FAIL {name}: {detail}")
+    print(f"\n{len(results) - len(fails)}/{len(results)} passed")
+    sys.exit(1 if fails else 0)

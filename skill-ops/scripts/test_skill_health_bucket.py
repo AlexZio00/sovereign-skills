@@ -56,6 +56,8 @@ case("structural_score empty markdown = 0.0", lambda: shb.structural_score("") =
 
 # usage_score
 case("usage_score max = 4.5 (2+1+1+0.5 per documented weights, not 5.0)", lambda: shb.usage_score(10, 0.1, 5, True) == 4.5)
+case("usage_score 0 invocations gets no Discard bonus", lambda: shb.usage_score(0, 0.0, 200, False) == 0.0)
+case("usage_score 1 invocation low discard rate gets bonus", lambda: shb.usage_score(1, 0.0, 200, False) == 2.0)
 case("usage_score zero activity", lambda: shb.usage_score(0, 0.5, 200, False) == 0.0)
 
 # s_q
@@ -147,6 +149,11 @@ def main():
             fails.append(name)
     print(f"\n{len(CASES) - len(fails)}/{len(CASES)} passed")
     return 1 if fails else 0
+
+def test_all_cases():
+    """pytest entry point: this file uses its own runner, so plain `pytest` would collect 0 tests."""
+    assert main() == 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

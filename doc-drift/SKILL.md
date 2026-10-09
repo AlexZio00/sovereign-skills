@@ -204,6 +204,24 @@ time. Tag such findings `[derivable]` as supporting evidence for priority.
 Not a new category — it's a sub-signal of Outdated, the four-kind taxonomy
 above is unchanged.
 
+**Outdated cause field**: attach a `cause` to each Outdated finding so the
+remedy differs — `validity` (the source carries no version or date stamp, so
+there was no way to see the line had gone stale -> add a stamp, or derive the
+line from the source) / `compliance` (an update procedure or trigger exists but
+did not run -> fix that trigger) / `unknown`. Re-editing the same wording alone
+leaves a `validity` cause to go stale again.
+
+**Infeasible-directive signal** (applies to `skills/*/SKILL.md` and `agents/*.md`):
+if an agent or skill body instructs a tool that is missing from that agent's
+own frontmatter `tools:` list, or an action blocked by permission deny rules or
+hooks (e.g. telling a READ-ONLY agent to run a DB migration), classify it as
+Risky / Ambiguous. A model that follows instructions literally turns an
+infeasible directive into a workaround attempt or pushes the problem back to the user.
+
+**No-op directive signal** (applies to `rules/*.md`, `skills/*/SKILL.md`, `agents/*.md`, `CLAUDE.md`): for each directive line, ask "would deleting this sentence change the agent's behavior?" Three kinds are candidates that cannot: (1) a pledge with no way to check compliance ("be careful", "mind the quality", "do your best"); (2) a restatement of default behavior the model shows without being told; (3) a repeat of content already in the same file or a higher-level rule. Also mark any directive whose violation can be judged mechanically (filename format, forbidden string, required-field presence) as a candidate to move into a deterministic check (script, hook, linter) instead of staying as prose. Record these in the report as the sub-tag `[no-op]` or `[->deterministic]` under Risky / Ambiguous, and only propose the deletion or move (never auto-fix). The benefit is the original author's claim only.
+
+**Premise type**: tag each finding with `premise_type: path|number|state|policy` and re-verify it by the matching method -- path: Glob; number: recompute from the source; state: run or query it now; policy: compare against the canonical document. A finding that says only "checked" with no type counts as not re-verified.
+
 **CLI interface sync signal** (borrowed from arXiv 2608.28497 — a special case of Derivability): when SKILL.md/rules text cites a script in prose (e.g. "run `script.py --flag N`"), the path existing and the **flags/arguments matching the script's actual definition (argparse, click, etc.)** are different questions — a path-existence check only catches the former. If a script's interface changes while the doc citation doesn't, the doc goes stale silently (no runtime failure, so there is no outdated signal). When the number of scripts under audit is small (roughly 10 or fewer), compare each cited command against the script's real argument definition and classify mismatches under Outdated with a `[cli-drift]` tag. When there are many scripts, skip and state "CLI interface sync not checked (N scripts)" in the report — no silent narrowing.
 
 **Invariant erosion signal** (borrowed from arXiv 2608.17597; applies only to `rules/*.md`, `skills/*/SKILL.md`, `agents/*.md`): distinct from malicious loosening, a legitimate maintenance edit (typo fix, wording polish) can **unintentionally** delete a Hard Rule / Invariant sentence in the same diff — the editor is neither malicious nor aware of it. Spot-check the target file's recent commits (`git log -p --follow -- {file}`, roughly the last 5–10) for imperative sentences ("never", "must", "forbidden", etc.) that existed in an earlier version but are gone now. If found and the commit message doesn't explicitly explain the deletion, classify it under Risky / Ambiguous with an `[invariant-erosion]` tag. When many files are in scope, skip and state "Invariant erosion not checked (N targets)" — no silent narrowing, same principle as the CLI signal.
@@ -252,6 +270,9 @@ judge it with a single OK/NO.
 | "A longer report is more valuable" | Long reports don't get read. 5 HIGH findings beat 50 LOW ones. Keep the signal-to-noise ratio high. |
 | "It's fine to run this every day" | Drift accumulates over time — an immediate re-audit mostly reproduces the same result, so daily runs waste the read budget. Default: wait at least 24h. This is a recommendation, not a hard block — a genuine regression check right after a fix, or `--force-after-change`, overrides it. |
 | "I'll just quote the MEMORY.md line as-is, it's faster" | Personal/global memory can carry personal paths, real names, or private architecture notes with nothing to do with this project. Redact identifiers before the quote lands in a report meant to be read or committed in-repo (Invariant #4). |
+| "Confidence is low, so let me leave this finding out" | Invariant 2 -- if an anchor exists it is an unconfirmed lead, not a false positive. Keep it in the UNCERTAIN section. Dropping it silently hides the miss rate and only makes the false-positive rate look good. |
+| "The summary just words it differently from the source; the meaning is the same, so no drift" | Respecting a summary + link holds only while the meaning is unchanged. If a value or policy changed and you wave it through as a wording difference, you miss an Outdated or Conflict finding. |
+| "The report is gitignored, so I can skip redaction" | Invariant 4 applies whether or not the report is committed -- a local report is still read by other sessions and people. |
 
 ---
 
@@ -332,7 +353,7 @@ the user in one line which case applies (committed vs. locally ignored):
 ```markdown
 # Memory Audit — {timestamp}
 
-**Scanned:** {n} files reachable from CLAUDE.md / MEMORY.md / skills / agents
+**Scanned:** {n} files reachable from {only the sources that actually existed -- e.g. CLAUDE.md / skills}
 **Findings:** HIGH {h} / MED {m} / LOW {l} / UNCERTAIN {u}
 
 ## Top priority

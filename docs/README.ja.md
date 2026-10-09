@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | 🌐 **日本語** | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.13
+# sovereign-skills v6.5.14
 
 Claude Codeプロジェクトのライフサイクル全体をカバーする20個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
 
-> **v6.5.13の変更点:** リファインメントリリース — スキルの追加・削除なし。20スキルのうち19スキルへの差分移植で、公開版にも存在したバグ修正を複数含む。`pre-push` → v3.11.0 はステージングが空でも未プッシュのコミットがあればシークレットスキャンを省略せず、呼び出し間でシェル状態が失われてもテスト・リントのゲートが無音で無効化されず、件数を数える同一行の許可マーカーを追加。`full-audit` → v1.4 はオプトインのカナリア混入（問題のないファイルと欠陥を仕込んだファイルをレビュー対象に密かに混ぜ、誤検知と再現率を測定）を追加。`integration-intake` は採用先を強制面と実行面に分割。`goal-lock` に判断撤回の規律を追加。全20スキルの frontmatter キーを公式表記 `user-invocable` に修正。詳細は [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.5.14の変更点:** リファインメントリリース — スキルの追加・削除なし。公開版にもあったバグの修正: `session-start` はハンドオフのない初回セッションで全体を止めなくなった。`pre-push` はシークレットスキャナがなければ push を止める。`pytest` が 0 件収集で合格に見えていたテストファイル 11 個が実際に実行される。読み取り専用の `eval-leakage-audit` は Bash も禁止し書き込めない。`setup` は Replace の前にバックアップを取る。`project-init`・`collab-audit`・`scope`・`skill-ops` の自己矛盾していたルールを揃えた。追加: `pre-push` が新規コミットの DB ファイルをブロック、`scope` に `coverage_check.py`（要件↔タスク照合）、`collab-audit` に `extract_session_meta.py`、`eval-leakage-audit` は 28 パターン、`goal-lock` は既存失敗のベースライン、`integration-intake` はサプライチェーン点検を追加。詳細は [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -57,7 +57,7 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする20�
 
 | スキル | 機能 |
 |--------|------|
-| [scope](../scope/) | 実装前にIN/OUT/終了基準を定義。Quickモード（3つの質問）またはFullモード（レイヤードスペック） |
+| [scope](../scope/) | 実装前にIN/OUT/終了基準を定義。Quickモード（3つの質問）またはFullモード（レイヤードスペック）. Full モードに `coverage_check.py`（要件↔タスク照合）を同梱 |
 | [freeze](../freeze/) | 編集可能領域を宣言 — それ以外は凍結。実装中のスコープクリープを防止 |
 | [goal-lock](../goal-lock/) | エージェント規律エンジン — 目標をロックし、PLAN→DO→VERIFY→FINALIZE→OUTPUTループを強制、13種類の成功偽装パターンを検出 |
 | [pre-push](../pre-push/) | 必須pre-pushパイプライン — シークレットスキャン（12パターン）、ビルド/テスト、リント、並列AIコードレビュー。Critical/High発見時にpushをブロック |
@@ -87,7 +87,7 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする20�
 | スキル | 機能 |
 |--------|------|
 | [project-check](../project-check/) | 既存プロジェクトを4次元でスキャン：インフラ、セキュリティ、品質、ハーネス。深刻度順にギャップを整列 |
-| [collab-audit](../collab-audit/) | 14セクションAIコラボレーション監査 — 実際の作業パターン（アンケートではなく）を分析し、行動プロファイル、盲点、成長方向を生成 |
+| [collab-audit](../collab-audit/) | 14セクションAIコラボレーション監査 — 実際の作業パターン（アンケートではなく）を分析し、行動プロファイル、盲点、成長方向を生成. 必要なセッションデータは `extract_session_meta.py` が生成 |
 
 ### 運用
 
@@ -103,7 +103,7 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする20�
 | [full-audit](../full-audit/) | **新規。** 領域全体（コードベース/文書/スキル/メモリ/設定）の網羅的監査 — 決定論的スイープ+内容レビューの2層方式、偽陽性防止kill-test、永続カバレッジマップ |
 | [integration-intake](../integration-intake/) | **新規。** 外部パターン（スキル/エージェント/ルール/プラグイン/MCP）導入の5項目スクリーニングゲート — 既存資産との重複チェック + 導入コンテンツのprovenance/インジェクションチェック |
 | [clean-room](../clean-room/) | **新規。** 安全隣接リクエストを安全スコープに切り出し、完全に隔離されたfresh-contextサブエージェントが実行 — 敵対的検証パス + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | **新規。** eval/metric/holdoutが実際に独立した外部グラウンドトゥルースを確保しているか、循環的な自己確認かを18パターンのtaxonomyで監査。読み取り専用 |
+| [eval-leakage-audit](../eval-leakage-audit/) | **新規。** eval/metric/holdoutが実際に独立した外部グラウンドトゥルースを確保しているか、循環的な自己確認かを28パターンのtaxonomyで監査。読み取り専用 |
 | [doc-drift](../doc-drift/) | **新規。** Claude Codeがコンテキストに読み込むメモリ/ドキュメント(CLAUDE.md/MEMORY.md/skills/agents/commands)を古い主張・相互矛盾・危険/曖昧な表現で監査 — 優先度付き修正リストを生成 |
 
 ---

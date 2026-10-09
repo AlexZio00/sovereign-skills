@@ -36,6 +36,7 @@ concurrency_profile:
 - `/skill-ops` (snapshot default)
 - `/skill-ops health`
 - `/skill-ops invocations`
+- `/skill-ops quality` (or `--quality`)
 - "skill version", "skill usage frequency", "harness score"
 
 ## Discard If
@@ -51,6 +52,7 @@ concurrency_profile:
 | **snapshot** | Pre-change snapshot + regression-detection restore command | `/skill-ops` (default) |
 | **health** | Usage/Dead/Unused/Discard report | `/skill-ops health` |
 | **invocations** | Per-skill frequency rollup from session JSONL | `/skill-ops invocations` |
+| **quality** | Per-skill S_Q operational score (structure + usage), bottom quartile flagged | `/skill-ops quality` |
 
 ---
 
@@ -159,7 +161,7 @@ Save: `~/.claude/.harness/reports/skill-health-{date}.md`
 Aggregate `Skill` tool calls from session JSONL to measure per-skill monthly invocation frequency.
 - **tool_use metadata only** — never read prompt text
 - **Windows**: use `python`/`python3` on PATH; if neither resolves, check common install locations before failing
-- Save: `~/.claude/.harness/invocations/YYYY-MM.json`
+- **Read-only**: count records from the invocation log (the `.jsonl` files written by the realtime hook). This mode creates no new file.
 
 Output:
 ```
@@ -194,7 +196,7 @@ Structure score, usage score, and their sum are computed by the script — never
    python scripts/skill_health_bucket.py usage --invocation-count-30d {N} --discard-rate {F} \
        --days-since-modified {N} [--has-related-lesson]
    ```
-   Output is JSON: `{"usage_score": N.N}`. Weights: 5+ invocations in 30 days (+2) / 1-4 (+1) / 0 (0) · Discard If trigger rate < 30% (+1) · last modified within 30 days (+1) or within 90 days (+0.5) · related lesson exists (correction history = usage evidence) (+0.5).
+   Output is JSON: `{"usage_score": N.N}`. Weights: 5+ invocations in 30 days (+2) / 1-4 (+1) / 0 (0) · Discard If trigger rate < 30% (+1, only when invocations ≥ 1 — with 0 calls the rate has no denominator) · last modified within 30 days (+1) or within 90 days (+0.5) · related lesson exists (correction history = usage evidence) (+0.5).
 4. **S_Q = structure + usage (0-10)** — the `sq` subcommand takes `--structural`/`--usage` as plain floats, so piping step 2/3's JSON straight in fails argparse. Extract the numeric field first:
    ```bash
    S=$(python scripts/skill_health_bucket.py structural --file <path to SKILL.md> | python -c "import json,sys; print(json.load(sys.stdin)['structural_score'])")
@@ -225,7 +227,7 @@ Save: `~/.claude/.harness/reports/skill-quality-{date}.md`
 | [BASH] List old snapshots beyond 5 + print the delete command | Directly delete a snapshot (execution is the user's job) / Upload to external storage/cloud |
 | [READ] Check prior Score Store score | Run a quality audit itself |
 | [READ] Parse invocations JSONL (tool_use only) | Read session prompt text |
-| [WRITE] health report / invocations JSON | Judge skill quality or decide deletion |
+| [WRITE] health report (invocations mode writes nothing) | Judge skill quality or decide deletion |
 | [BASH] Scan session JSONL for frequency rollup | Access project code or databases |
 | [BASH] Call `scripts/skill_health_bucket.py` for bucket/structural/usage/S_Q scoring | Manually re-derive those scores by eye |
 

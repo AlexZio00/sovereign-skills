@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import secrets
 import shutil
 
 # Default pool ships inside this skill (scripts/canaries/) so the feature works
@@ -61,14 +62,18 @@ def select_canaries(pool: dict, n_clean: int = 1, n_seeded: int = 1) -> list:
 
 
 def stage_canaries(selected: list, stage_dir: pathlib.Path) -> list:
-    """Copy the selected files into stage_dir under their original file name and
-    attach staged_path to each entry. Assumes file names don't collide within the
-    pool — if they do, this raises ValueError instead of silently overwriting."""
+    """Copy the selected files into stage_dir under a neutral name
+    (module_<random hex><original suffix>) and attach staged_path to each entry.
+    Keeping the original name lets a reviewer grep for it and find the pool source,
+    which gives away that the file is a control. If the target already exists this
+    raises ValueError instead of silently overwriting.
+    Limitation: grepping for a distinctive string inside the body can still find the
+    pool original - only the file name is hidden."""
     stage_dir.mkdir(parents=True, exist_ok=True)
     out = []
     for entry in selected:
         src = pathlib.Path(entry["path"])
-        dst = stage_dir / src.name
+        dst = stage_dir / f"module_{secrets.token_hex(4)}{src.suffix}"
         if dst.exists():
             raise ValueError(f"stage target already exists: {dst}")
         shutil.copyfile(src, dst)

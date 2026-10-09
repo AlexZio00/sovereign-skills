@@ -24,6 +24,8 @@ Default: anything not allowed is blocked (fail-closed)
 - Fix suggestions must be in diff format.
 - Merge issues from the same root cause.
 - **Factuality Gate**: Self-verify before reporting — "Does this comment accurately describe the code?"
+- **Neutralize question framing**: when asked "does this code satisfy X", also search for counter-examples (inputs or paths where X fails) and report `counter_examples_searched` (what was searched, what was found). Do not answer only from confirming evidence.
+- **Don't align to the expected conclusion**: look for counter-evidence to the conclusion the requester seems to expect first, but do not raise skepticism across the board — a uniformly harsher review just rejects valid code.
 
 [SILENT FAILURE RULES — Grep before reading code]
 | Pattern | Severity | Detection |
@@ -142,6 +144,9 @@ LLMs facing unsolvable constraints **fabricate fake external failures** (system 
 | "Isn't the Overall Health Gate just a compliment?" | The opposite — its main purpose is blocking net-neutral-or-worse changes via a DEGRADES verdict. Even IMPROVES requires 1-2 lines of justification. |
 | "Won't checking Q10 test quality slow the review down too much?" | Mock-only assertions and disguised skips are a direct cause of production incidents. A false pass is more dangerous than no test at all. |
 | "Q12 observability isn't a feature — does it need reviewing?" | Code without logs is a black box during an incident. An unobservable system is an unoperable system (Brendan Gregg). |
+| "Something feels uneasy but not severe — I'll write a hedged FIX FIRST" | Verdicts take no qualifiers. If there is a code-confirmed finding that justifies FIX FIRST, say so plainly; otherwise list the unease as a finding and keep the verdict the score gives. |
+| "The Factuality citation is obvious, I can skip it" | A finding without filename:line and a Factuality check is speculation. Cite it or drop it. |
+| "Tests pass, so SHIP IT" | Passing tests are an outcome, not a verdict. Q10 may show mock-only assertions; SHIP IT also requires the 12Q and Severity scoring. |
 | "The score is high, so it's fine, right?" | The score itself can be gamed (CapCode). Exceeding the ceiling is a gaming signal, not proof of quality. |
 
 [STEP 3] Summary Report
@@ -170,6 +175,8 @@ Operability = 10 - (Q12 max/10)                             ×0.15
 ```
 
 **Hard cap**: CRITICAL → FIX FIRST max. Security CRITICAL → BLOCK. Score/Bonus cannot override.
+
+**The four-value verdict takes no qualifiers** (no "FIX FIRST (minor)", no "SHIP IT with caveats"). Put minor items in the findings list instead.
 
 ```
 ── Verdict ──
@@ -212,8 +219,9 @@ If the diff turns up no clear runtime bug: "No clear runtime bug found — re-re
 ✅ [good] file:line — reason
 Health: ✅/⚠️/❌ — [1 line]
 Falsification: [1 line]
-Verdict: [SHIP / FIX / BLOCK]
+Gate: [GATE PASS / FIX / BLOCK]
 ```
+Quick mode never outputs SHIP IT — it is a lint/type gate, not a deploy verdict.
 
 [DIFF MODE]
 Input: git diff or changed file list. Apply 12Q to **changed lines + blast radius only**.

@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.13
+# sovereign-skills v6.5.14
 
 覆盖 Claude Code 项目完整生命周期的 20 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
-> **v6.5.13 变更：** 精炼版本 — 未新增或移除任何技能；对 20 个技能中的 19 个进行增量移植，并包含多项公开版中同样存在的缺陷修复。`pre-push` → v3.11.0：暂存区为空但存在未推送提交时不再跳过密钥扫描；调用之间 shell 状态丢失时测试/lint 闸门不再静默失效；新增计数的同行放行标记。`full-audit` → v1.4 新增可选的金丝雀混入（将无问题文件与植入缺陷的文件悄悄混入评审包，以测量误报与召回率）。`integration-intake` 将采纳目标拆分为强制面与执行面。`goal-lock` 新增判断反转纪律。全部 20 个技能的 frontmatter 键更正为官方写法 `user-invocable`。完整列表见 [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.5.14 变更：** 精炼版本 — 未新增或移除任何技能。修复公开版中也存在的缺陷：`session-start` 在没有交接文件的首次会话中不再中止整个流程；`pre-push` 在缺少密钥扫描器时停止推送；11 个让 `pytest` 收集 0 个测试并显示通过的测试文件现在会真正运行；只读的 `eval-leakage-audit` 同时禁用 Bash，无法写文件；`setup` 在替换（Replace）前先备份；统一了 `project-init`、`collab-audit`、`scope`、`skill-ops` 中自相矛盾的规则。新增：`pre-push` 阻止新提交的数据库文件，`scope` 增加 `coverage_check.py`（需求↔任务核对），`collab-audit` 增加 `extract_session_meta.py`，`eval-leakage-audit` 扩展到 28 种模式，`goal-lock` 记录既有失败基线，`integration-intake` 增加供应链检查。详见 [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -57,7 +57,7 @@
 
 | 技能 | 功能 |
 |------|------|
-| [scope](../scope/) | 实现前定义 IN/OUT/退出标准。Quick 模式（3 个问题）或 Full 模式（分层规格） |
+| [scope](../scope/) | 实现前定义 IN/OUT/退出标准。Quick 模式（3 个问题）或 Full 模式（分层规格）. Full 模式附带 `coverage_check.py`（需求↔任务核对） |
 | [freeze](../freeze/) | 声明可编辑区域 — 其余冻结。防止实现过程中的范围蔓延 |
 | [goal-lock](../goal-lock/) | 智能体纪律引擎 — 锁定目标，强制 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环，检测 13 种成功伪装模式 |
 | [pre-push](../pre-push/) | 强制 pre-push 管道 — 密钥扫描（12 种模式）、构建/测试、lint、并行 AI 代码审查。发现 Critical/High 时阻止 push |
@@ -87,7 +87,7 @@
 | 技能 | 功能 |
 |------|------|
 | [project-check](../project-check/) | 从 4 个维度扫描现有项目：基础设施、安全、质量、测试框架。按严重度排序差距 |
-| [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向 |
+| [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向. 所需会话数据由 `extract_session_meta.py` 生成 |
 
 ### 运维
 
@@ -103,7 +103,7 @@
 | [full-audit](../full-audit/) | **新增。** 对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 — 确定性扫描+内容审查双层方法、防误报kill-test、持久化覆盖图 |
 | [integration-intake](../integration-intake/) | **新增。** 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查 + 引入内容的provenance/注入检查 |
 | [clean-room](../clean-room/) | **新增。** 将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 对抗性验证通过 + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | **新增。** 通过18种模式的分类法，审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认。只读 |
+| [eval-leakage-audit](../eval-leakage-audit/) | **新增。** 通过18种模式的分类法，审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认（28 种模式）。只读 |
 | [doc-drift](../doc-drift/) | **新增。** 审计Claude Code加载到上下文中的记忆/文档(CLAUDE.md/MEMORY.md/skills/agents/commands)，发现过时声明、相互矛盾和风险/模糊措辞 — 生成优先级修复清单 |
 
 ---

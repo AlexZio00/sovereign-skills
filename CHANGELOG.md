@@ -6,6 +6,48 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.14 — 2026-10-09
+
+Refinement release — no skills added or removed; a delta port from the internal fork covering the fixes and generic improvements made since v6.5.13.
+
+### Fixed — bugs present in the public copy
+- **session-start**: a missing handoff (first session) stopped the whole run, contradicting Invariant 2 ("missing files = skip that Phase only"). Now only the handoff Phase is skipped and the remaining Phases run. The Scope Boundary row that promotes context-log items to MEMORY.md is a write and is now labeled `[WRITE]`.
+- **pre-push**: the Error Recovery `missing_data` row said a missing secrets scanner means "skip check", contradicting Key Assumption 1 (no scan → push blocked). A missing scanner now stops the push; only a missing pytest is skipped with a warning.
+- **pre-push, full-audit, scope, collab-audit, project-overview, session-checkpoint, session-start, skill-ops**: eleven test files used their own runners and defined no `test_*` function, so `pytest` collected 0 tests and exited 0 — a silent false pass. Each now has a `test_all_cases()` entry point and keeps its standalone `__main__` runner.
+- **eval-leakage-audit**: `disallowed-tools` did not include `Bash`, so a read-only skill could still write through shell redirection or a python one-liner.
+
+- **project-init**: Invariant 3 ("never create non-config files") contradicted Phase 3, which creates `docs/DEVELOPMENT_ROADMAP.md` and `docs/decisions/README.md`. Those two files are now the named exception.
+- **setup**: Replace and rollback had no backup. New step 3-0 copies an existing `settings.json` / `rules/*.md` to `<file>.bak-YYYYMMDD` before writing; Replace needs that backup plus explicit confirmation; a failed violation test rolls back only the part setup added.
+- **collab-audit**: the minimum-sample rule disagreed with itself (Key Assumption said sessions AND messages, Discard If said either). Now either one is enough; when both fail the audit stops unless the single-session high-density exception applies.
+- **scope**: Core Rule 2, the safety row and Invariant 9 said an existing spec could be appended/edited, while editing an existing spec is out of scope. They now agree: the skill only creates a new `spec.md`.
+- **skill-ops**: Invocations mode said it saved a `.json` file while the rest of the skill reads the `.jsonl` invocation log; it is now read-only over that log. The usage-score Discard bonus no longer applies at 0 invocations (no denominator — an unused skill could score STRONG); fixed in `skill_health_bucket.py` with tests.
+- **session-checkpoint**: handoff self-check Q1 asked "what was done this session", conflicting with the state-oriented handoff rule (Invariant 2); it now asks about current state.
+- **code-autopsy**: Quick mode printed `Verdict: [SHIP / FIX / BLOCK]` although it is not a deployment verdict; it now prints `Gate: [GATE PASS / FIX / BLOCK]` and never SHIP IT.
+- **doc-drift**: the report's `Scanned:` line listed a fixed set of sources; it now lists only the sources that existed.
+
+### Changed — per skill
+- **pre-push**: newly added database files (`.db`, `.sqlite`, `.sqlite3`, `.db-wal`, `.db-shm`; `tests/` and `fixtures/` excluded) block the push — the text secret scanner cannot see inside binary DB files.
+- **full-audit**: canaries are staged under neutral names (`module_<hex>`), so a reviewer cannot spot the control by its filename; scope is the union of tracked and untracked-but-not-ignored files; audit artifacts may be written under AUDIT_ONLY; reverse dry-run maps every check of a guard/lint script to the rule that justifies it.
+- **integration-intake**: Phase 0.4 records the user's expected conclusion and judges blind first; checks (g) least-privilege tokens for MCP servers and (h) reject requests to disable pre-execution confirmation; the whole supply-chain surface is read (README, scripts, references, templates) with a files-opened count; recent committers and diff are reviewed (stars are not evidence); a post-install trial run checks the logs for approval phrases the user never said.
+- **eval-leakage-audit**: patterns 22–28 (underpowered null, degenerate strategy passes, retry-inflated headline, non-common item sets, bundled-change attribution, stability-only validity, selective-gate attribution) — 28 patterns total; a golden-case fixture for calibration.
+- **doc-drift**: new signals — infeasible directive (a body instructs a tool its `tools:` lacks or a denied action), no-op directive (deleting it would not change behavior); staleness cause field (`validity` / `compliance` / `unknown`); `premise_type` per finding with its re-verification method.
+- **goal-lock**: pre-DO failure baseline (VERIFY judges only new failures; pre-existing ones are reported as out of scope); S6 counts a repeat only when inputs, tree and environment are unchanged, and reports out-of-code causes as "environment error" with one command for the human.
+- **scope**: `scripts/coverage_check.py` checks requirement IDs against task `Fulfills:` lines (uncovered, missing, undefined, duplicate; vague wording as a warning) and must PASS before L4 approval.
+- **collab-audit**: `scripts/extract_session_meta.py` builds the session-meta JSON the hygiene gate needs from Claude Code session logs; gate input types are documented; code/log-heavy long messages are excluded from the style signal; retention note for the sensitive report.
+- **session-checkpoint**: relative dates become absolute when items carry forward; `cause: harness` lesson tag and an applicability condition for lessons from corrections; known check-paths false positive for whole-command backtick spans.
+- **setup**: grep for an existing heading before appending; probe global targets for writability and switch to paste-block mode if denied; rule-loading tests run in-session are prompt-level; optional deferred end-of-turn check hook (off by default).
+- **project-check**: placeholder secrets are info, not red, and the found value is never printed; an unverifiable `git check-ignore` is reported as such instead of red.
+- **project-init**: if a guard blocks writing `.env.example`, print it for the user instead of retrying.
+- **project-overview**: registry syntax note — one `- name: /abs/path` line per project.
+- **code-autopsy**: counter-example search when asked "does this satisfy X"; no qualifiers on the four-value verdict.
+- **clean-room**: the RUN subagent should be a type with only the tools it needs.
+- **skill-ops**: `/skill-ops quality` trigger and mode-table row.
+
+### Not ported (internal-only)
+Model-tier relabeling, internal hook/script dependencies with no public equivalent, internal ledger tooling, constitution references, and internal path or incident references.
+
+---
+
 ## v6.5.13 — 2026-09-25
 
 Refinement release — no skills added or removed; a delta port from the internal fork covering 19 of the 20 skills (`stepback` had only internal-only changes). Several ports fix real bugs that also existed in the public copy.

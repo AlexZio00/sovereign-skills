@@ -1,10 +1,10 @@
 [English](../README.md) | 🌐 **한국어** | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.13
+# sovereign-skills v6.5.14
 
 Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
 
-> **v6.5.13 변경사항:** 정비 릴리즈 — 스킬 추가/제거 없음, 20개 중 19개 스킬에 대한 델타 이식이며 공개판에도 있던 버그 수정 여러 건을 포함. `pre-push` → v3.11.0은 스테이징이 비어 있어도 푸시 안 된 커밋이 있으면 시크릿 스캔을 건너뛰지 않고, 호출 사이에 셸 상태가 사라져도 테스트·린트 게이트가 조용히 꺼지지 않으며, 건수를 세는 같은 줄 허용 마커를 추가; `full-audit` → v1.4는 선택형 canary 혼입(문제없는 파일과 결함 심은 파일을 리뷰 번들에 몰래 섞어 오탐·재현율 측정) 추가; `integration-intake`는 채택 대상을 강제 표면과 실행 표면으로 나눔; `goal-lock`에 판단 번복 규율 추가; 20개 스킬 모두 frontmatter 키를 공식 표기 `user-invocable`로 정정. 전체 목록은 [CHANGELOG.md](../CHANGELOG.md).
+> **v6.5.14 변경사항:** 정비 릴리즈 — 스킬 추가/제거 없음. 공개판에도 있던 버그 수정: `session-start`는 핸드오프가 없는 첫 세션에서 전체를 멈추지 않는다. `pre-push`는 시크릿 스캐너가 없으면 push를 멈춘다. `pytest`가 0건을 수집하고 통과로 보이던 테스트 파일 11개가 실제로 돈다. 읽기 전용인 `eval-leakage-audit`는 Bash도 막아 파일을 쓰지 못한다. `setup`은 교체(Replace) 전에 백업한다. `project-init`·`collab-audit`·`scope`·`skill-ops`의 서로 모순되던 규칙을 맞췄다. 추가: `pre-push`가 새로 커밋되는 DB 파일을 막고, `scope`에 `coverage_check.py`(요구사항↔태스크 대조), `collab-audit`에 `extract_session_meta.py`, `eval-leakage-audit` 패턴 28개, `goal-lock` 기존 실패 기준선, `integration-intake` 공급망 점검이 들어갔다. 자세한 내용은 [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
@@ -57,7 +57,7 @@ Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — �
 
 | 스킬 | 기능 |
 |------|------|
-| [scope](../scope/) | 구현 전 IN/OUT/종료 기준 정의. Quick 모드 (3개 질문) 또는 Full 모드 (레이어드 스펙) |
+| [scope](../scope/) | 구현 전 IN/OUT/종료 기준 정의. Quick 모드 (3개 질문) 또는 Full 모드 (레이어드 스펙). Full 모드에 `coverage_check.py`(요구사항↔태스크 대조) 포함 |
 | [freeze](../freeze/) | 수정 가능 영역 선언 — 나머지는 동결. 구현 중 범위 변경 방지 |
 | [goal-lock](../goal-lock/) | 에이전트 규율 엔진 — 목표 잠금, PLAN→DO→VERIFY→FINALIZE→OUTPUT 루프 강제, 13가지 성공 위장 패턴 탐지 |
 | [pre-push](../pre-push/) | 필수 pre-push 파이프라인 — 시크릿 스캔 (12패턴), 빌드/테스트, 린트, 병렬 AI 코드 리뷰. Critical/High 발견 시 push 차단 |
@@ -87,7 +87,7 @@ Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — �
 | 스킬 | 기능 |
 |------|------|
 | [project-check](../project-check/) | 기존 프로젝트를 4개 차원으로 스캔: 인프라, 보안, 품질, 하네스. 심각도순 갭 정렬 |
-| [collab-audit](../collab-audit/) | 14개 섹션 AI 협업 감사 — 실제 작업 패턴(설문 아님)을 분석해 행동 프로필, 사각지대, 성장 방향 생성 |
+| [collab-audit](../collab-audit/) | 14개 섹션 AI 협업 감사 — 실제 작업 패턴(설문 아님)을 분석해 행동 프로필, 사각지대, 성장 방향 생성. 필요한 세션 데이터는 `extract_session_meta.py`가 만든다 |
 
 ### 운영
 
@@ -103,7 +103,7 @@ Claude Code 프로젝트 전체 라이프사이클을 위한 20개 스킬 — �
 | [full-audit](../full-audit/) | **신규.** 전 영역(코드베이스/문서/스킬/메모리/설정) 전수감사 — 결정론 스윕 + 내용리뷰 2계층 방법론, 오탐방지 kill-test, 영속 커버리지맵 |
 | [integration-intake](../integration-intake/) | **신규.** 외부 패턴(스킬/에이전트/룰/플러그인/MCP) 도입 5항목 스크리닝 게이트 — 기존 자산 대비 중복 검사 + 도입 콘텐츠 provenance/인젝션 검사 |
 | [clean-room](../clean-room/) | **신규.** 위험인접 요청을 안전 스코프로 분리해 완전히 격리된 fresh-context 서브에이전트가 실행 — 적대적 검증 패스 + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | **신규.** eval/metric/holdout이 실제로 독립된 외부 그라운드트루스를 확보하는지, 아니면 순환 자기확인인지 18-패턴 taxonomy로 감사. 읽기 전용 |
+| [eval-leakage-audit](../eval-leakage-audit/) | **신규.** eval/metric/holdout이 실제로 독립된 외부 그라운드트루스를 확보하는지, 아니면 순환 자기확인인지 28-패턴 taxonomy로 감사. 읽기 전용 |
 | [doc-drift](../doc-drift/) | **신규.** Claude Code가 컨텍스트로 로드하는 메모리/문서(CLAUDE.md/MEMORY.md/skills/agents/commands)를 구식 주장·상호 모순·위험/모호 표현으로 감사 — 우선순위 수정 목록 생성 |
 
 ---

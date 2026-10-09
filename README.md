@@ -1,10 +1,10 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.5.13
+# sovereign-skills v6.5.14
 
 20 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
-> **What changed in v6.5.13:** Refinement release — no skills added or removed; a delta port covering 19 of the 20 skills, including several bug fixes that also existed in the public copy. `pre-push` → v3.11.0 no longer skips the secret scan when staging is empty but unpushed commits exist, keeps its test/lint gates working when shell state is lost between calls, and adds a counted same-line allow marker; `full-audit` → v1.4 adds opt-in canary mixing (a clean file and a planted-defect file slipped into review bundles to measure false positives and recall); `integration-intake` splits adoption into enforcement and execution surfaces; `goal-lock` adds judgment-reversal discipline; the frontmatter key is now the documented `user-invocable` in all 20 skills. Full list in [CHANGELOG.md](CHANGELOG.md).
+> **What changed in v6.5.14:** Refinement release — no skills added or removed. Bug fixes that also existed in the public copy: `session-start` no longer stops the whole run on a first session without a handoff; `pre-push` stops when the secret scanner is missing; eleven test files that let `pytest` collect 0 tests (a silent pass) now run; `eval-leakage-audit` blocks Bash so the read-only skill cannot write; `setup` backs up files before Replace; `project-init`, `collab-audit`, `scope` and `skill-ops` had rules that contradicted themselves. New: `pre-push` blocks newly committed database files, `scope` gets `coverage_check.py` (requirement ↔ task check), `collab-audit` gets `extract_session_meta.py`, `eval-leakage-audit` grows to 28 patterns, `goal-lock` records a pre-existing-failure baseline, and `integration-intake` adds supply-chain checks. See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -56,7 +56,7 @@ then daily:
 
 | Skill | What it does |
 |-------|-------------|
-| [scope](scope/) | Define what's IN, what's OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec) |
+| [scope](scope/) | Define what's IN, what's OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec). Full mode ships `coverage_check.py` (requirement ↔ task check) |
 | [freeze](freeze/) | Declare the editable zone — everything outside is frozen. Prevents scope creep during implementation |
 | [goal-lock](goal-lock/) | Agent discipline engine — locks the goal, enforces PLAN→DO→VERIFY→FINALIZE→OUTPUT loop, detects 13 success masquerading patterns |
 | [pre-push](pre-push/) | Mandatory pre-push pipeline — secrets scan (12 patterns), build/test, lint, parallel AI code review. Blocks push on Critical/High findings |
@@ -86,7 +86,7 @@ then daily:
 | Skill | What it does |
 |-------|-------------|
 | [project-check](project-check/) | Scan existing project across 4 dimensions: Infrastructure, Security, Quality, Harness. Gaps ordered by severity |
-| [collab-audit](collab-audit/) | 14-section AI collaboration audit — analyzes your actual work patterns (not surveys) to generate behavioral profile, blind spots, and growth direction |
+| [collab-audit](collab-audit/) | 14-section AI collaboration audit — analyzes your actual work patterns (not surveys) to generate behavioral profile, blind spots, and growth direction. `extract_session_meta.py` builds the session data it needs |
 
 ### Operations
 
@@ -102,7 +102,7 @@ then daily:
 | [full-audit](full-audit/) | **New.** Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review two-layer method, anti-false-positive kill-test, persistent coverage map |
 | [integration-intake](integration-intake/) | **New.** 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets + a provenance/injection check for imported executable content |
 | [clean-room](clean-room/) | **New.** Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent — adversarial verify pass + descope ledger |
-| [eval-leakage-audit](eval-leakage-audit/) | **New.** Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 18-pattern taxonomy. Read-only |
+| [eval-leakage-audit](eval-leakage-audit/) | **New.** Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 28-pattern taxonomy. Read-only |
 | [doc-drift](doc-drift/) | **New.** Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, mutual contradictions, and risky/ambiguous wording — produces a prioritized fix list |
 
 ---

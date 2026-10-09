@@ -150,7 +150,7 @@ Request approval only once the script reports `ok: true`. **On approval**: write
 
 ### Core Rules
 1. Layer order is immutable — no skipping, no backward traversal
-2. Append, don't overwrite — Read existing spec.md first
+2. If a spec.md already exists, it is outside this skill — hand off to a plain Edit (see Discard If). This skill only creates a new spec.md and never overwrites an existing file
 3. doubt-reviewer independent validation required (if skipped: mark `Reviewer: SKIPPED`)
 4. Tasks must link to Requirements (`Fulfills: R{n}.{m}`)
 
@@ -204,7 +204,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
 | Save BRIEF.md / spec.md | high (git) | L1+L3 (Invariant 5: user approval gate) |
-| Overwrite existing spec | medium | L1 (Invariant 9: append/edit only) |
+| Overwrite existing spec | medium | L1 (Invariant 9: forbidden — editing an existing spec is outside this skill) |
 
 ## Invariants (never violate)
 
@@ -216,8 +216,8 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 6. **Constraints mandatory** (existing project): 0 items → rescan. Violation → the brief looks complete but omits the existing system's real limits, so implementation collides with constraints nobody wrote down.
 7. **Risk Flags min 1** — unless there is truly no risk, in which case "no risk: <reason>" may be substituted. Violation → a known failure mode goes unrecorded, so the same risk resurfaces later as a surprise instead of a tracked flag.
 8. **Layer order immutable** (Full): L0→L1→L2→L3→L4. Violation → decisions (L2) get made on a foundation (L0/L1) that was never confirmed, so the spec inherits an unvalidated goal.
-9. **No spec overwrite** (Full): append or edit only. Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
-10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills.
+9. **No spec overwrite** (Full): editing an existing spec is outside this skill (hand off to Edit; see Discard If). Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
+10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills. **Enforcement**: before requesting L4 user approval, run `python scripts/coverage_check.py --spec <spec.md> [--plan <plan.md>]` and require `COVERAGE: PASS` — uncovered requirements, tasks without `Fulfills:`, undefined R-ids, or duplicate R-ids make it FAIL. Vague adjectives and placeholders on requirement lines (fast, intuitive, robust, TBD, ...) only produce warnings; treat them as a signal to rewrite at L3. The script is only for documents in scope format (requirement lines starting with `R1`, `R1.1`; `### Task` headings with `Fulfills:`) — do not run it on documents that use R-numbers for something else, such as scoring-rubric items.
 11. **No silent absorption or quiet shrinking on 10x discovery**: if implementation reveals scope that is a multiple of what was originally understood, surface it immediately — don't absorb it silently and don't quietly shrink the deliverable to fit the original budget. Violation → the user only discovers the delay or the missing scope later, after the fact.
 
 ## Error Recovery 
