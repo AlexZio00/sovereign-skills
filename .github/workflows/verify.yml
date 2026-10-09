@@ -2,9 +2,9 @@ name: Verify Marketplace Integrity
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   verify-marketplace:
