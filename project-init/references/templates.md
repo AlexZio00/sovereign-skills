@@ -199,12 +199,12 @@ Leave all values empty — this file is a template, never a config.
 
 **Extended sections (conditional on Q3/Q6 answers):**
 ```bash
-# === OAuth / Auth (if auth layer selected in Q3) ===
+# === OAuth / Auth (if Q4 is a web dashboard or API server with user accounts) ===
 # OAUTH_CLIENT_ID=
 # OAUTH_CLIENT_SECRET=
 # JWT_SECRET=
 
-# === External Services (if external APIs in Q6) ===
+# === External Services (if Q3 lists external API calls) ===
 # STRIPE_API_KEY=
 # SENDGRID_API_KEY=
 # AWS_ACCESS_KEY_ID=
@@ -242,21 +242,21 @@ Leave all values empty — this file is a template, never a config.
 
 ### 3-6. docs/decisions/README.md _(optional)_
 
-Generate if Q8 timeline > 1 month OR if Q7 produced significant Hard Rules:
+Generate if Q8 timeline > 1 month OR if Q7 produced significant Hard Rules. The file contains its own fenced example, so wrap it in a four-backtick fence when you write it out:
 
-```markdown
+````markdown
 # Architecture Decision Records
 
 Decisions that shaped this project. Add an entry whenever you:
 add a new dependency, replace an existing pattern, change the data model, or restructure agents.
 
 ## Template
-\`\`\`markdown
+```markdown
 # [Decision Title]
 ## Context: Why is this decision needed
 ## Decision: What did we choose
 ## Consequences: Tradeoffs, known constraints
-\`\`\`
+```
 
 ## Decisions
 
@@ -264,7 +264,7 @@ add a new dependency, replace an existing pattern, change the data model, or res
 **Context**: Stack and rules decided during `/project-init` interview.
 **Decision**: Language: [Q2 answer], Data: [Q3 answer], Interface: [Q4 answer], AI: [Q6 answer]
 **Hard Rules origin**: [from Q7 — why each rule exists]
-```
+````
 
 ---
 

@@ -6,6 +6,85 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.5.15 — 2026-10-21
+
+Two new skills (20 → 22) and a delta port from the internal fork covering all 20 existing skills. Each changed skill's `.claude-plugin/plugin.json` version is bumped (minor for features, patch for fixes only), so plugin managers can see the update.
+
+### Added — new skills
+- **ssot-audit**: finds every copy of one fact, value or decision across a repo or notes folder, names the source of truth (Phase A, read-only), and consolidates the duplicates only after user approval (Phase B).
+- **skill-trigger-auditor**: audits skill, agent and slash-command routing — description clarity, collisions, built-in command conflicts, holdout precision/recall — and gates description changes behind trigger tests. `scripts/trigger_probe.py` optionally measures real Skill tool calls; its output folder is `./.trigger-evals` or `$TRIGGER_EVAL_DIR`.
+
+### Fixed — bugs present in the public copy
+- **pre-push**: Steps 3–6 used only the staged file list, so the usual "commit first, push later" flow left the test and lint lists empty and both steps were silently skipped. They now use `PUSH_FILES` (staged ∪ outgoing, deletions excluded) and `PUSH_DIFF_LINES`; the state-file fallback carries them. Regression test: `scripts/test_push_files.py`.
+- **pre-push**: a stray literal `\n` in the Step 1 `NEW_DATA_FILES` line continuation made the Step 1 block fail with a bash syntax error.
+- **project-check**: the key pattern `sk-[A-Za-z0-9]{20,}` missed hyphenated keys (`sk-ant-…`, `sk-proj-…`); it is now `sk-[A-Za-z0-9_-]{20,}`.
+- **setup**: the example SessionStart and SubagentStop hooks needed `bash` + `jq` and failed on Windows without jq; they are now `python -c` one-liners.
+- **integration-intake**: `intake_ledger.py lookup` no longer crashes when a searched file is on another Windows drive.
+
+### Changed — per skill
+- **pre-push**: ruff blocks only findings on lines this push changed (`scripts/ruff_changed_lines.py`, fail-closed; falls back to whole-file ruff without a merge base); `database-reviewer` also triggers when a non-test `.py` adds schema or write SQL; gitleaks runs as a warning-only second secret engine when installed (it never changes the blocking result).
+- **project-check**: warns when CLAUDE.md is over 200 lines, on allow-all `Bash(*)` permissions, and on worktree hygiene issues when 2+ worktrees exist; confirms a recommended skill/command exists before naming it.
+- **code-autopsy** (v7.3): change-direction check (tightening / loosening / neutral); each finding carries `Origin: NEW | PRE-EXISTING` and an evidence tier (doc-confirmed / run-confirmed / unverifiable); `NEEDS-VALIDATION` replaces a fix diff when the verdict depends on an outside fact; the CRITICAL hard cap counts NEW code only; new Safety Fact section with a proof ladder adapted from yulmucoffee/cstack (MIT).
+- **goal-lock**: delegated runs echo the filled input sheet at the top of the result; bug-fix runs list rejected root-cause candidates with their evidence; bug-fix DONE EVIDENCE adds one retry through a different input or path (symptom removal vs defect removal); judgment-reversal rule gets a "this isn't what I asked" bucket.
+- **clean-room**: with gray-zone answers pending, answer-independent safe items still run and only dependent items are held (`NEEDS_INPUT`); RUN picks the narrowest-tool subagent type available.
+- **stepback**: the fixed closing line is replaced by a continue/stop verdict.
+- **session-start / session-checkpoint / next-action**: ship `scripts/handoff_due_check.py` (identical copy in each) to compare handoff to-do dates with today — past items become "check result", future items move to a "Scheduled checks" list; carry-forward items keep a `since:` date; global STATE items show only when relevant and are tagged "(global)"; session-start checks every path the to-do items mention; next-action adds "uncommitted N days", target-exists checks, one grouped candidate for stale lessons and `UNCERTAIN` markers.
+- **project-overview**: reports snapshots older than 7 days in chat (the AUTO block stays byte-identical).
+- **integration-intake**: Phase 0.3 looks up earlier verdicts in `scripts/intake_ledger.py` (exact repo key, `.git`/query/fragment stripped); license line in the report (allowed / reimplement only / not allowed).
+- **full-audit**: `canary_mix.py --ext` builds a separate docs canary pool; `find` fallback outside git; a CONFIRMED finding cannot be dismissed without reading its `file:line`; CONFIRMED High findings get a fresh-context second pass with an honest independence label.
+- **eval-leakage-audit**: second golden case `fixtures/golden-case-02.md` (ceiling case).
+- **doc-drift**: Session Leakage also covers CLAUDE.md and MEMORY.md; `memory/*.md` is scanned; a report is written even with 0 findings.
+- **scope**: in delegated runs, approval counts only when the caller quotes the user's own words; the saved BRIEF.md/spec.md path is handed to the planning step.
+- **collab-audit**: the previous report's advice is judged (executed / partial / not executed / undeterminable) on every audit; `scripts/harness_log_counts.py` counts skill/agent invocations from the invocation ledger.
+- **setup**: hooks may go to the project's `.claude/settings.json`; documented headless load check that the user runs (`claude -p` costs API usage).
+- **project-init**: keep CLAUDE.md under 200 lines and move area-specific rules to `.claude/rules/<topic>.md` with `paths:`.
+- **freeze**: a bug fix's editable scope includes its regression test file.
+- **skill-ops**: `scripts/skill_snapshot.py` (byte-compare, same-day duplicate check, printed prune/rollback commands) and a `report` subcommand in `skill_health_bucket.py`.
+
+### Fixed — full meta-audit of all 22 skills
+Every SKILL.md and script was read end to end by independent reviewers; confirmed findings were fixed.
+- **All skills**: bundled scripts are called as `${CLAUDE_SKILL_DIR}/scripts/<name>.py` instead of a cwd-relative path or a `find ~/.claude` locator that missed marketplace, project-level and Codex installs. Scripts run on Python 3.9+, print UTF-8, and instructions avoid GNU-only shell flags.
+- **All skills**: agents and skills this repo does not ship are labeled optional at first mention and have a fallback (see README "Optional agents and skills not included here"). Claims that frontmatter `tools:` / `disallowed-tools:` physically block tools were removed.
+- **All skills**: `.claude-plugin/plugin.json` is the single version; version numbers were removed from SKILL.md frontmatter and titles. Plugin and marketplace descriptions now match the skills (goal-lock 16 patterns, pre-push 14, collab-audit 14 sections, eval-leakage-audit 28 patterns, full-audit three layers, skill-ops 4 modes).
+- **docs/FILE-CONVENTIONS.md** (new): the formats of the handoff, lessons.md, STATE.md, MEMORY.md, context log, invocation ledger and projects registry — which skill writes each file, which reads it, and what happens when it is missing.
+- pre-push: the blocking secret scan now covers every outgoing commit (`git log -p`), so a secret added in one commit and removed in a later one still blocks; the fix loop tells you to stage and commit fixes, and to rewrite an outgoing commit yourself (and rotate the secret) — the skill never rewrites history.
+- pre-push: build, test and lint exit codes now gate the push; Python is resolved once (`python3`, else `python`, 3.9+); no GNU-only `timeout`/`xargs -d`, so it runs on macOS; `pip-audit -r` per changed requirements file; `npm run build` only when a build script exists; SQL trigger is case-insensitive; Step 3.5 scrubs outgoing commits too.
+- pre-push: the Perl scanner honors the allow marker (the marker needs a comment leader in both scanners); the Python scanner handles non-UTF-8 input and runs on Python 3.9; optional reviewer agents are labeled with fallbacks (code-autopsy FAST MODE).
+- pre-push: "force push" no longer triggers Emergency Override (only "skip review"), and main/master still requires an explicit "yes".
+- code-autopsy: frontmatter description with triggers, one evidence tag set counted in FACT_GATE, explicit severity bands and verdict rules, a defined confidence field, and a `--quick` trigger.
+- project-check: checks the project's `.claude/rules/*.md` (what /setup writes), no longer flags `task-`/`risk-`/`disk-` identifiers as `sk-` keys, verifies plugin-installed skills before recommending them, and prints a status label.
+- setup: replace vs merge rules reconciled (only output-style.md may be replaced, with backup), test runs need confirmation, hook reminders use `systemMessage` so they are visible, the execution plan lists every generated file.
+- project-init: protects an existing ROADMAP, .gitignore, .env.example and decisions README from overwrite (merge / replace with backup / skip).
+- session-start, session-checkpoint, next-action, project-overview, collab-audit: bundled scripts are called through `${CLAUDE_SKILL_DIR}`.
+- handoff_due_check (session-start, session-checkpoint, next-action): future-dated items are never flagged STALE, the latest date is picked by parsed time, and items repeated in the `next:` block are reported once.
+- session-start: no author-specific gate list (it shows only `## Graduated Gates` read from lessons.md), no dated model-name allowlist, `/session-checkpoint` reference fixed, context-log counts match the writer's one-line format.
+- session-checkpoint: attestation (Phase 4.5) is optional and opt-in, one lesson-archive rule, confidence increments at obs 3/6/9 everywhere, the activity gate never skips an explicit checkpoint, scripts run on Python 3.9.
+- next-action: portable uncommitted-age check (no GNU `stat`).
+- project-overview: registry lines that are not absolute paths are skipped with a warning; a handoff without a snapshot block is labeled correctly.
+- collab-audit: ledger counts include every source and both `discarded` forms; session metadata counts distinct messages (Claude Code splits one message into several log rows), emits cwd/entrypoint, and skips subagent transcripts before the sample limit.
+- scope: `coverage_check.py` no longer reports a false DUPLICATE for R-ids repeated in Plan Summary or Tasks; `ambiguity_gate.py` returns clear errors for bad input and range-checks Full scores 0-5.
+- scope, goal-lock, clean-room: in a delegated run, approval counts only when the caller passes the user's own approving words verbatim; otherwise the skill returns NEEDS_INPUT.
+- scope, freeze, goal-lock: a saved BRIEF.md/spec.md and an active FROZEN SCOPE block now feed goal-lock's SCOPE Include/Exclude; goal-lock S3 follows freeze's thaw protocol when a freeze is active.
+- goal-lock: subjective DONE EVIDENCE is allowed for non-code work that has a review contract; required fields are named; private jargon replaced with plain names; `.goal-lock-progress.md` lifecycle defined.
+- freeze: can locate a function's file (Grep/Glob); the declaration must be re-declared after /compact; the model may only propose a thaw, the user decides.
+- stepback: defined the verdict when only Better Approach is flagged.
+- clean-room: partial runs while gray-zone answers are pending, NEEDS_INPUT in the output, a default ledger path (`./.clean-room/ledger.md`), and the active file zone passed to the executor.
+- full-audit: canary scoring tolerates `file:line` paths and verdict case, and re-scoring the same manifest no longer double-counts; the recall ledger moved outside the install folder to `~/.claude/full-audit/recall_ledger.jsonl` (override with `FULL_AUDIT_RECALL_LEDGER`); `canary_mix.py --ext` accepts a missing dot and reports real counts; default coverage map at `<repo>/.audit/coverage-map.md`.
+- integration-intake: repo keys work for any host and ssh URLs; doc matching is whole-word; `lookup` prints the reason; `--ledger` works after the subcommand; malformed ledger lines are skipped and counted; Python 3.9 supported; manual fallback when Python/Bash is missing and a WebFetch fallback for `gh`; `merged.json` format documented.
+- eval-leakage-audit: the calibration answer key moved to `fixtures/expected.md`; new Suspected (UNCERTAIN) tier; patterns that need a run are reported as checks to request.
+- doc-drift: scripts called through `${CLAUDE_SKILL_DIR}`; project-folder encoding corrected; the auto-fix PR path is described as approval-gated; both scripts print UTF-8 and have golden-text tests.
+- skill-ops: Health and invocation reports now count log records from every source and accept discarded entries as strings or `{skill, reason}` objects; a skill with logs but no calls shows as Unused instead of Unknown.
+- skill-ops: Rollback and cleanup commands quote paths with spaces; `audit` with no snapshots says so; `--out` creates its folder; a missing skills folder gives a clear error.
+- skill-ops: Documentation names the log writer (session-checkpoint), lists all 4 modes, marks the score store and inventory files as optional, and defines the OPTIMIZE band.
+- skill-trigger-auditor: The probe passes `--verbose` to `claude -p`, reports failed runs as `errored` instead of "not triggered", and exits 3 when any run errored.
+- skill-trigger-auditor: New `--cwd`, `--strict-mcp-config` and `--setting-sources` options; `--dry-run` shows an estimated time; duplicate queries are rejected; implicit invocation is off.
+- ssot-audit: Search guidance works without GNU grep flags, whole-file deletions are proposed rather than performed, failure handling is split by phase, and "stale" has a definition and an action.
+
+### Not ported (internal-only)
+Internal hook smoke modes, the internal test-selection branch, review-outcome ledgers, handoff receipts, graduation gates, the freeze hook file, injection-budget checks, private incident notes and constitution references.
+
+---
+
 ## v6.5.14 — 2026-10-09
 
 Refinement release — no skills added or removed; a delta port from the internal fork covering the fixes and generic improvements made since v6.5.13.

@@ -1,6 +1,6 @@
 {
   "name": "session-checkpoint",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "Session closer — saves context before compact. Handoff file, memory updates, lesson extraction, reflexion (what went wrong, what to improve).",
   "author": {
     "name": "AlexZio00",

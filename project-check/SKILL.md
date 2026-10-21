@@ -3,31 +3,30 @@ skill_type: analysis
 triggers:
   - "/project-check"
   - "project-check"
-  - "what's wrong"
 name: project-check
 description: "Existing project health scan — audits Infrastructure, Security, Quality, and Harness setup. Read-only. Use when: '/project-check', 'project health check', 'project audit', 'what\\'s missing', 'analyze my project', 'check setup'. Ends with /project-init and /setup recommendations. NOT for new projects (use /project-init); project-check = shallow health scan."
 user-invocable: true
 tools: Read, Bash, Glob, Grep
-disallowed-tools: Edit, Write, NotebookEdit  # skill frontmatter `tools:` is not enforced by Claude Code — this field is what actually blocks writes
+disallowed-tools: Edit, Write, NotebookEdit  # descriptive metadata: read-only discipline is a rule in the body (Invariant 1), not enforced by this field
 depends_on:
   skills: []
   agents: []
   files:
     - CLAUDE.md
-    - ~/.claude/rules/project rules
+    - .claude/rules/*.md
     - .project-check-history.json
 concurrency_profile:
   read_only: true
   concurrency_safe: true
   destructive: none
 not_for:
-  - "New project setup -> setup skill"
-  - "Deep, scored harness-maturity audit against a fixed multi-axis checklist -> check-harness (project-check is a shallow one-pass scan, not a maturity score)"
+  - "New project scaffolding -> project-init; harness/agent-team setup -> setup"
+  - "Deep, scored harness-maturity audit against a fixed multi-axis checklist -> check-harness (optional, not included in this repo; project-check is a shallow one-pass scan, not a maturity score)"
 see_also:
   - skill: setup
     relation: "project-check=existing audit, setup=new harness setup (project-init is a separate skill for project scaffolding)"
   - skill: check-harness
-    relation: "project-check=shallow one-time 4-dimension scan with no persistent scoring model, check-harness=deep multi-axis maturity scoring with trend tracking"
+    relation: "optional, not included in this repo. project-check=shallow one-time 4-dimension scan with no persistent scoring model, check-harness=deep multi-axis maturity scoring with trend tracking"
 ---
 
 # Project Check — Existing Project Health Scan
@@ -48,7 +47,7 @@ Scan an existing project against setup best practices across 4 dimensions: Infra
 
 Empty directory or newly initialized project (`git init` with no code yet) — nothing to audit. Use `/project-init`.
 This skill audits code, infrastructure, security, and quality only.
-Need a persistent, weighted maturity score with cross-axis trend tracking instead of a one-time 4-dimension pass/fail scan — use `/check-harness`, not this skill.
+Need a persistent, weighted maturity score with cross-axis trend tracking instead of a one-time 4-dimension pass/fail scan — use `/check-harness` (optional, not included in this repo; without it, this report is the available scan), not this skill.
 
 ## Key Assumptions 
 
@@ -59,7 +58,6 @@ Need a persistent, weighted maturity score with cross-axis trend tracking instea
 
 - `/project-check`
 - "project-check"
-- "what's wrong"
 
 ---
 
@@ -94,21 +92,27 @@ Detect project name from directory name or `name` field in package.json / pyproj
 
 For CLAUDE.md: count Hard Rules entries (lines starting with `-` under `## Hard Rules`). Report the count.
 
+**CLAUDE.md size and structure** (read-only, `wc -l`): if the project `CLAUDE.md` (root or `.claude/CLAUDE.md`) is longer than 200 lines, report ⚠. Anthropic's memory documentation (code.claude.com/docs/en/memory) recommends under 200 lines per file, because longer files use more context and are followed less reliably. `@import` files are loaded at launch too, so imports do not reduce the line count. In the report, give the line count and name instructions that apply only to some files or directories as candidates to move into `.claude/rules/<topic>.md` with `paths:` frontmatter. Keep Hard Rules and always-on rules in a file without `paths:`: a `paths:` rule loads only after a matching file is read, so an invariant placed there is not in force before then. 200 lines or fewer is ✓.
+
 ### Step 2: Security Scan
 
-Grep these patterns across all source files (case-insensitive). Exclude: `*.example`, `.env.example`, files in `tests/`, `__tests__/`, `spec/`, and dependency/build directories (`node_modules/`, `.venv/`, `venv/`, `__pycache__/`, `vendor/`, `dist/`, `build/`, `.git/`, `.next/`, `target/` — same list as Step 0):
+Grep these patterns across all source files. Run the `sk-` patterns case-sensitive and every other pattern case-insensitive. Exclude: `*.example`, `.env.example`, files in `tests/`, `__tests__/`, `spec/`, and dependency/build directories (`node_modules/`, `.venv/`, `venv/`, `__pycache__/`, `vendor/`, `dist/`, `build/`, `.git/`, `.next/`, `target/` — same list as Step 0):
 
 ```
 API_KEY\s*=\s*["'][^$({]      → hardcoded API key
-sk-[A-Za-z0-9]{20,}           → OpenAI key (sk-...)
-sk-ant-[A-Za-z0-9\-]{20,}     → Anthropic key (sk-ant-api03-...)
+(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}      → OpenAI/Anthropic key (sk-..., sk-ant-..., sk-proj-... — includes hyphens and underscores; a pattern without them misses keys that contain a hyphen)
+(^|[^A-Za-z0-9])sk-ant-[A-Za-z0-9\-]{20,}  → Anthropic key (sk-ant-api03-...)
 ghp_[A-Za-z0-9]{36}           → GitHub PAT
 password\s*=\s*["'][^$({]     → hardcoded password
 secret\s*=\s*["'][^$({]       → hardcoded secret
 token\s*=\s*["'][^$({]        → hardcoded token
 ```
 
+The `sk-` patterns need a non-alphanumeric character (or line start) before `sk-` and must not be case-insensitive. Without that, ordinary identifiers such as `task-queue-worker-configuration` (the `sk-queue-...` inside `task-queue-...`), `risk-assessment-...` or `disk-usage-...` match and produce false 🔴 findings; they must not match.
+
 Each match → 🔴 with `file:line` reference. Read the matched line before judging: a placeholder value (`your_key_here`, `xxx`, `changeme`, `<...>`) is ℹ info, not 🔴. Never print the found value — report `file:line` and the pattern name only.
+
+Additional check — permission scope: if `permissions.allow` in the project `.claude/settings.json` or `.claude/settings.local.json` contains an entry that allows every command, such as `Bash(*)` or a bare `Bash`, report ⚠. Report the file and the entry only.
 
 Additional checks — `.env` protection (skip entirely if not a git repo, per Key Assumption 2):
 
@@ -161,21 +165,28 @@ Check Claude Code infrastructure:
 
 | Item | Check | Severity |
 |------|-------|----------|
-| `~/.claude/rules/project rules` | Exists? | ⚠ if missing |
-| `~/.claude/rules/agents.md` | Exists? | ⚠ if missing |
+| Project rules file: `.claude/rules/*.md` (what `/setup` writes: `.claude/rules/project-rules.md`) | Any file present? | ⚠ if none |
+| `~/.claude/rules/agents.md` (global; `/setup` writes it only for the Standard and Orchestrated profiles) | Exists? | ⚠ if missing and **not** Minimal profile; skip if Minimal profile |
 | `.claude/settings.json` or `~/.claude/settings.json` | hooks section present? | ⚠ if no hooks |
-| CLAUDE.md Hard Rules format | Inline text vs project rules reference link | ⚠ if both (duplication) |
+| CLAUDE.md Hard Rules format | Inline text vs project rules reference link (`Hard Rules → see .claude/rules/...`) | ⚠ if both (duplication) |
 | `~/.claude/agents/` | Any .md agent files installed? (global) | ⚠ if empty and **not** Minimal profile; ℹ (no score) if empty and Minimal profile |
 | `.claude/agents/` | Any .md agent files installed? (project-level) | ℹ if present (report separately) |
-| `~/.claude/agents/orchestrator.md` | Exists? | ⚠ if missing and **not** Minimal profile; skip (no flag) if Minimal profile |
-| Orchestrator type | Contains drift detection (`MISSING`, `EXTRA`, `DIVERGED`, correction loop)? | ⚠ if absent, **only when `orchestrator.md` exists** (Light-only case) — N/A if `orchestrator.md` itself is missing, since that's already covered by the row above |
-| `tasks/lessons.md` | Exists? (skip if scale=script) | ⚠ if scale=full/mini |
+| `~/.claude/agents/orchestrator.md` (optional agent, not included in this repo) | Exists? | ⚠ if missing and **not** Minimal profile; skip (no flag) if Minimal profile |
+| `tasks/lessons.md` (created by `/setup` when structured memory is chosen; format: FILE-CONVENTIONS link below) | Exists? (skip if scale=script) | ℹ if missing and scale=full/mini; no score deduction |
 | SubagentStop hook | SubagentStop included in `settings.json` hooks? | ⚠ if missing and **not** Minimal profile (a Minimal setup has no subagents to stop) |
 
-Count total agent files across both locations. Report global vs project-level split.
-Report which key agents are installed (orchestrator, code-reviewer, verification, brainstorming, security-reviewer). If Minimal profile was inferred, report "0 agents — consistent with Minimal setup profile (rules + memory only)" instead of counting it toward gaps.
+**Worktree hygiene** (only in a git repository where `git worktree list` shows 2 or more worktrees; read-only commands only): every finding below is ⚠ or ℹ, and this skill never deletes or creates anything.
+- `git worktree list --porcelain`: report `prunable` entries and the number of long-abandoned `.claude/worktrees/*` directories as ⚠. Cleaning up is the user's job. Do not count a worktree as stale if it is `locked`, is the current session's working directory, or has a branch named like `claude/<adjective-name-hash>`: the app or session manages those, and an app-managed worktree may have no lock.
+- Missing local data: if the main worktree has gitignored `*.db` files, `config/local/`, or `.env*` files and a worktree lacks them, report ⚠ `missing_local`. Tests then fail in that worktree and the failures look like code regressions. A missing `.worktreeinclude` file is ℹ: suggest it, do not create it.
+- Permission rule paths: if a `permissions.deny` or `permissions.allow` rule uses a relative glob that starts with `**/` to protect a sensitive file, report ⚠. In a worktree session such a rule resolves against the worktree and may not block the file in the main checkout. Absolute-path rules on Windows need the form `//d/...` (lowercase drive letter, no colon); this follows the Claude Code permissions documentation and this skill does not re-verify it.
+- If a past incident caused by a worktree (for example a test run against a stale database copy in a worktree) is recorded only in `tasks/lessons.md` and not in `CLAUDE.md` or the rules, report ℹ and suggest a one-line worktree rule in the root `CLAUDE.md`.
 
-If CLAUDE.md has inline Hard Rules AND `~/.claude/rules/project rules` exists → ⚠ "Hard Rules duplication: directly in CLAUDE.md AND project rules file present. Recommend consolidating to project rules with reference link in CLAUDE.md."
+Count total agent files across both locations. Report global vs project-level split.
+Report which key agents are installed (orchestrator, code-reviewer, verification, brainstorming, security-reviewer; all optional, none are included in this repo — `/setup` can generate review agents). If Minimal profile was inferred, report "0 agents — consistent with Minimal setup profile (rules + memory only)" instead of counting it toward gaps.
+
+If CLAUDE.md has inline Hard Rules AND a project rules file with Tier-0 rules exists in `.claude/rules/*.md` → ⚠ "Hard Rules duplication: directly in CLAUDE.md AND project rules file present. Recommend consolidating to the project rules file with a reference link in CLAUDE.md."
+
+File formats: https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FILE-CONVENTIONS.md (a missing `tasks/lessons.md` or history file is never an error here: report ℹ and move on).
 
 ### Step 5: Build Report
 
@@ -209,6 +220,7 @@ Harness:
 
 Score: [N]/10
 Gaps: [N] total (🔴 [N], ✗ [N], ⚠ [N])
+Status: WORKING | PARTIAL (what was not scanned and why) | BROKEN (scan could not run)
 ```
 
 ### Step 6: Recommendations
@@ -216,11 +228,11 @@ Gaps: [N] total (🔴 [N], ✗ [N], ⚠ [N])
 Always end with next steps:
 
 - 🔴 Security → "🔴 First: Remove secrets at [file:line] and move to .env (manual edit required)"
-- Infrastructure ✗ → "→ Use `/project-init` — if CLAUDE.md exists, choose Update mode"
+- Infrastructure ✗ → "→ Use `/project-init` — if CLAUDE.md exists, choose its Update option"
 - Harness rules ✗/⚠ (rules, agents, hooks) → "→ Use `/setup` to configure Claude Code infrastructure"
+- **Verify before recommending (required)**: before recommending any slash command or skill below, confirm it exists with Glob: `~/.claude/commands/<name>.md`, `~/.claude/skills/<name>/SKILL.md`, the project's `.claude/commands/` and `.claude/skills/`, and plugin installs under `~/.claude/plugins/` (for example `~/.claude/plugins/**/skills/<name>/SKILL.md`). The skill list shown in the current session also counts as proof that it exists. If none of these shows it, drop that recommendation and write "recommended `/X` is not installed" instead. A dead reference to a command that was never installed is a known failure of this report.
 - Harness agents ✗/⚠ (no agents, no orchestrator) AND agent-routing infra already exists elsewhere (Step 4 profile detection = not Minimal) → "→ Use `/setup` to install agent team (orchestrator + reviewer + implementer)"
-- No agents anywhere AND no orchestrator, Minimal profile inferred (Step 4) → do not recommend an agent team as a fix; instead: "ℹ No agent-routing layer detected — consistent with a Minimal setup (rules + memory only). No action needed if intentional; run `/setup` Update mode if you want review agents or orchestration."
-- Orchestrator Light only (orchestrator.md exists but lacks drift detection) → "→ Use `/setup` Update mode to enable Full orchestrator (with drift detection)"
+- No agents anywhere AND no orchestrator, Minimal profile inferred (Step 4) → do not recommend an agent team as a fix; instead: "ℹ No agent-routing layer detected — consistent with a Minimal setup (rules + memory only). No action needed if intentional; run `/setup` if you want review agents or orchestration."
 - Quality only → "→ Recommend adding tests"
 - Score ≥ 8 → "✓ Already well configured. Optionally address ⚠ items."
 
@@ -228,8 +240,7 @@ Always end with next steps:
 ```
 /project-check → discover gaps
   → /project-init  (CLAUDE.md + ROADMAP + .gitignore)
-  → /setup  (rules + hooks + memory)
-  → /setup     (orchestrator + agent team)
+  → /setup  (rules + hooks + memory + optional agent team)
   → /project-check (re-scan → verify score improvement)
 ```
 
@@ -260,7 +271,7 @@ If neither exists, suggest saving current result — project-root file by defaul
 ```
 `"Next /project-check will show score delta."` — one line.
 
-**No auto-save — this skill never writes it, period.** The JSON snippet above is printed to the chat as text only. Actually creating or appending to `.project-check-history.json` is something the user does themselves — it is outside this skill's execution scope (this skill has no Write/Edit tool; see Invariant 1).
+**No auto-save — this skill never writes it, period.** The JSON snippet above is printed to the chat as text only. Actually creating or appending to `.project-check-history.json` is something the user does themselves — it is outside this skill's execution scope (this skill is read-only by rule; see Invariant 1).
 
 ---
 
@@ -285,7 +296,7 @@ If neither exists, suggest saving current result — project-root file by defaul
 |------|----------|
 | [READ] Scan file existence (Glob) | Modify, create, or delete any file |
 | [READ] Grep code patterns (read-only) | Execute tests (pytest, jest, go test, etc.) |
-| [READ] Run read-only git inspection (`git check-ignore -v`, `git ls-files --error-unmatch`) to verify `.gitignore` actually protects secret files | Run any git command that mutates state (commit, push, add, rm, checkout, etc.) |
+| [READ] Run read-only git inspection (`git check-ignore -v`, `git ls-files --error-unmatch`, `git worktree list`) to verify `.gitignore` actually protects secret files | Run any git command that mutates state (commit, push, add, rm, checkout, etc.) |
 | [READ] Output gap report | — |
 | [READ] Recommend /project-init, /setup | Remove secrets directly |
 | [READ] Analyze CLAUDE.md content | Refactor code or fix bugs |
@@ -299,7 +310,7 @@ If neither exists, suggest saving current result — project-root file by defaul
 | Test execution (`pytest`, `jest`, etc.) | medium | L1 (BLOCK) |
 
 - **L1 (Invariants)**: Invariant 1 — read-only. When secrets are found, report location only; never remove directly. Invariant 4 — never run test runners (prevents DB writes, API calls, network side effects).
-- ⚠️ **`disallowed-tools` scope limit**: `disallowed-tools: Edit, Write, NotebookEdit` blocks only those three tools — it does not stop the remaining `Bash` tool from writing directly (e.g. `echo x > file`, `git commit`). There is no physical (L2) block on that path for a skill loaded into the main loop like this one; enforcement currently relies on L1 prompt compliance (Invariant 1) alone, unless the host project wires its own PreToolUse hook to intercept write-shaped Bash commands.
+- ⚠️ **No tool-level enforcement**: the `tools:` and `disallowed-tools:` frontmatter fields are descriptive metadata. Read-only behavior rests on this skill's rules (Invariant 1) alone, and the `Bash` tool could still write (e.g. `echo x > file`, `git commit`) if the rule were ignored. A host project can add its own PreToolUse hook to intercept write-shaped Bash commands.
 
 ---
 
@@ -317,7 +328,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 
 ## Invariants (never violate)
 
-1. **Read-only**: Never write, edit, delete, or execute any file. Use Glob, Grep, and read-only inspection commands only (e.g., `git check-ignore -v`, `git ls-files --error-unmatch`, `wc -l`) — never a Bash command that writes, deletes, mutates git state, or executes project code. Violation → scan tool gains unintended side effects; user trust in a diagnostic tool erodes.
+1. **Read-only**: Never write, edit, delete, or execute any file. Use Glob, Grep, and read-only inspection commands only (e.g., `git check-ignore -v`, `git ls-files --error-unmatch`, `git worktree list`, `wc -l`) — never a Bash command that writes, deletes, mutates git state, or executes project code. Violation → scan tool gains unintended side effects; user trust in a diagnostic tool erodes.
 2. **Security first**: 🔴 Security section always appears first in the report, even if all Security items pass. Never bury security findings. Violation → user misses credential leak warning while reading infrastructure gaps.
 3. **Scale-aware warnings**: Never report ✗ ROADMAP missing for scale=script. Never report ⚠ docs/decisions/ for scale=mini or script. Violation → noise causes users to dismiss the entire report.
 4. **No test execution**: Detect test infrastructure via Glob only. Never run `pytest`, `jest`, `go test`, or any test runner. Violation → unexpected test side effects (DB writes, API calls, network requests).

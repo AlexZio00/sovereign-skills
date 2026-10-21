@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.14
+# sovereign-skills v6.5.15
 
-覆盖 Claude Code 项目完整生命周期的 20 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
+覆盖 Claude Code 项目完整生命周期的 22 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
-> **v6.5.14 变更：** 精炼版本 — 未新增或移除任何技能。修复公开版中也存在的缺陷：`session-start` 在没有交接文件的首次会话中不再中止整个流程；`pre-push` 在缺少密钥扫描器时停止推送；11 个让 `pytest` 收集 0 个测试并显示通过的测试文件现在会真正运行；只读的 `eval-leakage-audit` 同时禁用 Bash，无法写文件；`setup` 在替换（Replace）前先备份；统一了 `project-init`、`collab-audit`、`scope`、`skill-ops` 中自相矛盾的规则。新增：`pre-push` 阻止新提交的数据库文件，`scope` 增加 `coverage_check.py`（需求↔任务核对），`collab-audit` 增加 `extract_session_meta.py`，`eval-leakage-audit` 扩展到 28 种模式，`goal-lock` 记录既有失败基线，`integration-intake` 增加供应链检查。详见 [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.5.15 变更：** 新增两个技能 — `ssot-audit`（找出同一事实的所有副本并确定唯一权威来源）和 `skill-trigger-auditor`（检查技能和命令是否被正确路由）。缺陷修复：先提交、之后再推送时，`pre-push` 不再跳过测试和 lint；`project-check` 现在能识别带连字符的 API 密钥（`sk-ant-…`、`sk-proj-…`）；`setup` 的 hook 示例不再依赖 `bash` + `jq`，在 Windows 上也能运行。其他技能的升级：`code-autopsy` 为每条发现标注 NEW 或 PRE-EXISTING 并给出证据等级；会话类技能会标出日期已过的交接项；`integration-intake` 在重新审查某个仓库之前，先查询自己此前的判定。全部 22 个技能还经过了一次通读审计：内置脚本在任何安装位置都能被找到（`${CLAUDE_SKILL_DIR}`），可在 Python 3.9+ 和 macOS 上运行，可选的外部智能体都有标注和后备方案，共享文件格式已写入 [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)。详见 [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -29,17 +29,24 @@
 **已有项目（5分钟）：**
 ```
 /project-check      →  4 维度评分 + 按严重度排序的差距列表
-/code-autopsy       →  12Q代码审查（可作为独立提示词在任何LLM中使用）
-/collab-audit       →  14 节 AI 协作诊断
+/collab-audit       →  基于你的工作模式生成 14 节 AI 协作诊断
 ```
 
-**治理（按需）：**
+**治理与审计（按需）：**
 ```
 /integration-intake →  采用外部技能/智能体/规则/插件前 — 5 项筛选门
 /full-audit         →  对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 + 持久覆盖图
 /clean-room         →  当任务混合了安全相关内容与真正安全的工作时
 /eval-leakage-audit →  在信任某个eval/metric/holdout前 — 检查是否循环自我确认
 /doc-drift          →  审计已加载上下文（CLAUDE.md/MEMORY.md/skills）中的过时/矛盾措辞
+/ssot-audit         →  一个事实散落在多个文件中 — 找到权威来源，再合并
+```
+
+**如果你自己编写技能：**
+```
+/skill-trigger-auditor →  修改技能 description 之前 — 找出路由冲突和误触发
+/skill-ops             →  编辑前为技能做快照/回滚，查看哪些技能真正在被使用
+/project-overview      →  一张图掌握多个项目的状态
 ```
 
 ---
@@ -57,83 +64,95 @@
 
 | 技能 | 功能 |
 |------|------|
-| [scope](../scope/) | 实现前定义 IN/OUT/退出标准。Quick 模式（3 个问题）或 Full 模式（分层规格）. Full 模式附带 `coverage_check.py`（需求↔任务核对） |
+| [scope](../scope/) | 实现前定义 IN/OUT/退出标准。Quick 模式（3 个问题）或 Full 模式（分层规格）。Full 模式附带 `coverage_check.py`（需求↔任务核对） |
 | [freeze](../freeze/) | 声明可编辑区域 — 其余冻结。防止实现过程中的范围蔓延 |
-| [goal-lock](../goal-lock/) | 智能体纪律引擎 — 锁定目标，强制 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环，检测 13 种成功伪装模式 |
-| [pre-push](../pre-push/) | 强制 pre-push 管道 — 密钥扫描（12 种模式）、构建/测试、lint、并行 AI 代码审查。发现 Critical/High 时阻止 push |
-
-### 代码审查
-
-| 技能 | 功能 |
-|------|------|
-| [code-autopsy](../code-autopsy/) | **更新 v7.2。** 12Q量化代码审查 — 4轴评分（Security/Stability/Robustness/Operability）、严重性锚定表、部署判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate、CapCode评分gaming检测、CEF伪装错误检测。作为独立提示词可在任何LLM中使用 |
+| [goal-lock](../goal-lock/) | 智能体纪律引擎 — 锁定目标，强制 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环，检测 16 种成功伪装模式 |
+| [pre-push](../pre-push/) | 强制 pre-push 管道 — 密钥扫描（14 种模式）、构建/测试、lint、并行 AI 代码审查。检查这次 push 实际携带的内容（已暂存的改动 + 尚未推送的提交）。发现 Critical/High 时阻止 push |
 
 ### 视角转换
 
 | 技能 | 功能 |
 |------|------|
-| [stepback](../stepback/) | **更新。** 一次性视角重置 — 1个抽象重构问题 + 3项快速检查（范围偏移、副作用、更优方案），10行以内。工作中随时可用 |
-| [next-action](../next-action/) | **新增。** 读取交接文件/git/lessons/STATE，按影响力提出前3项下一步行动。仅提议，不执行。随时可用 |
+| [stepback](../stepback/) | 一次性视角重置 — 1个抽象重构问题 + 3项快速检查（范围偏移、副作用、更优方案）以及继续/停止的判定，10行以内。工作中随时可用 |
+| [next-action](../next-action/) | 读取交接文件/git/lessons/STATE，按影响力提出前3项下一步行动。仅提议，不执行。随时可用 |
 
 ### 会话管理
 
 | 技能 | 功能 |
 |------|------|
-| [session-start](../session-start/) | 加载上次会话的交接文件，回顾经验教训，健康检查，输出带优先操作的"就绪"信号 |
-| [session-checkpoint](../session-checkpoint/) | compact 前保存会话上下文 — 交接文件、记忆更新、教训提取、反思（什么出了问题，下次如何改进） |
+| [session-start](../session-start/) | 加载上次会话的交接文件，回顾经验教训，健康检查，输出带优先操作的"就绪"信号。标出日期已过的交接项 |
+| [session-checkpoint](../session-checkpoint/) | compact 前保存会话上下文 — 交接文件、记忆更新、教训提取、反思（什么出了问题，下次如何改进）。把带未来日期的项目放进单独的"Scheduled checks"列表 |
+
+### 代码审查
+
+| 技能 | 功能 |
+|------|------|
+| [code-autopsy](../code-autopsy/) | 12Q量化代码审查（v7.3） — 4轴评分（Security/Stability/Robustness/Operability）、严重性锚点、部署判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate。每条发现都标注 NEW 或 PRE-EXISTING 并带有证据等级。有实证依据（Johnson 2019、Parnas 1972）。作为独立提示词可在任何LLM中使用 |
 
 ### 质量
 
 | 技能 | 功能 |
 |------|------|
 | [project-check](../project-check/) | 从 4 个维度扫描现有项目：基础设施、安全、质量、测试框架。按严重度排序差距 |
-| [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向. 所需会话数据由 `extract_session_meta.py` 生成 |
+| [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向。所需会话数据由 `extract_session_meta.py` 生成 |
 
 ### 运维
 
 | 技能 | 功能 |
 |------|------|
-| [skill-ops](../skill-ops/) | **新增。** 技能/智能体运维中枢 — 快照/回滚 + 使用状况 + 调用追踪，3 种模式 |
-| [project-overview](../project-overview/) | **新增。** 从已注册项目的会话交接文件生成确定性跨项目状态地图 |
+| [skill-ops](../skill-ops/) | 技能/智能体运维中枢 — 快照/回滚 + 使用状况 + 调用追踪 + 质量评分，4 种模式。附带 `skill_snapshot.py` 和 `skill_health_bucket.py` |
+| [project-overview](../project-overview/) | 从已注册项目的会话交接文件生成确定性跨项目状态地图，并报告超过 7 天的快照 |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | **v6.5.15 新增。** 审计技能、智能体和斜杠命令的路由是否存在冲突和误触发，并用留出集（holdout）触发测试为 description 的修改把关。可选的探针会度量真实的 Skill 工具调用 |
 
 ### 治理
 
 | 技能 | 功能 |
 |------|------|
-| [full-audit](../full-audit/) | **新增。** 对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 — 确定性扫描+内容审查双层方法、防误报kill-test、持久化覆盖图 |
-| [integration-intake](../integration-intake/) | **新增。** 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查 + 引入内容的provenance/注入检查 |
-| [clean-room](../clean-room/) | **新增。** 将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 对抗性验证通过 + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | **新增。** 通过18种模式的分类法，审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认（28 种模式）。只读 |
-| [doc-drift](../doc-drift/) | **新增。** 审计Claude Code加载到上下文中的记忆/文档(CLAUDE.md/MEMORY.md/skills/agents/commands)，发现过时声明、相互矛盾和风险/模糊措辞 — 生成优先级修复清单 |
+| [full-audit](../full-audit/) | 对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 — 确定性扫描+内容审查双层方法、防误报kill-test、植入式金丝雀、持久化覆盖图 |
+| [integration-intake](../integration-intake/) | 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查、引入内容的provenance/注入检查、一行许可证说明，以及对此前判定的台账查询 |
+| [clean-room](../clean-room/) | 将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 对抗性验证通过 + descope ledger |
+| [eval-leakage-audit](../eval-leakage-audit/) | 审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认 — 28 种模式的分类法，两个黄金用例。只读 |
+| [doc-drift](../doc-drift/) | 审计Claude Code加载到上下文中的记忆/文档(CLAUDE.md/MEMORY.md/skills/agents/commands)，发现过时声明、相互矛盾和风险/模糊措辞 — 生成优先级修复清单 |
+| [ssot-audit](../ssot-audit/) | **v6.5.15 新增。** 在仓库或笔记文件夹中找出同一事实、数值或决策的所有副本，确定唯一权威来源（只读），并且只在你批准之后才合并重复内容 |
 
 ---
 
 ## 生命周期流程
 
 ```
-┌──────────────────── 设置（一次）────────────────────┐
-│  /project-init  →  /setup                            │
-└──────────────────────────────────────────────────────┘
+┌─────────────────── Setup (once) ────────────────────┐
+│  /project-init  →  /setup                           │
+└─────────────────────────────────────────────────────┘
          ↓
-┌──────────────────── 日常循环 ───────────────────────┐
-│  /session-start                                       │
-│       ↓                                               │
-│  /scope → /freeze → /goal-lock → 工作                 │
-│       → /stepback (随时) → /code-autopsy → /pre-push   │
-│       ↓                                               │
-│  /session-checkpoint                                  │
-└───────────────────────────────────────────────────────┘
+┌──────────────────── Daily Loop ─────────────────────┐
+│  /session-start                                     │
+│       ↓                                             │
+│  /scope → /freeze → /goal-lock → work               │
+│       → /stepback (anytime) → /code-autopsy         │
+│       → /pre-push                                   │
+│       ↓                                             │
+│  /session-checkpoint                                │
+└─────────────────────────────────────────────────────┘
          ↓
-┌──────────────────── 按需 ──────────────────────────┐
-│  /stepback         （视角重置 — 随时）                  │
-│  /project-check    （健康审计）                        │
-│  /collab-audit     （行为诊断）                        │
-│  /integration-intake （采用外部资产前）                 │
-│  /full-audit       （整个区域的详尽审计）              │
-│  /clean-room       （安全相关范围切分）                │
-│  /eval-leakage-audit （eval循环逻辑检查）              │
-│  /doc-drift        （已加载上下文的漂移审计）          │
-└──────────────────────────────────────────────────────┘
+┌───────────────────── On Demand ─────────────────────┐
+│  /stepback         (perspective reset — anytime)    │
+│  /next-action      (top-3 next actions from state)  │
+│  /project-check    (health audit)                   │
+│  /code-autopsy     (12Q code review — any LLM)      │
+│  /collab-audit     (behavioral diagnostic)          │
+│  /integration-intake (before adopting external work)│
+│  /full-audit       (exhaustive area audit)          │
+│  /clean-room       (safety-adjacent scope carve-out)│
+│  /eval-leakage-audit (eval circular-logic check)    │
+│  /doc-drift        (loaded-context drift audit)     │
+│  /ssot-audit       (one fact, many copies)          │
+└─────────────────────────────────────────────────────┘
+         ↓
+┌─────────── Skill authors / multi-project ───────────┐
+│  /skill-ops        (snapshot, rollback, usage)      │
+│  /skill-trigger-auditor (routing collisions)        │
+│  /project-overview (cross-project status map)       │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -141,6 +160,8 @@
 ## 安装
 
 ### 方法 A：复制技能（最简单）
+
+每个技能都是一个独立目录，其中包含一个 `SKILL.md` 文件。复制你需要的即可：
 
 ```bash
 # 安装所有技能
@@ -163,7 +184,7 @@ cp -r goal-lock ~/.claude/skills/
 
 每个技能也包含独立的 `.claude-plugin/plugin.json` 元数据。
 
-在 Claude Code 中输入触发命令（如 `/goal-lock`）即可运行技能。
+在 Claude Code 中输入触发命令（如 `/goal-lock`）即可调用技能。Claude 会读取 SKILL.md 并按其中的指示执行。
 
 ### 方法 C：Codex
 
@@ -195,83 +216,50 @@ SKILL.md 的内容是通用 markdown —— 支持读取 markdown 指令的任�
 - **Codex**：OpenAI Codex —— 直接从 `.agents/skills/` 读取 `SKILL.md`；`agents/openai.yaml` 是可选的 UI 元数据
 - **Cursor / 其他**：支持读取 markdown 指令的任何智能体
 - 技能目录：`~/.claude/skills/`（Claude Code）或智能体专属路径
-- `pre-push` 同时包含 `scan_secrets.py`（首选）和 `scan_secrets.pl`（Perl 后备）
+- 内置辅助脚本（若干技能内的 `scripts/*.py`）需要 Python 3.9+。技能以 `${CLAUDE_SKILL_DIR}/scripts/<name>.py` 调用它们，Claude Code 会把该值替换为技能自己的文件夹；在其他智能体中，请换成你安装技能的文件夹。脚本无法运行时，各技能会说明是回退到手动步骤还是停止
+- `pre-push` 同时包含 `scan_secrets.py`（首选）和 `scan_secrets.pl`（Perl 后备）。可选：`ruff`（对改动行做 lint）和 `gitleaks`（第二个密钥扫描引擎，仅作警告）
 
----
+### 会话类技能读写的文件
 
-## v6.2 变更
+`session-start`、`session-checkpoint`、`next-action`、`project-overview`、`skill-ops` 和 `collab-audit` 共用几个纯文本文件：会话交接文件、`tasks/lessons.md`、`~/.claude/STATE.md`、`memory/MEMORY.md`、上下文日志和调用日志。这些文件都不是必需的 —— 文件缺失时，技能会跳过对应步骤。格式见：[docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)。
 
-### 新增功能
-- **stepback** — 一次性视角重置。生成 1 个抽象重构问题（DeepMind step-back 模式）+ 3 个快速检查（范围偏移、副作用、更优方案），10 行以内。只读、无智能体、无代码。在实现过程中随时使用，检查是否在正确的级别解决了正确的问题。来源：team-attention/hoyeon。
+### 本仓库未包含的可选智能体和技能
 
-### 更新内容
-- **code-autopsy** — 添加元检测门：CapCode 分数游戏检测上限指标、CEF 约束规避虚假错误检测。
-- **collab-audit** — 13→14 节。新增第 12 节：思考水平轨迹（信息请求者→思考设计师的 5 级模型 + 时间变化追踪 + AI 属性修正）。
-- **goal-lock** — 添加 Ralph Wiggum 早期完成检测（第 12 种伪装模式）+ VERIFY 阶段验证可追踪性（所有声明必须追踪到实际工具调用）。
-- **session-checkpoint** — 添加交接文件清晰性自检（交接文件编写后的 2 个锚点问题）。
-- **session-start** — 添加上下文衰变防止（旧交接文件条目的滑动窗口）。
-- **pre-push** — 添加新增依赖的 3-IOC 供应链检查。
-- **scope** — 添加禁忌字段（选定方案不适用的条件）。
-- **freeze** — 添加 Thaw Protocol（正式解冻工作流 + 爆炸范围检查 + 3 次解冻警告）。
-- **project-init** — 扩展 `.env.example` 模板（OAuth、外部服务、监控部分）+ 安全基准线说明。
-- **project-check** — 添加分数增量跟踪（当前 vs 之前扫描结果对比）。
-- **setup** — 为 Tier 0 违规测试失败添加 Redesign Protocol（3 选项升级）。
+部分技能可以把工作交给本仓库**不**提供的智能体或技能。SKILL.md 中的每处提及都标注为可选并带有后备方案，因此缺少它们不会出问题：
 
----
-
-## v6.1 变更
-
-### 新增功能
-- **code-autopsy** — 12Q 量化代码审查提示词（Code Autopsy v7.0）。从设计到可观测性的 12 个分析问题。4 轴复合评分（Security × 0.35 + Stability × 0.30 + Robustness × 0.20 + Operability × 0.15）。带加权公式的严重性锚定表。带 CRITICAL 硬上限的部署判定。Factuality Gate（报告前自验证）。跨文件影响分析。Quick 模式和 Diff 模式。证据：Google eng-practices、Johnson et al. 2019、Parnas 1972。在任何 LLM 中作为独立提示词工作 — 不限于 Claude Code。
-
----
-
-## v6.0 变更
-
-### 新增功能
-- **goal-lock** — 具有 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环的智能体纪律引擎。检测 13 种成功伪装模式（测试删除、mock 包装、阈值放松等）。小改动用 Quick 模式（3 字段），其他用 Full 模式（7 字段）。
-
-### 合并
-- `harness-init` + `team-init` → **setup** — 基础设施和智能体团队一步到位
-- `brief` + `adr` → **scope** — 集成 ADR 功能的范围定义
-- `retro` → **session-checkpoint** — 回顾现在是 session-checkpoint 内的 Phase 1.7 Reflexion
-
-### 移除
-- `token-audit` — 改用 `npx ccusage` 直接或从模式构建 ccusage 技能
-- `adr`（独立） — 已合并到 scope 中
-- `retro`（独立） — 已合并到 session-checkpoint 中
-
-### 升级
-- 所有技能：添加 Dominant Variable、Key Assumptions、Error Recovery、Safety Layers
-- 所有技能：带动作标签的 Scope Boundary（[READ]/[WRITE]/[BASH]/[AGENT]）
-- `session-checkpoint`：Memento CoT 压缩、Reflexion、Invocation 日志
-- `pre-push`：大 diff 确定性捆绑、Discard If 条件
-- `collab-audit`：反模式标志、Key Assumptions
+| 名称 | 使用它的技能 | 缺少时 |
+|------|------------|--------|
+| `code-reviewer`、`security-reviewer`、`database-reviewer`、`build-error-resolver` | pre-push | `/setup` 可以生成这些智能体；否则 pre-push 执行内联审查（code-autopsy FAST MODE），并把智能体步骤标记为 SKIPPED |
+| `refactor-cleaner` | pre-push | 跳过该步骤 |
+| `doubt-reviewer` | scope（Full 模式）、goal-lock | 使用带对抗性提示的通用子智能体，或在报告中标记为 SKIPPED |
+| `verification`、`brainstorming`、`check-harness`、`memory-dream`、`forge` | 各处的 see-also / 路由说明 | 仅为指引 —— 没有它们技能也能运行 |
 
 ---
 
 ## 智能体设计模式覆盖
 
-这 20 个技能中的 17 个（原始生命周期集合、v6.4 治理类新增技能、v6.5 审计类新增技能 — v6.3 的运维类新增技能尚未映射）实现了 25 种已知智能体设计模式中的 17 种（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
+这些技能对应已发表目录（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）中的 18 种智能体设计模式：
 
 | 模式 | 实现技能 | 方法 |
 |------|---------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | 完整生命周期链 |
 | **Parallel Execution** | pre-push | 并行 AI 代码审查智能体 |
 | **Loop (Retry)** | goal-lock | VERIFY 失败 → PLAN 重新进入，有上限 |
-| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | 独立 code-reviewer + security-reviewer；12Q 结构化审查；full-audit 的 Phase 2 扇出审查者环节；eval-leakage-audit 评判某个eval是否确保了独立真值还是循环自我确认 |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | 独立的审查者子智能体（可选 —— 见上文）或内联审查；12Q 结构化审查；full-audit 的 Phase 2 扇出审查者环节；eval-leakage-audit 评判某个eval是否确保了独立真值还是循环自我确认 |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE 通过 |
 | **Coordinator/Router** | setup | 生成智能体路由规则 |
 | **Plan-and-Execute** | goal-lock, scope | 执行前可审查的计划 |
 | **ReAct** | project-check | 调查 → 评分 → 路径建议 |
 | **Reflexion** | session-checkpoint | Phase 1.7：失败分析 → 下一会话教训 |
 | **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES，Critical/High 阻止推送；integration-intake 采用前的 5 项筛选门 |
-| **Custom Logic** | pre-push | 确定性密钥扫描（Perl）+ AI 审查 |
+| **Custom Logic** | pre-push | 确定性密钥扫描（Python，Perl 后备）+ AI 审查 |
 | **Event-Driven** | session-start | 会话打开时触发，加载先前状态 |
-| **Guardrails/Safety** | goal-lock, clean-room | 检测 13 种成功伪装模式；clean-room 将安全相关范围切出到隔离的子智能体运行 |
+| **Guardrails/Safety** | goal-lock, clean-room | 检测 16 种成功伪装模式；clean-room 将安全相关范围切出到隔离的子智能体运行 |
 | **Memory Management** | session-checkpoint, doc-drift | 交接文件 + 记忆更新 + 教训提取；doc-drift 审计加载到上下文中的记忆/文档中的过时声明、矛盾和风险措辞 |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE 输入表 |
 | **Step-Back Abstraction** | stepback | DeepMind step-back：具体 → 抽象原则 |
+| **Prioritization** | next-action | 把来自交接文件/git/lessons/STATE 的候选行动按影响力排序 |
+| **Evaluation & Monitoring** | skill-ops, skill-trigger-auditor, project-overview | 每个技能的使用状况；在留出提示词上的路由精确率/召回率；跨项目的过期快照报告 |
 
 ---
 
@@ -305,6 +293,9 @@ SKILL.md 的内容是通用 markdown —— 支持读取 markdown 指令的任�
 | `clean-room` | `goal-lock` | clean-room 在任务范围中途混入安全相关内容与安全工作时触发，goal-lock 是它所打断的 PLAN→DO→VERIFY 循环 |
 | `doc-drift` | `full-audit` | doc-drift 只审计加载到上下文中的记忆/文档（CLAUDE.md/MEMORY.md/skills/agents）的漂移与矛盾，full-audit 用覆盖图扫描整个区域 |
 | `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-audit 检查某个eval/metric/holdout是否循环论证（度量完整性），full-audit 和 code-autopsy 审查的是代码/区域，而非该eval的独立性 |
+| `ssot-audit` | `doc-drift`, `full-audit` | ssot-audit 跨文件追踪同一个事实并选出权威来源；doc-drift 检查已加载上下文中的漂移；full-audit 扫描整个区域 |
+| `skill-trigger-auditor` | `skill-ops`, `doc-drift` | skill-trigger-auditor 检查技能是否在正确的提示词上触发；skill-ops 追踪技能是否被使用并负责回滚；doc-drift 检查技能文本中的过时声明 |
+| `project-check` | `setup`, `collab-audit` | project-check 为仓库的设置打分并列出差距（由 setup 补齐）；collab-audit 看的是你如何与 AI 协作，而不是仓库本身 |
 
 图示（箭头 = "交接给" / "提供信息给"）：
 
@@ -317,11 +308,18 @@ session-start <──> session-checkpoint
                                    │
                             next-action (读取状态并推荐)
                                    │
-    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
-                       (按需治理，任何阶段)
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift / ssot-audit
+                       (按需治理与审计，任何阶段)
+                                   │
+         skill-ops / skill-trigger-auditor / project-overview
+                 (面向技能作者和多项目环境)
 ```
 
 ---
+
+## 变更日志
+
+完整版本历史（v3.0 → 最新）见 [CHANGELOG.md](../CHANGELOG.md)。
 
 ## 许可证
 

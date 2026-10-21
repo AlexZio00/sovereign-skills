@@ -1,7 +1,7 @@
 {
   "name": "scope",
-  "version": "6.0.0",
-  "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec with ADR).",
+  "version": "6.1.0",
+  "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec).",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"
@@ -13,7 +13,6 @@
     "scope",
     "requirements",
     "exit-criteria",
-    "adr",
     "specification",
     "planning"
   ]

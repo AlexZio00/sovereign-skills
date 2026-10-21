@@ -22,10 +22,10 @@
     },
     {
       "name": "scope",
-      "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec with ADR)",
+      "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec)",
       "source": "./scope",
       "category": "productivity",
-      "tags": ["scope", "requirements", "exit-criteria", "adr", "specification", "planning"]
+      "tags": ["scope", "requirements", "exit-criteria", "specification", "planning"]
     },
     {
       "name": "freeze",
@@ -36,14 +36,14 @@
     },
     {
       "name": "goal-lock",
-      "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 13 success masquerading patterns",
+      "description": "Agent discipline engine — locks the goal, enforces PLAN-DO-VERIFY-FINALIZE-OUTPUT loop, detects 16 success masquerading patterns",
       "source": "./goal-lock",
       "category": "productivity",
       "tags": ["goal", "discipline", "verification", "masquerading", "agent-control", "quality"]
     },
     {
       "name": "pre-push",
-      "description": "Mandatory pre-push pipeline — secrets scan (12 patterns), build/test gate, lint, parallel AI code review. Blocks push on Critical/High findings",
+      "description": "Mandatory pre-push pipeline — secrets scan (14 patterns), build/test gate, lint, parallel AI code review. Blocks push on Critical/High findings",
       "source": "./pre-push",
       "category": "development",
       "tags": ["pre-push", "secrets-scan", "code-review", "security", "lint", "ci", "pipeline"]
@@ -78,7 +78,7 @@
     },
     {
       "name": "collab-audit",
-      "description": "13-section AI collaboration audit — analyzes actual work patterns to generate behavioral profile, blind spots, and growth direction",
+      "description": "14-section AI collaboration audit — analyzes actual work patterns to generate behavioral profile, blind spots, and growth direction",
       "source": "./collab-audit",
       "category": "productivity",
       "tags": ["collaboration", "audit", "behavioral", "patterns", "growth", "diagnostic"]
@@ -92,7 +92,7 @@
     },
     {
       "name": "skill-ops",
-      "description": "Skill ops hub: snapshot/rollback, usage health, and invocation tracking for Claude Code skills and agents",
+      "description": "Skill ops hub with 4 modes: snapshot/rollback, usage health, invocation frequency, and an operational quality score for Claude Code skills and agents",
       "source": "./skill-ops",
       "category": "development",
       "tags": ["skill-management", "snapshot", "rollback", "usage-health", "invocations"]
@@ -113,7 +113,7 @@
     },
     {
       "name": "full-audit",
-      "description": "Exhaustive area audit (codebase/docs/skills/memory/config) with a deterministic-sweep + content-review two-layer method and a persistent coverage map",
+      "description": "Exhaustive area audit (codebase/docs/skills/memory/config) with a deterministic-sweep + content-review three-layer method and a persistent coverage map",
       "source": "./full-audit",
       "category": "development",
       "tags": ["audit", "exhaustive", "coverage-map", "deterministic", "false-positive-guard"]
@@ -134,7 +134,7 @@
     },
     {
       "name": "eval-leakage-audit",
-      "description": "Audits whether an eval/metric/holdout secures independent external ground truth vs circular self-confirmation, using an 8-pattern taxonomy. Read-only",
+      "description": "Audits whether an eval/metric/holdout secures independent external ground truth vs circular self-confirmation, using a 28-pattern taxonomy. Read-only",
       "source": "./eval-leakage-audit",
       "category": "development",
       "tags": ["eval", "leakage", "holdout", "circular-verification", "ground-truth"]
@@ -145,6 +145,20 @@
       "source": "./doc-drift",
       "category": "development",
       "tags": ["doc-drift", "memory-audit", "context", "outdated", "contradiction"]
+    },
+    {
+      "name": "ssot-audit",
+      "description": "Finds where one fact, value or decision is duplicated or contradicted across files, names the single source of truth (read-only), then consolidates copies after user approval",
+      "source": "./ssot-audit",
+      "category": "development",
+      "tags": ["ssot", "source-of-truth", "dedupe", "consolidation", "audit"]
+    },
+    {
+      "name": "skill-trigger-auditor",
+      "description": "Audits whether skills, agents and slash commands route correctly: description clarity, collisions, built-in command conflicts, holdout precision/recall, plus an optional probe that measures real Skill tool calls",
+      "source": "./skill-trigger-auditor",
+      "category": "development",
+      "tags": ["skill-routing", "trigger-audit", "collision", "regression", "holdout"]
     }
   ]
 }

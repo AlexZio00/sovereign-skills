@@ -136,6 +136,74 @@ def _cli_structural_on_real_file():
         os.unlink(path)
 case("CLI structural subcommand reads file end-to-end", _cli_structural_on_real_file)
 
+# report / aggregate_invocations (temp directories only)
+import datetime as _dt  # noqa: E402
+import json as _json  # noqa: E402
+
+def _mk_inv(recs):
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "2026-10.jsonl"), "w", encoding="utf-8") as f:
+        for r in recs:
+            f.write(_json.dumps(r) + "\n")
+    return d
+
+_T = _dt.date(2026, 10, 13)
+_INV = _mk_inv([
+    {"date": "2026-10-10", "skills": ["a", "a2"], "discarded": [], "source": "realtime-hook"},
+    {"date": "2026-10-11", "skills": ["a"], "discarded": [], "source": "realtime-hook"},
+    {"date": "2026-10-11", "skills": ["a", "a2"], "discarded": ["d"], "source": "session-summary"},
+    {"date": "2026-10-12", "skills": [], "discarded": [{"skill": "e", "reason": "discard_if"}],
+     "source": "session-checkpoint-phase1.6.5"},
+    {"date": "2026-01-01", "skills": ["old"], "discarded": [], "source": "realtime-hook"},
+])
+_AGG = shb.aggregate_invocations(_INV, ["a", "a2", "d", "e", "old", "never"], 30, today=_T)["skills"]
+case("report: counts records from every source", lambda: _AGG["a"]["count"] == 3 and _AGG["a"]["status"] == "Active")
+case("report: second source counts too -> a2 has 2 -> Active", lambda: _AGG["a2"]["count"] == 2 and _AGG["a2"]["status"] == "Active")
+case("report: discarded given as {skill, reason} object -> Discarded", lambda: _AGG["e"]["status"] == "Discarded" and _AGG["e"]["discard_rate"] == 1.0)
+case("discarded_names accepts strings and objects, ignores junk", lambda: shb.discarded_names(
+    {"discarded": ["x", {"skill": "y", "reason": "r"}, {"reason": "no skill"}, 5, None]}) == ["x", "y"])
+case("report: logs present, skill never invoked -> Unused (not Unknown)", lambda: _AGG["never"]["status"] == "Unused")
+case("report: discarded counted across sources -> Discarded", lambda: _AGG["d"]["status"] == "Discarded")
+case("report: last call outside window, 90d+ ago -> Dead", lambda: _AGG["old"]["status"] == "Dead" and _AGG["old"]["last_seen"] == "2026-01-01")
+def _empty_window_unknown():
+    d = _mk_inv([{"date": "2025-01-01", "skills": ["x"], "source": "session-checkpoint-phase3.7-fallback"}])
+    return shb.aggregate_invocations(d, ["never"], 30, today=_T)["skills"]["never"]["status"] == "Unknown"
+case("report: only old records, skill never seen -> Unknown", _empty_window_unknown)
+case("report: empty log dir -> all Unknown", lambda: shb.aggregate_invocations(
+    tempfile.mkdtemp(), ["a"], 30, today=_T)["skills"]["a"]["status"] == "Unknown")
+def _non_dict_lines_skipped():
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "2026-10.jsonl"), "w", encoding="utf-8") as f:
+        f.write("[1, 2]\nnull\n42\n\"str\"\n")
+        f.write(_json.dumps({"date": "2026-10-11", "skills": ["a"], "source": "realtime-hook"}) + "\n")
+    agg = shb.aggregate_invocations(d, ["a"], 30, today=_T)["skills"]
+    return agg["a"]["count"] == 1
+case("report: non-dict JSON lines are skipped without crashing", _non_dict_lines_skipped)
+
+def _cli_report():
+    sk = tempfile.mkdtemp()
+    os.makedirs(os.path.join(sk, "a"))
+    open(os.path.join(sk, "a", "SKILL.md"), "w").write("x")
+    out = os.path.join(tempfile.mkdtemp(), "r.md")
+    r = _run_cli(["report", "--inv-dir", _INV, "--skills-dir", sk, "--days", "36500", "--out", out])
+    return r.returncode == 0 and "| a |" in open(out, encoding="utf-8").read()
+case("report CLI: file written only with --out, table included", _cli_report)
+
+def _cli_report_creates_out_parent():
+    sk = tempfile.mkdtemp()
+    os.makedirs(os.path.join(sk, "a"))
+    open(os.path.join(sk, "a", "SKILL.md"), "w").write("x")
+    out = os.path.join(tempfile.mkdtemp(), "new", "deeper", "r.md")
+    r = _run_cli(["report", "--inv-dir", _INV, "--skills-dir", sk, "--out", out])
+    return r.returncode == 0 and os.path.isfile(out)
+case("report CLI: --out creates missing parent folders", _cli_report_creates_out_parent)
+
+def _cli_report_missing_skills_dir():
+    missing = os.path.join(tempfile.mkdtemp(), "nope")
+    r = _run_cli(["report", "--inv-dir", _INV, "--skills-dir", missing])
+    return r.returncode == 2 and "skills folder not found" in r.stderr and "Traceback" not in r.stderr
+case("report CLI: missing skills dir -> message, no traceback", _cli_report_missing_skills_dir)
+
 def main():
     fails = []
     for name, fn in CASES:

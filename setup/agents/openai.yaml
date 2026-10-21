@@ -1,3 +1,3 @@
 name: setup
-description: "Configure runtime environment, install dependencies, and validate project setup."
+description: "Claude Code infrastructure and agent-team setup: rules, hooks, memory and routing from a guided interview, with violation testing."
 allow_implicit_invocation: true

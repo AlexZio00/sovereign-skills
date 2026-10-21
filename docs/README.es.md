@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.5.14
+# sovereign-skills v6.5.15
 
-20 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
+22 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
-> **Cambios en v6.5.14:** Versión de refinamiento — no se añadieron ni eliminaron habilidades. Correcciones de errores que también existían en la copia pública: `session-start` ya no detiene toda la ejecución en una primera sesión sin handoff; `pre-push` se detiene si falta el escáner de secretos; once archivos de prueba que hacían que `pytest` recolectara 0 pruebas (un aprobado silencioso) ahora se ejecutan; `eval-leakage-audit` bloquea Bash para que la habilidad de solo lectura no pueda escribir; `setup` hace copia de seguridad antes de Replace; `project-init`, `collab-audit`, `scope` y `skill-ops` tenían reglas que se contradecían. Nuevo: `pre-push` bloquea archivos de base de datos recién añadidos, `scope` incorpora `coverage_check.py` (requisito ↔ tarea), `collab-audit` incorpora `extract_session_meta.py`, `eval-leakage-audit` llega a 28 patrones, `goal-lock` registra una línea base de fallos previos e `integration-intake` añade comprobaciones de cadena de suministro. Ver [CHANGELOG.md](../CHANGELOG.md).
+> **Cambios en v6.5.15:** Dos habilidades nuevas — `ssot-audit` (encuentra todas las copias de un mismo dato y señala la fuente de verdad) y `skill-trigger-auditor` (comprueba que las habilidades y los comandos se enruten correctamente). Correcciones de errores: `pre-push` ya no omite las pruebas ni el lint cuando se hace commit primero y push después; `project-check` ahora detecta claves de API con guiones (`sk-ant-…`, `sk-proj-…`); los ejemplos de hooks de `setup` ya no necesitan `bash` + `jq`, así que funcionan en Windows. Mejoras en otras habilidades: `code-autopsy` marca cada hallazgo como NEW o PRE-EXISTING e indica su nivel de evidencia; las habilidades de sesión señalan los elementos del handoff cuya fecha ya pasó; `integration-intake` consulta sus propios veredictos anteriores antes de revisar de nuevo un repositorio. Las 22 habilidades también pasaron por una auditoría de lectura completa: los scripts incluidos se encuentran desde cualquier ubicación de instalación (`${CLAUDE_SKILL_DIR}`), funcionan con Python 3.9+ y en macOS, los agentes externos opcionales están etiquetados con alternativas, y los formatos de archivo compartidos están documentados en [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md). Ver [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
@@ -29,17 +29,24 @@ Diariamente:
 **Proyecto existente (5 min):**
 ```
 /project-check      →  Puntuación en 4 dimensiones + lista de brechas por severidad
-/code-autopsy       →  Revisión de código 12Q (funciona como prompt independiente en cualquier LLM)
-/collab-audit       →  Diagnóstico de colaboración AI en 14 secciones
+/collab-audit       →  Diagnóstico de colaboración AI en 14 secciones a partir de tus patrones de trabajo
 ```
 
-**Gobernanza (según necesidad):**
+**Gobernanza y auditorías (según necesidad):**
 ```
 /integration-intake →  antes de adoptar una habilidad/agente/regla/plugin externo — filtro de 5 puntos
 /full-audit         →  auditoría exhaustiva de un área completa (código/docs/habilidades/memoria/config) con mapa de cobertura
 /clean-room         →  cuando una tarea mezcla material relacionado con seguridad y trabajo genuinamente seguro
 /eval-leakage-audit →  antes de confiar en un eval/métrica/holdout — comprobar autoconfirmación circular
 /doc-drift          →  auditar el contexto cargado (CLAUDE.md/MEMORY.md/skills) por redacción desactualizada/contradictoria
+/ssot-audit         →  un dato repetido en muchos archivos — encontrar la fuente de verdad y luego consolidar
+```
+
+**Si escribe sus propias habilidades:**
+```
+/skill-trigger-auditor →  antes de cambiar la descripción de una habilidad — detectar colisiones de enrutamiento y activaciones erróneas
+/skill-ops             →  snapshot/rollback de una habilidad antes de editarla, ver qué habilidades se usan de verdad
+/project-overview      →  un solo mapa de estado para varios proyectos
 ```
 
 ---
@@ -59,28 +66,28 @@ Diariamente:
 |-----------|---------|
 | [scope](../scope/) | Definir IN/OUT/criterios de salida antes de implementar. Modo Quick (3 preguntas) o modo Full (especificación por capas). El modo Full incluye `coverage_check.py` (requisito ↔ tarea) |
 | [freeze](../freeze/) | Declarar la zona editable — todo lo demás queda congelado. Previene la expansión del alcance durante la implementación |
-| [goal-lock](../goal-lock/) | Motor de disciplina de agentes — bloquea el objetivo, fuerza el ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT, detecta 13 patrones de enmascaramiento de éxito |
-| [pre-push](../pre-push/) | Pipeline pre-push obligatorio — escaneo de secretos (12 patrones), build/test, lint, revisión de código AI en paralelo. Bloquea push ante hallazgos Critical/High |
-
-### Revisión de código
-
-| Habilidad | Función |
-|-----------|---------|
-| [code-autopsy](../code-autopsy/) | **Actualizado v7.2.** Revisión de código cuantificada 12Q — puntuación de 4 ejes (Security/Stability/Robustness/Operability), anclajes de severidad, veredicto de despliegue (SHIP/FIX/RISKY/BLOCK), gate de factualidad, detección de gaming CapCode, detección de errores fabricados CEF. Funciona como prompt independiente en cualquier LLM |
+| [goal-lock](../goal-lock/) | Motor de disciplina de agentes — bloquea el objetivo, fuerza el ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT, detecta 16 patrones de enmascaramiento de éxito |
+| [pre-push](../pre-push/) | Pipeline pre-push obligatorio — escaneo de secretos (14 patrones), build/test, lint, revisión de código AI en paralelo. Comprueba lo que el push realmente lleva (cambios en staging + commits pendientes de enviar). Bloquea push ante hallazgos Critical/High |
 
 ### Cambio de perspectiva
 
 | Habilidad | Función |
 |-----------|---------|
-| [stepback](../stepback/) | **Actualizado.** Reinicio de perspectiva en un paso — 1 pregunta de reencuadre abstracto + 3 verificaciones rápidas (desvío de alcance, efectos secundarios, mejor enfoque) en menos de 10 líneas. Usar en cualquier momento durante el trabajo |
-| [next-action](../next-action/) | **Nuevo.** Lee handoff/git/lessons/STATE y propone las 3 acciones principales según impacto. Solo propone, nunca ejecuta. Usar en cualquier momento |
+| [stepback](../stepback/) | Reinicio de perspectiva en un paso — 1 pregunta de reencuadre abstracto + 3 verificaciones rápidas (desvío de alcance, efectos secundarios, mejor enfoque) y un veredicto de continuar/parar, en menos de 10 líneas. Usar en cualquier momento durante el trabajo |
+| [next-action](../next-action/) | Lee handoff/git/lessons/STATE y propone las 3 acciones principales según impacto. Solo propone, nunca ejecuta. Usar en cualquier momento |
 
 ### Gestión de sesiones
 
 | Habilidad | Función |
 |-----------|---------|
-| [session-start](../session-start/) | Carga el handoff de la sesión anterior, revisa lecciones aprendidas, health check, señal de "listo" con acción prioritaria |
-| [session-checkpoint](../session-checkpoint/) | Guarda el contexto de sesión antes del compact — archivo handoff, actualizaciones de memoria, extracción de lecciones, reflexión (qué salió mal, qué mejorar) |
+| [session-start](../session-start/) | Carga el handoff de la sesión anterior, revisa lecciones aprendidas, health check, señal de "listo" con acción prioritaria. Señala los elementos del handoff cuya fecha ya pasó |
+| [session-checkpoint](../session-checkpoint/) | Guarda el contexto de sesión antes del compact — archivo handoff, actualizaciones de memoria, extracción de lecciones, reflexión (qué salió mal, qué mejorar). Mantiene los elementos con fecha futura en una lista aparte, "Scheduled checks" |
+
+### Revisión de código
+
+| Habilidad | Función |
+|-----------|---------|
+| [code-autopsy](../code-autopsy/) | Revisión de código cuantificada 12Q (v7.3) — puntuación de 4 ejes (Security/Stability/Robustness/Operability), anclajes de severidad, veredicto de despliegue (SHIP/FIX/RISKY/BLOCK), gate de factualidad. Cada hallazgo se marca como NEW o PRE-EXISTING y lleva un nivel de evidencia. Respaldada por evidencia empírica (Johnson 2019, Parnas 1972). Funciona como prompt independiente en cualquier LLM |
 
 ### Calidad
 
@@ -93,46 +100,58 @@ Diariamente:
 
 | Habilidad | Función |
 |-----------|---------|
-| [skill-ops](../skill-ops/) | **Nuevo.** Hub de operaciones de habilidades/agentes — snapshot/rollback + salud de uso + seguimiento de invocaciones, 3 modos |
-| [project-overview](../project-overview/) | **Nuevo.** Genera un mapa determinista del estado entre proyectos a partir de los handoffs de sesión de los proyectos registrados |
+| [skill-ops](../skill-ops/) | Hub de operaciones de habilidades/agentes — snapshot/rollback + salud de uso + seguimiento de invocaciones + puntuación de calidad, 4 modos. Incluye `skill_snapshot.py` y `skill_health_bucket.py` |
+| [project-overview](../project-overview/) | Genera un mapa determinista del estado entre proyectos a partir de los handoffs de sesión de los proyectos registrados, e informa de los snapshots con más de 7 días |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | **Nuevo en v6.5.15.** Audita el enrutamiento de habilidades, agentes y comandos slash en busca de colisiones y activaciones erróneas, y condiciona los cambios de descripción a pruebas de activación con un conjunto de reserva (holdout). Una sonda opcional mide llamadas reales a la herramienta Skill |
 
 ### Gobernanza
 
 | Habilidad | Función |
 |-----------|---------|
-| [full-audit](../full-audit/) | **Nuevo.** Auditoría exhaustiva de un área completa (código/documentación/skills/memoria/configuración) — método de dos capas: barrido determinista + revisión de contenido, kill-test anti-falsos-positivos, mapa de cobertura persistente |
-| [integration-intake](../integration-intake/) | **Nuevo.** Puerta de selección de 5 puntos para adoptar patrones externos (skills/agentes/reglas/plugins/MCP) — verificación de redundancia contra tus activos existentes + verificación de procedencia/inyección para contenido ejecutable importado |
-| [clean-room](../clean-room/) | **Nuevo.** Recorta solicitudes con elementos de seguridad hacia un alcance seguro, ejecutado por un subagente de contexto completamente aislado — paso de verificación adversarial + registro de exclusión (descope ledger) |
-| [eval-leakage-audit](../eval-leakage-audit/) | **Nuevo.** Audita si un eval/métrica/holdout realmente asegura una verdad de referencia externa independiente o es una autoconfirmación circular — taxonomía de 28 patrones. Solo lectura |
-| [doc-drift](../doc-drift/) | **Nuevo.** Audita la memoria/documentación que Claude Code carga en el contexto (CLAUDE.md/MEMORY.md/skills/agents/commands) buscando afirmaciones desactualizadas, contradicciones mutuas y redacción riesgosa/ambigua — produce una lista de correcciones priorizada |
+| [full-audit](../full-audit/) | Auditoría exhaustiva de un área completa (código/documentación/skills/memoria/configuración) — método de dos capas: barrido determinista + revisión de contenido, kill-test anti-falsos-positivos, canarios sembrados, mapa de cobertura persistente |
+| [integration-intake](../integration-intake/) | Puerta de selección de 5 puntos para adoptar patrones externos (skills/agentes/reglas/plugins/MCP) — verificación de redundancia contra tus activos existentes, verificación de procedencia/inyección para contenido ejecutable importado, una línea de licencia y consulta en un registro de veredictos anteriores |
+| [clean-room](../clean-room/) | Recorta solicitudes con elementos de seguridad hacia un alcance seguro, ejecutado por un subagente de contexto completamente aislado — paso de verificación adversarial + registro de exclusión (descope ledger) |
+| [eval-leakage-audit](../eval-leakage-audit/) | Audita si un eval/métrica/holdout realmente asegura una verdad de referencia externa independiente o es una autoconfirmación circular — taxonomía de 28 patrones, dos casos de referencia (golden). Solo lectura |
+| [doc-drift](../doc-drift/) | Audita la memoria/documentación que Claude Code carga en el contexto (CLAUDE.md/MEMORY.md/skills/agents/commands) buscando afirmaciones desactualizadas, contradicciones mutuas y redacción riesgosa/ambigua — produce una lista de correcciones priorizada |
+| [ssot-audit](../ssot-audit/) | **Nuevo en v6.5.15.** Encuentra todas las copias de un dato, valor o decisión en un repositorio o carpeta de notas, señala la fuente de verdad (solo lectura) y consolida los duplicados únicamente después de que usted lo apruebe |
 
 ---
 
 ## Flujo del ciclo de vida
 
 ```
-┌─────────────────── Configuración (1 vez) ──────────┐
+┌─────────────────── Setup (once) ────────────────────┐
 │  /project-init  →  /setup                           │
 └─────────────────────────────────────────────────────┘
          ↓
-┌─────────────────── Ciclo diario ───────────────────┐
-│  /session-start                                      │
-│       ↓                                              │
-│  /scope → /freeze → /goal-lock → trabajo              │
-│       → /stepback (en cualquier momento) → /code-autopsy → /pre-push│
-│       ↓                                              │
-│  /session-checkpoint                                 │
-└──────────────────────────────────────────────────────┘
+┌──────────────────── Daily Loop ─────────────────────┐
+│  /session-start                                     │
+│       ↓                                             │
+│  /scope → /freeze → /goal-lock → work               │
+│       → /stepback (anytime) → /code-autopsy         │
+│       → /pre-push                                   │
+│       ↓                                             │
+│  /session-checkpoint                                │
+└─────────────────────────────────────────────────────┘
          ↓
-┌─────────────────── Bajo demanda ───────────────────┐
-│  /stepback         (reinicio de perspectiva — en cualquier momento) │
-│  /project-check    (auditoría de salud)              │
-│  /collab-audit     (diagnóstico conductual)          │
-│  /integration-intake (antes de adoptar algo externo) │
-│  /full-audit       (auditoría exhaustiva de un área) │
-│  /clean-room       (aislar alcance seguro/inseguro)  │
-│  /eval-leakage-audit (chequeo de lógica circular en evals) │
-│  /doc-drift        (auditoría de drift del contexto cargado) │
+┌───────────────────── On Demand ─────────────────────┐
+│  /stepback         (perspective reset — anytime)    │
+│  /next-action      (top-3 next actions from state)  │
+│  /project-check    (health audit)                   │
+│  /code-autopsy     (12Q code review — any LLM)      │
+│  /collab-audit     (behavioral diagnostic)          │
+│  /integration-intake (before adopting external work)│
+│  /full-audit       (exhaustive area audit)          │
+│  /clean-room       (safety-adjacent scope carve-out)│
+│  /eval-leakage-audit (eval circular-logic check)    │
+│  /doc-drift        (loaded-context drift audit)     │
+│  /ssot-audit       (one fact, many copies)          │
+└─────────────────────────────────────────────────────┘
+         ↓
+┌─────────── Skill authors / multi-project ───────────┐
+│  /skill-ops        (snapshot, rollback, usage)      │
+│  /skill-trigger-auditor (routing collisions)        │
+│  /project-overview (cross-project status map)       │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -141,6 +160,8 @@ Diariamente:
 ## Instalación
 
 ### Opción A: Copiar habilidades (más simple)
+
+Cada habilidad es un directorio independiente con un archivo `SKILL.md`. Copie las que quiera:
 
 ```bash
 # Instalar todas las habilidades
@@ -163,7 +184,7 @@ Este repositorio es un marketplace de Claude Code. Regístrelo una vez para expl
 
 Cada habilidad también incluye metadatos `.claude-plugin/plugin.json` independientes.
 
-Escriba el comando de activación (ej: `/goal-lock`) en Claude Code para ejecutar la habilidad.
+Las habilidades se invocan escribiendo el comando de activación (ej: `/goal-lock`) en Claude Code. Claude lee el SKILL.md y sigue las instrucciones.
 
 ### Opción C: Codex
 
@@ -195,83 +216,50 @@ El contenido de SKILL.md es markdown universal — funciona con cualquier LLM qu
 - **Codex**: OpenAI Codex — lee `SKILL.md` directamente desde `.agents/skills/`; `agents/openai.yaml` son metadatos de UI opcionales
 - **Cursor / Otros**: cualquier agente que lea instrucciones markdown
 - Directorio de habilidades: `~/.claude/skills/` (Claude Code) o ruta específica del agente
-- `pre-push` incluye tanto `scan_secrets.py` (preferido) como `scan_secrets.pl` (respaldo Perl)
+- Python 3.9+ para los scripts auxiliares incluidos (`scripts/*.py` dentro de varias habilidades). Las habilidades los llaman como `${CLAUDE_SKILL_DIR}/scripts/<name>.py`, y Claude Code rellena ese valor con la carpeta de la propia habilidad; en otros agentes, sustitúyelo por la carpeta donde instalaste la habilidad. Cuando un script no puede ejecutarse, cada habilidad indica si recurre a un paso manual o se detiene
+- `pre-push` incluye tanto `scan_secrets.py` (preferido) como `scan_secrets.pl` (respaldo Perl). Opcional: `ruff` (lint de las líneas modificadas) y `gitleaks` (segundo motor de escaneo de secretos, solo avisa)
 
----
+### Archivos que las habilidades de sesión leen y escriben
 
-## Qué hay nuevo en v6.2
+`session-start`, `session-checkpoint`, `next-action`, `project-overview`, `skill-ops` y `collab-audit` comparten unos pocos archivos de texto plano: un handoff de sesión, `tasks/lessons.md`, `~/.claude/STATE.md`, `memory/MEMORY.md`, un registro de contexto y un registro de invocaciones. Ninguno es obligatorio: si falta el archivo, la habilidad omite ese paso. Formatos: [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md).
 
-### Agregado
-- **stepback** — Reinicio de perspectiva en un paso. Genera 1 pregunta de reencuadre abstracto (patrón step-back de DeepMind) + 3 comprobaciones rápidas (desvío de alcance, efectos secundarios, mejor enfoque) en menos de 10 líneas. Solo lectura, sin agentes, sin código. Use en cualquier momento durante el trabajo para verificar que está resolviendo el problema correcto al nivel correcto. Fuente: team-attention/hoyeon.
+### Agentes y habilidades opcionales que no se incluyen aquí
 
-### Actualizado
-- **code-autopsy** — Puertas de metadetección agregadas: métrica de límite CapCode para detectar manipulación de puntuación, detección CEF de errores falsos para evasión de restricciones.
-- **collab-audit** — 13→14 secciones. Nueva Sección 12: Trayectoria del Nivel de Pensamiento (modelo de 5 niveles de Solicitante de Información a Diseñador de Pensamiento + seguimiento de cambio temporal + corrección de atribución de IA).
-- **goal-lock** — Agregado Ralph Wiggum detección de finalización temprana (12º patrón de enmascaramiento) + trazabilidad de verificación en la etapa VERIFY (toda afirmación debe rastrearse hasta una llamada de herramienta real).
-- **session-checkpoint** — Agregado autoverificación de claridad de entrega (2 preguntas de anclaje después de escribir la entrega).
-- **session-start** — Agregado Prevención de Decadencia de Contexto (ventana deslizante para entradas de entrega antiguas).
-- **pre-push** — Agregada Verificación de Cadena de Suministro de 3-IOC para dependencias recién agregadas.
-- **scope** — Campo de Contraindicación agregado (condiciones donde el enfoque elegido NO es adecuado).
-- **freeze** — Protocolo Thaw agregado (flujo de descongelación formal con verificación de radio de explosión, 3 advertencias de descongelación).
-- **project-init** — Plantilla `.env.example` extendida (OAuth, servicios externos, secciones de monitoreo) + notas de línea base de seguridad.
-- **project-check** — Seguimiento de Delta de Puntuación agregado (comparar resultados de escaneo actual vs anterior).
-- **setup** — Protocolo de Rediseño agregado para fallos de prueba de violación de Tier 0 (escalada de 3 opciones).
+Algunas habilidades pueden delegar trabajo a agentes o habilidades que este repositorio **no** incluye. Cada mención en un SKILL.md está marcada como opcional y tiene una alternativa, así que nada se rompe si faltan:
 
----
-
-## Qué hay nuevo en v6.1
-
-### Agregado
-- **code-autopsy** — Prompt de revisión de código cuantificado 12Q (Code Autopsy v7.0). 12 preguntas de análisis que abarcan desde el diseño hasta la observabilidad. Puntuación compuesta de 4 ejes (Security × 0.35 + Stability × 0.30 + Robustness × 0.20 + Operability × 0.15). Tabla de anclajes de severidad con fórmula ponderada. Veredicto de despliegue con límite duro CRITICAL. Puerta de Factualidad (autoverificación antes de reportar). Análisis de impacto entre archivos. Modo Rápido y Modo Diff. Respaldado por: Google eng-practices, Johnson et al. 2019, Parnas 1972. Funciona como prompt independiente en cualquier LLM — no es exclusivo de Claude Code.
-
----
-
-## Qué hay nuevo en v6.0
-
-### Agregado
-- **goal-lock** — Motor de disciplina de agentes con ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT. Detecta 13 patrones de enmascaramiento de éxito (eliminación de pruebas, envoltura de mock, relajación de umbral, etc.). Modo Rápido (3 campos) para cambios pequeños, Modo Completo (7 campos) para todo lo demás.
-
-### Fusionado
-- `harness-init` + `team-init` → **setup** — Infraestructura y equipo de agentes en un flujo
-- `brief` + `adr` → **scope** — Definición de alcance con capacidad ADR integrada
-- `retro` → **session-checkpoint** — Retrospección es ahora Phase 1.7 Reflexion dentro de session-checkpoint
-
-### Removido
-- `token-audit` — Use `npx ccusage` directamente, o construya una habilidad ccusage a partir del patrón
-- `adr` (independiente) — Absorbido en scope
-- `retro` (independiente) — Absorbido en session-checkpoint
-
-### Actualizado
-- Todas las habilidades: Dominant Variable, Key Assumptions, Error Recovery, Safety Layers agregados
-- Todas las habilidades: Scope Boundary con etiquetas de acción ([READ]/[WRITE]/[BASH]/[AGENT])
-- `session-checkpoint`: Compresión Memento CoT, Reflexión, Registro de Invocación
-- `pre-push`: Agrupamiento determinista de diff grande, Condiciones Discard If
-- `collab-audit`: Indicadores de antipatrón, Key Assumptions
+| Nombre | Lo usa | Sin él |
+|--------|--------|--------|
+| `code-reviewer`, `security-reviewer`, `database-reviewer`, `build-error-resolver` | pre-push | `/setup` puede generar estos agentes; si no, pre-push ejecuta una revisión en línea (code-autopsy FAST MODE) y marca los pasos de agente como SKIPPED |
+| `refactor-cleaner` | pre-push | se omite el paso |
+| `doubt-reviewer` | scope (modo Full), goal-lock | un subagente de propósito general con un prompt adversarial, o SKIPPED en el informe |
+| `verification`, `brainstorming`, `check-harness`, `memory-dream`, `forge` | varias notas de see-also / enrutamiento | solo referencias — la habilidad funciona sin ellos |
 
 ---
 
 ## Cobertura de Patrones de Diseño Agénico
 
-17 de estas 20 habilidades (el conjunto original del ciclo de vida, las nuevas habilidades de gobernanza de v6.4, y las nuevas habilidades de auditoría de v6.5 — las nuevas habilidades de operaciones de v6.3 aún no están mapeadas aquí) implementan 17 de los 25 patrones de diseño agénico conocidos ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+Las habilidades corresponden a 18 patrones de diseño agénico de los catálogos publicados ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Patrón | Implementado por | Cómo |
 |--------|------------------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Cadena de ciclo de vida completo |
 | **Parallel Execution** | pre-push | Agentes paralelos de revisión de código AI |
 | **Loop (Retry)** | goal-lock | VERIFY falla → reingreso a PLAN, con límites |
-| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | code-reviewer + security-reviewer independientes; revisión estructurada 12Q; pase de revisores en abanico de la Fase 2 de full-audit; eval-leakage-audit critica si un eval asegura una verdad de referencia independiente o es autoconfirmación circular |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | subagentes revisores independientes (opcionales — ver arriba) o una revisión en línea; revisión estructurada 12Q; pase de revisores en abanico de la Fase 2 de full-audit; eval-leakage-audit critica si un eval asegura una verdad de referencia independiente o es autoconfirmación circular |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE pasa |
 | **Coordinator/Router** | setup | Generación de reglas de enrutamiento de agentes |
 | **Plan-and-Execute** | goal-lock, scope | Plan revisable antes de ejecución |
 | **ReAct** | project-check | Investigar → puntuar → recomendar ruta |
 | **Reflexion** | session-checkpoint | Phase 1.7: analizar fallos → lecciones para próxima sesión |
 | **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES, Critical/High bloquea push; puerta de cribado de 5 puntos de integration-intake antes de adoptar |
-| **Custom Logic** | pre-push | Escaneo determinista de secretos (Perl) + revisión AI |
+| **Custom Logic** | pre-push | Escaneo determinista de secretos (Python, respaldo Perl) + revisión AI |
 | **Event-Driven** | session-start | Se dispara al abrir sesión, carga estado anterior |
-| **Guardrails/Safety** | goal-lock, clean-room | 13 patrones de enmascaramiento de éxito detectados; clean-room aísla el alcance relacionado con seguridad en una ejecución de subagente separada |
+| **Guardrails/Safety** | goal-lock, clean-room | 16 patrones de enmascaramiento de éxito detectados; clean-room aísla el alcance relacionado con seguridad en una ejecución de subagente separada |
 | **Memory Management** | session-checkpoint, doc-drift | Archivo handoff + actualizaciones de memoria + extracción de lecciones; doc-drift audita la memoria/documentación cargada en el contexto en busca de afirmaciones desactualizadas, contradicciones y redacción riesgosa |
 | **Goal Setting** | goal-lock | Hoja de entrada GOAL + DONE EVIDENCE |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concreto → principio abstracto |
+| **Prioritization** | next-action | Ordena por impacto las acciones candidatas obtenidas de handoff/git/lessons/STATE |
+| **Evaluation & Monitoring** | skill-ops, skill-trigger-auditor, project-overview | Salud de uso por habilidad; precisión/exhaustividad del enrutamiento sobre prompts de reserva (holdout); informe de snapshots obsoletos entre proyectos |
 
 ---
 
@@ -305,6 +293,9 @@ Las habilidades declaran relaciones mediante `see_also` (relacionadas) y `not_fo
 | `clean-room` | `goal-lock` | clean-room se activa cuando el alcance de una tarea mezcla material relacionado con seguridad y trabajo seguro a mitad de ejecución; goal-lock es el bucle PLAN→DO→VERIFY que interrumpe |
 | `doc-drift` | `full-audit` | doc-drift solo audita la memoria/documentación cargada en el contexto (CLAUDE.md/MEMORY.md/skills/agents) buscando drift y contradicciones; full-audit barre un área entera con un mapa de cobertura |
 | `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-audit comprueba si un eval/métrica/holdout es circular (integridad de la medición); full-audit y code-autopsy revisan código/áreas, no la independencia del eval |
+| `ssot-audit` | `doc-drift`, `full-audit` | ssot-audit sigue un mismo dato a través de varios archivos y elige la fuente de verdad; doc-drift busca drift en el contexto cargado; full-audit barre un área entera |
+| `skill-trigger-auditor` | `skill-ops`, `doc-drift` | skill-trigger-auditor comprueba si las habilidades se activan con los prompts correctos; skill-ops registra si se usan y las revierte; doc-drift revisa su texto en busca de afirmaciones desactualizadas |
+| `project-check` | `setup`, `collab-audit` | project-check puntúa la configuración de un repositorio y lista las brechas (setup las rellena); collab-audit examina cómo trabaja usted con la AI, no el repositorio |
 
 Diagrama (flechas = "entrega a" / "informa a"):
 
@@ -317,11 +308,18 @@ session-start <──> session-checkpoint
                                    │
                             next-action (lee el estado y recomienda)
                                    │
-    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
-                (gobernanza bajo demanda, cualquier etapa)
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift / ssot-audit
+                (gobernanza y auditorías bajo demanda, cualquier etapa)
+                                   │
+         skill-ops / skill-trigger-auditor / project-overview
+                 (para autores de habilidades y configuraciones multiproyecto)
 ```
 
 ---
+
+## Changelog
+
+Consulte [CHANGELOG.md](../CHANGELOG.md) para el historial completo de versiones (v3.0 → la más reciente).
 
 ## Licencia
 

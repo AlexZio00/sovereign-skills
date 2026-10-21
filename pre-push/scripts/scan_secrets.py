@@ -1,40 +1,28 @@
 #!/usr/bin/env python3
-"""scan_secrets.py — Deterministic secrets scanner for git diffs.
+"""scan_secrets.py -- deterministic secrets scanner for git diffs.
 
-Usage: git diff --staged | python ~/.claude/skills/pre-push/scripts/scan_secrets.py
+Usage: git diff --staged | python scan_secrets.py   (run from the skill's scripts/ folder or by full path)
 Exit code: 0 = clean, 1 = issues found
 
 Design: scans ONLY added (+) lines to avoid blocking secret removal commits.
 Exception: merge conflict markers are checked on all lines (added + context).
 
-Ported from scan_secrets.pl (coinangel/claude-pre-push-skill, MIT) — de-vendored
-2026-07-20 to fold local hardening into this repo's own tracked history and
-match this harness's all-Python script convention (scripts/*.py). Regex
-patterns and anti-evasion defenses preserved 1:1 from the Perl original;
-regression suite (test_scan_secrets.py, 53 fixtures) re-verifies parity.
+Ported from scan_secrets.pl (coinangel/claude-pre-push-skill, MIT). Regex patterns and
+anti-evasion defenses are preserved 1:1 from the Perl original; the regression suite
+(test_scan_secrets.py) re-verifies parity.
 
-# v2.2.0 (2026-07-16): hardening pass after adversarial evasion probe
-# (~/.claude/.harness/evasion-corpus/pre-push-scan-secrets.md, 21 confirmed
-# bypasses fixed here). STDIN decoded as UTF-8 + per-line normalization
-# defangs zero-width-char / smart-quote / homoglyph obfuscation before any
-# rule runs.
-#
-# v2.3.0 (2026-07-16): Lane B follow-up (2 of 4 items). Fixed: (1) runtime
-# string reversal — re-scan a whole-line-reversed copy with the unanchored
-# tight-form rules; (3) quote+operator string concatenation splitting —
-# collapse "A" + "B" (+ "C" ...) into one literal before matching. Still NOT
-# fixed (deliberately, separate design/calibration needed): (2) cross-line
-# credential splitting — needs a narrow 2-line lookback, own task; (4) a
-# looser f4b prefix-tolerant anchor — needs a value-shape calibration corpus
-# to bound false-positive risk (e.g. SECRET_ROTATION_ID-style names), not a
-# plain regex tweak.
-#
-# v2.4.0 (2026-09-24): same-line allow marker. An added line ending in
-# `# scan-secrets: allow` or the pre-existing convention `# gitleaks:allow`
-# skips credential checks for that one line only (merge-conflict detection
-# is never suppressible). Every skip is counted and printed to stderr as
-# `[ALLOW] N added line(s) skipped by an allow marker ...` so a marker can't
-# silently swallow a real finding without leaving a trace in the output.
+Hardening notes (internal revision history, not a version table):
+- STDIN is decoded as UTF-8 and every line is normalized (zero-width characters, smart quotes,
+  homoglyphs) before any rule runs.
+- A whole-line-reversed copy is re-scanned with the unanchored tight-form rules, and
+  "A" + "B" quote concatenation is collapsed into one literal before matching.
+- Not fixed on purpose: cross-line credential splitting, and a looser f4b prefix-tolerant anchor
+  (both need their own design and a calibration corpus).
+- Same-line allow marker: an added line that carries `scan-secrets: allow` or
+  `gitleaks:allow` after a comment leader (`#`, `//`, `/*`, `--`, `;`) skips credential
+  checks for that one line only (merge-conflict detection is never suppressible). Every skip is
+  counted and printed to stderr as `[ALLOW] N added line(s) skipped ...`, so a marker cannot
+  silently swallow a finding.
 """
 from __future__ import annotations
 
@@ -77,7 +65,7 @@ _MERGE_RE = re.compile(r"^[+ ](<{7} |={7}\s*$|>{7} )")
 # ── Same-line allow marker: skips credential checks for that one added line
 # only. Merge-conflict detection above still applies (never suppressible).
 # Skips are counted and reported by main() so a silent bypass isn't possible. ──
-_ALLOW_RE = re.compile(r"scan-secrets:\s*allow\b|gitleaks:allow\b")
+_ALLOW_RE = re.compile(r"(?:#|//|/\*|--|;)\s*(?:scan-secrets:\s*allow|gitleaks:allow)\b")
 LAST_ALLOWED_COUNT = 0
 
 # ── f1: AWS Access Key ID (AKIA=long-term, ASIA=STS/temporary) ──
@@ -195,9 +183,12 @@ _MESSAGES = (
 )
 
 
+assert len(_REVERSED_KEYS) == len(_REVERSED_PATTERNS)  # zip() without strict= (Python 3.9)
+
+
 def scan_lines(lines: Iterable[str]) -> dict:
-    """순수 판정: 이미 분리된 diff 라인 시퀀스를 스캔해 플래그 dict를 반환.
-    파일/STDIN I/O 없음 — 테스트에서 직접 호출 가능(subprocess/perl 불필요)."""
+    """Pure decision function: scan an already-split sequence of diff lines and return the flag dict.
+    No file or STDIN I/O, so tests can call it directly (no subprocess or perl needed)."""
     global LAST_ALLOWED_COUNT
     flags = {key: False for key, _, _ in _MESSAGES}
     allowed = 0
@@ -220,7 +211,7 @@ def scan_lines(lines: Iterable[str]) -> dict:
         # contains the real secret as a contiguous substring once the WHOLE
         # LINE is reversed. Only unanchored, tight-form rules are re-checked.
         reversed_line = line[::-1]
-        for key, pattern in zip(_REVERSED_KEYS, _REVERSED_PATTERNS, strict=True):
+        for key, pattern in zip(_REVERSED_KEYS, _REVERSED_PATTERNS):
             if pattern.search(reversed_line):
                 flags[key] = True
 
@@ -270,6 +261,11 @@ def format_report(flags: dict) -> str:
 
 
 def main() -> int:
+    # Diffs are UTF-8 and the report contains emoji; the console default (cp949, cp1252, ...) would
+    # crash on either, so force UTF-8 and never fail on an undecodable byte.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     lines = [line.rstrip("\r\n") for line in sys.stdin]
     flags = scan_lines(lines)
     if LAST_ALLOWED_COUNT:

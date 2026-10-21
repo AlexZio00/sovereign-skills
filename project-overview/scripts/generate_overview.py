@@ -2,7 +2,7 @@
 """
 generate_overview.py — Deterministic cross-project map generator.
 
-Reads projects-registry.md (opt-in list of {name, absolute path}), parses
+Reads projects-registry.md (opt-in list of `- name: /absolute/path` lines), parses
 each project's memory/session-handoff-LATEST.md for the
 <!-- state-snapshot v1 --> YAML block (ts + ctx fields only — no new schema),
 and writes the result into the AUTO:START/AUTO:END marker region of
@@ -36,6 +36,9 @@ AUTO_END = "<!-- AUTO:END -->"
 # Matches: "- {name}: {path}" lines in projects-registry.md. Ignores lines
 # starting with "#" (comments) or ">" (blockquote notes) or blank lines.
 REGISTRY_LINE_RE = re.compile(r"^-\s*([^:]+):\s*(.+?)\s*$")
+# A registered path must be absolute (POSIX "/", home "~", Windows drive "C:\" or "C:/", UNC "\\").
+# Any other "- word: text" bullet (a note, a heading, a URL) is not a project.
+ABSOLUTE_PATH_RE = re.compile(r"^(?:/|~|[A-Za-z]:[\\/]|\\\\)")
 
 # Matches the state-snapshot v1 fenced yaml block after its HTML comment marker.
 SNAPSHOT_BLOCK_RE = re.compile(
@@ -47,10 +50,12 @@ TS_LINE_RE = re.compile(r"^ts:\s*(.+?)\s*$", re.MULTILINE)
 CTX_LINE_RE = re.compile(r'^ctx:\s*"?(.*?)"?\s*$', re.MULTILINE)
 
 
-def parse_registry(registry_text):
+def parse_registry(registry_text, skipped=None):
     """Parse projects-registry.md text -> list of {"name": str, "path": str}.
 
-    Ignores comment lines (#), blockquote lines (>), and blank lines.
+    Ignores comment lines (#), blockquote lines (>), and blank lines. A "- name: value"
+    bullet whose value is not an absolute path is not a project; it is appended to
+    `skipped` (when a list is passed) so the caller can report it.
     Does NOT touch the filesystem — pure text parsing (testable in isolation).
     """
     projects = []
@@ -62,6 +67,10 @@ def parse_registry(registry_text):
         if m:
             name = m.group(1).strip()
             path = m.group(2).strip()
+            if not ABSOLUTE_PATH_RE.match(path):
+                if skipped is not None:
+                    skipped.append(stripped)
+                continue
             projects.append({"name": name, "path": path})
     return projects
 
@@ -104,7 +113,7 @@ def load_project_entries(projects, base_reader=None):
 
     entries = []
     for proj in projects:
-        handoff_path = os.path.join(proj["path"], HANDOFF_RELATIVE_PATH)
+        handoff_path = os.path.join(os.path.expanduser(proj["path"]), HANDOFF_RELATIVE_PATH)
         ts, ctx, error = None, None, None
         try:
             text = base_reader(handoff_path)
@@ -147,8 +156,12 @@ def render_overview_block(entries):
         ts = _escape_table_cell(e.get("ts") or "no snapshot")
         if e.get("error") == "decode_error":
             ctx = _escape_table_cell("decode error (non-UTF-8 handoff file)")
+        elif e.get("error") == "not_found":
+            ctx = _escape_table_cell("no handoff file")
+        elif e.get("ts") is None:
+            ctx = _escape_table_cell("handoff has no state-snapshot block")
         else:
-            ctx = _escape_table_cell(e.get("ctx") or "no handoff")
+            ctx = _escape_table_cell(e.get("ctx") or "(empty ctx)")
         lines.append(f"| {name} | `{path}` | {ts} | {ctx} |")
     return "\n".join(lines) + "\n"
 
@@ -157,7 +170,7 @@ class MarkerCorruptionError(Exception):
     """Raised when AUTO:START/AUTO:END markers exist but are malformed: an
     orphan START with no END, an orphan END with no START, END appearing
     before START, or duplicate markers. Auto-splicing in this state was
-    found (external audit, 2026-09) to either delete manually-written text
+    found (in an external audit) to either delete manually-written text
     that a human left after an orphan START, or grow an extra marker pair
     on every re-run when END precedes START (non-idempotent) — so this
     function refuses to guess a splice point and leaves existing_text
@@ -220,6 +233,9 @@ def apply_auto_markers(existing_text, new_block_content):
 
 
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="Generate cross-project OVERVIEW.md AUTO block")
     parser.add_argument("--registry", default=DEFAULT_REGISTRY)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
@@ -231,7 +247,13 @@ def main(argv=None):
 
     with open(args.registry, encoding="utf-8") as f:
         registry_text = f.read()
-    projects = parse_registry(registry_text)
+    skipped_lines = []
+    projects = parse_registry(registry_text, skipped_lines)
+    for line in skipped_lines:
+        print(
+            f"WARN: registry line ignored (value is not an absolute path): {line}",
+            file=sys.stderr,
+        )
 
     if not projects:
         print(f"BLOCKED: no projects registered in {args.registry}", file=sys.stderr)

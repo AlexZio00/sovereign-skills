@@ -1,3 +1,3 @@
 name: skill-ops
-description: "Skill ops hub: snapshot/rollback + usage health + invocations."
+description: "Skill ops hub with 4 modes: snapshot/rollback, usage health, invocation frequency, and an operational quality score."
 allow_implicit_invocation: true

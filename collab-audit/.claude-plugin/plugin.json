@@ -1,7 +1,7 @@
 {
   "name": "collab-audit",
-  "version": "6.0.0",
-  "description": "13-section AI collaboration audit — analyzes actual work patterns (not surveys) to generate behavioral profile, blind spots, and growth direction.",
+  "version": "6.1.0",
+  "description": "14-section AI collaboration audit — analyzes actual work patterns (not surveys) to generate behavioral profile, blind spots, and growth direction.",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

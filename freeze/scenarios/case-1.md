@@ -1,6 +1,6 @@
 # Case 1: Scope Lock Before Implementation
 
-> Skills-Coach test scenario — input/expected_behaviors pair
+> Regression scenario: input / expected behaviors pair
 
 ## Input
 ```
@@ -8,14 +8,13 @@
 ```
 
 ## Expected Key Behaviors
-- Reads CLAUDE.md / open files to establish context (Read-only phase)
-- Declares FROZEN ZONE: all paths NOT matching `src/auth/**`
-- Declares EDITABLE ZONE: `src/auth/**` only
-- Outputs a clear zone declaration and then STOPS (no further implementation)
+- Parses the request from the message alone (no project files need to be read)
+- Declares a FROZEN SCOPE block: EDITABLE = `src/auth/**`, FROZEN = everything else
+- Outputs the block and then STOPS (no further implementation)
 - Does NOT start implementing anything after the declaration
 
 ## Should NOT
 - Immediately start editing files after declaring scope
 - Assume "don't touch the rest" means only the current file
-- Skip zone declaration and jump to implementation
+- Skip the declaration and jump to implementation
 - Expand the editable zone based on "it would be easier"

@@ -1,4 +1,3 @@
-<!-- golden case 01. Expected fired patterns: #3 Shared hallucination, #4 Tautology, #5 Verifier = designer, #9 Dual-fail-flag, #20 lenient-judge non-disclosure, #21 hardest-category denominator exclusion. Everything else should NOT fire. Patterns #22-#28 are not exercised by this case. -->
 # Planted eval design (for eval-leakage-audit exercise — this file is TEST DATA, not a real eval)
 
 ## Setup

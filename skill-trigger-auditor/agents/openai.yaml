@@ -1,0 +1,3 @@
+name: skill-trigger-auditor
+description: "Audit skill, agent and slash-command routing for collisions and misfires; build holdout trigger tests before changing descriptions."
+allow_implicit_invocation: false

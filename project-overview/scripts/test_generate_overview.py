@@ -13,6 +13,7 @@ from generate_overview import (
     MarkerCorruptionError,
     apply_auto_markers,
     load_project_entries,
+    parse_registry,
     parse_state_snapshot,
     render_overview_block,
 )
@@ -84,7 +85,7 @@ check(
 
 entries = [
     {"name": "ProjectA", "path": "/path/to/project-a", "ts": "2026-07-05", "ctx": "environment check complete"},
-    {"name": "ProjectB", "path": "/path/to/project-b", "ts": None, "ctx": None},
+    {"name": "ProjectB", "path": "/path/to/project-b", "ts": None, "ctx": None, "error": "not_found"},
 ]
 block = render_overview_block(entries)
 check("render_overview_block includes project name", "ProjectA" in block)
@@ -249,6 +250,46 @@ check(
     "render_overview_block surfaces the decode error distinctly (not silently 'no handoff')",
     "decode error" in decode_error_block.lower(),
 )
+
+
+# ---- no-snapshot wording: a missing file and a file without a block are different ----
+
+missing_file_row = render_overview_block(
+    [{"name": "A", "path": "/a", "ts": None, "ctx": None, "error": "not_found"}]
+)
+no_block_row = render_overview_block(
+    [{"name": "B", "path": "/b", "ts": None, "ctx": None, "error": None}]
+)
+check("render: missing handoff file says 'no handoff file'", "no handoff file" in missing_file_row)
+check(
+    "render: handoff present but without a snapshot block does not claim 'no handoff'",
+    "no state-snapshot block" in no_block_row and "no handoff" not in no_block_row,
+)
+
+# ---- parse_registry: only '- name: <absolute path>' bullets are projects ----
+
+REGISTRY_TEXT = """# Registered projects
+> notes are ignored
+- alpha: /home/me/alpha
+- beta: C:\\work\\beta
+- gamma: C:/work/gamma
+- home: ~/proj
+- Note: remember to add the new repo
+- site: https://example.com/page
+- relative: projects/delta
+"""
+skipped_registry_lines = []
+parsed_projects = parse_registry(REGISTRY_TEXT, skipped_registry_lines)
+check(
+    "parse_registry keeps only absolute-path bullets",
+    [p["name"] for p in parsed_projects] == ["alpha", "beta", "gamma", "home"],
+)
+check(
+    "parse_registry reports the ignored bullets instead of dropping them silently",
+    len(skipped_registry_lines) == 3
+    and any("Note:" in line for line in skipped_registry_lines),
+)
+check("parse_registry works without a skipped list", len(parse_registry(REGISTRY_TEXT)) == 4)
 
 
 def test_all_cases():

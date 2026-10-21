@@ -6,3 +6,4 @@ __pycache__/
 
 # full-audit canary recall history (written by canary_score.py per user)
 full-audit/scripts/canaries/recall_ledger.jsonl
+.pytest_cache/

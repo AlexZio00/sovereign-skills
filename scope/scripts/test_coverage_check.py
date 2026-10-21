@@ -62,6 +62,17 @@ def test_duplicate_requirement_ids_flagged():
     assert r["duplicates"] == ["R1"] and r["ok"] is False
 
 
+def test_plan_summary_references_are_not_duplicate_definitions():
+    spec = (
+        "## Requirements\n- **R1** Users can log in\n  - R1.1: right password creates a session\n"
+        "## Tasks\n### Task 1: Login\nFulfills: R1.1\n"
+        "## Plan Summary\nR1: login (Task 1)\nR1.1: session (Task 1)\n"
+    )
+    r = cc.check(spec)
+    assert r["duplicates"] == [] and r["ok"] is True, r
+    assert r["requirements"] == 2
+
+
 def test_no_requirements_is_not_a_pass():
     r = cc.check("### Task 1: x\nFulfills: R1\n")
     assert r["ok"] is False and r["reason"] == "no requirement ids found"

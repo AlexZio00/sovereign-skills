@@ -1,10 +1,10 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.5.14
+# sovereign-skills v6.5.15
 
-20 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
+22 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
-> **What changed in v6.5.14:** Refinement release — no skills added or removed. Bug fixes that also existed in the public copy: `session-start` no longer stops the whole run on a first session without a handoff; `pre-push` stops when the secret scanner is missing; eleven test files that let `pytest` collect 0 tests (a silent pass) now run; `eval-leakage-audit` blocks Bash so the read-only skill cannot write; `setup` backs up files before Replace; `project-init`, `collab-audit`, `scope` and `skill-ops` had rules that contradicted themselves. New: `pre-push` blocks newly committed database files, `scope` gets `coverage_check.py` (requirement ↔ task check), `collab-audit` gets `extract_session_meta.py`, `eval-leakage-audit` grows to 28 patterns, `goal-lock` records a pre-existing-failure baseline, and `integration-intake` adds supply-chain checks. See [CHANGELOG.md](CHANGELOG.md).
+> **What changed in v6.5.15:** Two new skills — `ssot-audit` (find every copy of one fact and name the source of truth) and `skill-trigger-auditor` (check that skills and commands route correctly). Bug fixes: `pre-push` no longer skips tests and lint when you commit first and push later; `project-check` now catches hyphenated API keys (`sk-ant-…`, `sk-proj-…`); the `setup` hook examples no longer need `bash` + `jq`, so they work on Windows. Upgrades across the other skills: `code-autopsy` marks each finding NEW or PRE-EXISTING and states its evidence tier; the session skills flag handoff items whose date has passed; `integration-intake` looks up its own earlier verdicts before re-reviewing a repo. All 22 skills also went through a full read-through audit: bundled scripts are now found from any install location (`${CLAUDE_SKILL_DIR}`), run on Python 3.9+ and macOS, optional external agents are labeled with fallbacks, and shared file formats are documented in [docs/FILE-CONVENTIONS.md](docs/FILE-CONVENTIONS.md). See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -39,6 +39,14 @@ then daily:
 /clean-room         →  when a task mixes safety-adjacent material with genuinely safe work
 /eval-leakage-audit →  before trusting an eval/metric/holdout — check for circular self-confirmation
 /doc-drift          →  audit loaded context (CLAUDE.md/MEMORY.md/skills) for outdated/contradictory wording
+/ssot-audit         →  one fact in many files — find the source of truth, then consolidate
+```
+
+**If you write your own skills:**
+```
+/skill-trigger-auditor →  before changing a skill description — catch routing collisions and misfires
+/skill-ops             →  snapshot/rollback a skill before editing, check which skills are actually used
+/project-overview      →  one status map across several projects
 ```
 
 ---
@@ -58,28 +66,28 @@ then daily:
 |-------|-------------|
 | [scope](scope/) | Define what's IN, what's OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec). Full mode ships `coverage_check.py` (requirement ↔ task check) |
 | [freeze](freeze/) | Declare the editable zone — everything outside is frozen. Prevents scope creep during implementation |
-| [goal-lock](goal-lock/) | Agent discipline engine — locks the goal, enforces PLAN→DO→VERIFY→FINALIZE→OUTPUT loop, detects 13 success masquerading patterns |
-| [pre-push](pre-push/) | Mandatory pre-push pipeline — secrets scan (12 patterns), build/test, lint, parallel AI code review. Blocks push on Critical/High findings |
+| [goal-lock](goal-lock/) | Agent discipline engine — locks the goal, enforces PLAN→DO→VERIFY→FINALIZE→OUTPUT loop, detects 16 success masquerading patterns |
+| [pre-push](pre-push/) | Mandatory pre-push pipeline — secrets scan (14 patterns), build/test, lint, parallel AI code review. Checks what the push actually carries (staged + outgoing commits). Blocks push on Critical/High findings |
 
 ### Perspective
 
 | Skill | What it does |
 |-------|-------------|
-| [stepback](stepback/) | **Updated.** One-shot perspective reset — generates 1 abstract reframing question + 3 quick checks (scope drift, side effects, better approach) in under 10 lines. Use anytime during work |
-| [next-action](next-action/) | **New.** Reads handoff/git/lessons/STATE and proposes the top-3 next actions by impact. Proposes only, never executes. Use anytime |
+| [stepback](stepback/) | One-shot perspective reset — 1 abstract reframing question + 3 quick checks (scope drift, side effects, better approach) and a continue/stop verdict, in under 10 lines. Use anytime during work |
+| [next-action](next-action/) | Reads handoff/git/lessons/STATE and proposes the top-3 next actions by impact. Proposes only, never executes. Use anytime |
 
 ### Session Management
 
 | Skill | What it does |
 |-------|-------------|
-| [session-start](session-start/) | Load handoff from last session, review lessons, health check, output "ready" signal with priority action |
-| [session-checkpoint](session-checkpoint/) | Save session context before compact — handoff file, memory updates, lesson extraction, reflexion (what went wrong, what to do differently) |
+| [session-start](session-start/) | Load handoff from last session, review lessons, health check, output "ready" signal with priority action. Flags handoff items whose date has already passed |
+| [session-checkpoint](session-checkpoint/) | Save session context before compact — handoff file, memory updates, lesson extraction, reflexion (what went wrong, what to do differently). Keeps future-dated items in a separate "Scheduled checks" list |
 
 ### Code Review
 
 | Skill | What it does |
 |-------|-------------|
-| [code-autopsy](code-autopsy/) | **Updated v7.2.** 12Q quantified code review — 4-axis scoring (Security/Stability/Robustness/Operability), severity anchors, deployment verdict (SHIP/FIX/RISKY/BLOCK), factuality gate. Backed by empirical evidence (Johnson 2019, Parnas 1972). Also works as a standalone prompt in any LLM |
+| [code-autopsy](code-autopsy/) | 12Q quantified code review (v7.3) — 4-axis scoring (Security/Stability/Robustness/Operability), severity anchors, deployment verdict (SHIP/FIX/RISKY/BLOCK), factuality gate. Each finding is marked NEW or PRE-EXISTING and carries an evidence tier. Backed by empirical evidence (Johnson 2019, Parnas 1972). Also works as a standalone prompt in any LLM |
 
 ### Quality
 
@@ -92,48 +100,58 @@ then daily:
 
 | Skill | What it does |
 |-------|-------------|
-| [skill-ops](skill-ops/) | **New.** Skill/agent ops hub — snapshot/rollback + usage health + invocation tracking, 3 modes |
-| [project-overview](project-overview/) | **New.** Generates a deterministic cross-project status map from registered projects' session handoffs |
+| [skill-ops](skill-ops/) | Skill/agent ops hub — snapshot/rollback + usage health + invocation tracking + quality score, 4 modes. Ships `skill_snapshot.py` and `skill_health_bucket.py` |
+| [project-overview](project-overview/) | Generates a deterministic cross-project status map from registered projects' session handoffs, and reports snapshots older than 7 days |
+| [skill-trigger-auditor](skill-trigger-auditor/) | **New in v6.5.15.** Audits skill, agent and slash-command routing for collisions and misfires, and gates description changes behind holdout trigger tests. Optional probe measures real Skill tool calls |
 
 ### Governance
 
 | Skill | What it does |
 |-------|-------------|
-| [full-audit](full-audit/) | **New.** Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review two-layer method, anti-false-positive kill-test, persistent coverage map |
-| [integration-intake](integration-intake/) | **New.** 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets + a provenance/injection check for imported executable content |
-| [clean-room](clean-room/) | **New.** Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent — adversarial verify pass + descope ledger |
-| [eval-leakage-audit](eval-leakage-audit/) | **New.** Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 28-pattern taxonomy. Read-only |
-| [doc-drift](doc-drift/) | **New.** Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, mutual contradictions, and risky/ambiguous wording — produces a prioritized fix list |
+| [full-audit](full-audit/) | Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review two-layer method, anti-false-positive kill-test, seeded canaries, persistent coverage map |
+| [integration-intake](integration-intake/) | 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets, a provenance/injection check for imported executable content, a license line, and a ledger lookup of earlier verdicts |
+| [clean-room](clean-room/) | Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent — adversarial verify pass + descope ledger |
+| [eval-leakage-audit](eval-leakage-audit/) | Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 28-pattern taxonomy, two golden cases. Read-only |
+| [doc-drift](doc-drift/) | Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, mutual contradictions, and risky/ambiguous wording — produces a prioritized fix list |
+| [ssot-audit](ssot-audit/) | **New in v6.5.15.** Finds every copy of one fact, value or decision across a repo or notes folder, names the source of truth (read-only), and consolidates the duplicates only after you approve |
 
 ---
 
 ## Lifecycle Flow
 
 ```
-┌─────────────────── Setup (once) ───────────────────┐
+┌─────────────────── Setup (once) ────────────────────┐
 │  /project-init  →  /setup                           │
-└────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────┘
          ↓
-┌─────────────────── Daily Loop ─────────────────────┐
+┌──────────────────── Daily Loop ─────────────────────┐
 │  /session-start                                     │
 │       ↓                                             │
-│  /scope → /freeze → /goal-lock → work                │
-│       → /stepback (anytime) → /code-autopsy           │
-│       → /pre-push                                     │
+│  /scope → /freeze → /goal-lock → work               │
+│       → /stepback (anytime) → /code-autopsy         │
+│       → /pre-push                                   │
 │       ↓                                             │
 │  /session-checkpoint                                │
 └─────────────────────────────────────────────────────┘
          ↓
-┌─────────────────── On Demand ──────────────────────┐
-│  /stepback         (perspective reset — anytime)      │
-│  /project-check    (health audit)                    │
-│  /code-autopsy     (12Q code review — any LLM)       │
-│  /collab-audit     (behavioral diagnostic)           │
-│  /integration-intake (before adopting external work) │
-│  /full-audit       (exhaustive area audit)           │
-│  /clean-room       (safety-adjacent scope carve-out) │
-│  /eval-leakage-audit (eval circular-logic check)     │
-│  /doc-drift        (loaded-context drift audit)      │
+┌───────────────────── On Demand ─────────────────────┐
+│  /stepback         (perspective reset — anytime)    │
+│  /next-action      (top-3 next actions from state)  │
+│  /project-check    (health audit)                   │
+│  /code-autopsy     (12Q code review — any LLM)      │
+│  /collab-audit     (behavioral diagnostic)          │
+│  /integration-intake (before adopting external work)│
+│  /full-audit       (exhaustive area audit)          │
+│  /clean-room       (safety-adjacent scope carve-out)│
+│  /eval-leakage-audit (eval circular-logic check)    │
+│  /doc-drift        (loaded-context drift audit)     │
+│  /ssot-audit       (one fact, many copies)          │
+└─────────────────────────────────────────────────────┘
+         ↓
+┌─────────── Skill authors / multi-project ───────────┐
+│  /skill-ops        (snapshot, rollback, usage)      │
+│  /skill-trigger-auditor (routing collisions)        │
+│  /project-overview (cross-project status map)       │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -198,32 +216,50 @@ The SKILL.md content is universal markdown — it works with any LLM that reads 
 - **Codex**: OpenAI Codex — reads `SKILL.md` directly from `.agents/skills/`; `agents/openai.yaml` is optional UI metadata
 - **Cursor / Other**: Any agent that reads markdown instructions
 - Skills directory: `~/.claude/skills/` (Claude Code) or agent-specific path
-- `pre-push` includes both `scan_secrets.py` (preferred) and `scan_secrets.pl` (Perl fallback)
+- Python 3.9+ for the bundled helper scripts (`scripts/*.py` inside several skills). Skills call them as `${CLAUDE_SKILL_DIR}/scripts/<name>.py`, which Claude Code fills in with the skill's own folder; in other agents, replace it with the folder where you installed the skill. When a script cannot run, each skill says whether it falls back to a manual step or stops
+- `pre-push` includes both `scan_secrets.py` (preferred) and `scan_secrets.pl` (Perl fallback). Optional: `ruff` (changed-line lint) and `gitleaks` (second secret-scan engine, warning only)
+
+### Files the session skills read and write
+
+`session-start`, `session-checkpoint`, `next-action`, `project-overview`, `skill-ops` and `collab-audit` share a few plain-text files: a session handoff, `tasks/lessons.md`, `~/.claude/STATE.md`, `memory/MEMORY.md`, a context log and an invocation log. None of them is required — a skill skips the step when the file is missing. Formats: [docs/FILE-CONVENTIONS.md](docs/FILE-CONVENTIONS.md).
+
+### Optional agents and skills not included here
+
+Some skills can hand work to agents or skills that this repo does **not** ship. Each mention in a SKILL.md is labeled optional and has a fallback, so nothing breaks without them:
+
+| Name | Used by | Without it |
+|------|---------|------------|
+| `code-reviewer`, `security-reviewer`, `database-reviewer`, `build-error-resolver` | pre-push | `/setup` can generate these agents; otherwise pre-push runs an inline review (code-autopsy FAST MODE) and marks agent steps SKIPPED |
+| `refactor-cleaner` | pre-push | step skipped |
+| `doubt-reviewer` | scope (Full mode), goal-lock | a general-purpose subagent with an adversarial prompt, or SKIPPED in the report |
+| `verification`, `brainstorming`, `check-harness`, `memory-dream`, `forge` | various see-also / routing notes | pointers only — the skill works without them |
 
 ---
 
 ## Agentic Design Patterns Coverage
 
-These 17 of the 20 skills (the original lifecycle set, the v6.4 governance additions, and the v6.5 audit additions — the v6.3 operations additions aren't mapped here yet) implement 17 of the 25 known agentic design patterns ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
+The skills map to 18 agentic design patterns from the published catalogs ([Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)):
 
 | Pattern | Implemented by | How |
 |---------|---------------|-----|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | Full lifecycle chain |
 | **Parallel Execution** | pre-push | Parallel AI code review agents |
 | **Loop (Retry)** | goal-lock | VERIFY fail → PLAN re-entry, capped retries |
-| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | Independent code-reviewer + security-reviewer; 12Q structured review; full-audit's Phase 2 fan-out reviewer pass; eval-leakage-audit critiques whether an eval secures independent ground truth vs circular self-confirmation |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | Independent reviewer subagents (optional — see above) or an inline review; 12Q structured review; full-audit's Phase 2 fan-out reviewer pass; eval-leakage-audit critiques whether an eval secures independent ground truth vs circular self-confirmation |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE passes |
 | **Coordinator/Router** | setup | Agent routing rules generation |
 | **Plan-and-Execute** | goal-lock, scope | Plan reviewable before execution |
 | **ReAct** | project-check | Investigate → score → recommend path |
 | **Reflexion** | session-checkpoint | Phase 1.7: analyze failures → lessons for next session |
 | **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES, Critical/High blocks push; integration-intake's 5-item screening gate before adoption |
-| **Custom Logic** | pre-push | Deterministic secrets scan (Perl) + AI review |
+| **Custom Logic** | pre-push | Deterministic secrets scan (Python, Perl fallback) + AI review |
 | **Event-Driven** | session-start | Triggered on session open, loads prior state |
-| **Guardrails/Safety** | goal-lock, clean-room | 13 success masquerading patterns detected; clean-room isolates safety-adjacent scope into a carved-out subagent run |
+| **Guardrails/Safety** | goal-lock, clean-room | 16 success masquerading patterns detected; clean-room isolates safety-adjacent scope into a carved-out subagent run |
 | **Memory Management** | session-checkpoint, doc-drift | Handoff file + memory updates + lesson extraction; doc-drift audits the memory/docs loaded into context for outdated claims, contradictions, and risky wording |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE input sheet |
 | **Step-Back Abstraction** | stepback | DeepMind step-back: concrete → abstract principle |
+| **Prioritization** | next-action | Ranks candidate actions from handoff/git/lessons/STATE by impact |
+| **Evaluation & Monitoring** | skill-ops, skill-trigger-auditor, project-overview | Usage health per skill; routing precision/recall on holdout prompts; stale-snapshot report across projects |
 
 ---
 
@@ -258,6 +294,9 @@ Skills declare relationships via `see_also` (related) and `not_for`
 | `clean-room` | `goal-lock` | clean-room fires when a task's scope mixes safety-adjacent material with safe work, mid-execution; goal-lock is the surrounding PLAN→DO→VERIFY loop it interrupts |
 | `doc-drift` | `full-audit` | doc-drift audits only the memory/docs loaded into context (CLAUDE.md/MEMORY.md/skills/agents) for drift and contradictions; full-audit sweeps an entire area with a coverage map |
 | `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-audit checks whether an eval/metric/holdout is circular (measurement integrity); full-audit and code-autopsy review code/areas, not the eval's independence |
+| `ssot-audit` | `doc-drift`, `full-audit` | ssot-audit follows one fact across files and picks the source of truth; doc-drift checks loaded context for drift; full-audit sweeps a whole area |
+| `skill-trigger-auditor` | `skill-ops`, `doc-drift` | skill-trigger-auditor checks whether skills fire on the right prompts; skill-ops tracks whether they are used and rolls them back; doc-drift checks their text for outdated claims |
+| `project-check` | `setup`, `collab-audit` | project-check scores a repo's setup and lists gaps (setup fills them); collab-audit looks at how you work with the AI, not at the repo |
 
 Diagram (arrows = "hands off to" / "informs"):
 
@@ -270,8 +309,11 @@ session-start <──> session-checkpoint
                                    │
                             next-action (reads state, recommends)
                                    │
-    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift / ssot-audit
                  (on-demand governance & audits, any stage)
+                                   │
+         skill-ops / skill-trigger-auditor / project-overview
+                 (for skill authors and multi-project setups)
 ```
 
 ---

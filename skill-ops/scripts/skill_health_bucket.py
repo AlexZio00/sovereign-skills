@@ -11,6 +11,9 @@ Usage:
   python skill_health_bucket.py usage --invocation-count-30d N --discard-rate 0.0
       --days-since-modified N [--has-related-lesson]
   python skill_health_bucket.py sq --structural F --usage F
+  python skill_health_bucket.py report [--inv-dir DIR] [--skills-dir DIR] [--days 30] [--out FILE]
+      (single implementation of the Health-mode Phase 1-3 rollup; counts records from every source;
+       without --out it prints to stdout and creates no file; --out creates missing parent folders)
 """
 from __future__ import annotations
 
@@ -19,6 +22,12 @@ import datetime as _dt
 import json
 import re
 import sys
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 
 def bucket_status(count: int, last_seen, discard_rate: float) -> str:
@@ -88,6 +97,99 @@ def s_q(structural: float, usage: float) -> float:
     return structural + usage
 
 
+def discarded_names(record: dict) -> list:
+    """Skill names in a record's discarded[]. Entries may be plain strings or {"skill": ..., "reason": ...} objects."""
+    names = []
+    for entry in record.get("discarded") or []:
+        if isinstance(entry, str):
+            names.append(entry)
+        elif isinstance(entry, dict) and isinstance(entry.get("skill"), str):
+            names.append(entry["skill"])
+    return names
+
+
+def aggregate_invocations(inv_dir: str, skill_names, days: int = 30, today=None) -> dict:
+    """Per-skill count/last_seen/discard_rate/status. Counts records from every source (any `source` value).
+
+    Status rules: no log records at all -> Unknown. Records exist but the skill was never invoked and
+    never discarded -> Unused (or Dead when last seen 90+ days ago). An empty window with older records
+    leaves never-seen skills Unknown, because an empty window says nothing about them.
+    """
+    import glob
+    import os
+    today = today or _dt.date.today()
+    start = today - _dt.timedelta(days=days)
+    recs = []
+    for fp in sorted(glob.glob(os.path.join(inv_dir, "*.jsonl"))):
+        with open(fp, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                    if not isinstance(r, dict):  # skip list/null/number lines
+                        continue
+                    d = _dt.date.fromisoformat(str(r.get("date", ""))[:10])
+                except (ValueError, TypeError):
+                    continue
+                recs.append((d, r))
+    win = [(d, r) for d, r in recs if start <= d <= today]
+    out = {}
+    for name in skill_names:
+        cnt = sum(1 for _, r in win if name in (r.get("skills") or []))
+        disc = sum(1 for _, r in win if name in discarded_names(r))
+        seen = [d for d, r in recs if name in (r.get("skills") or [])]
+        last = max(seen).isoformat() if seen else None
+        rate = disc / (cnt + disc) if (cnt + disc) else 0.0
+        if not recs:
+            status = "Unknown"
+        elif cnt == 0 and last is None and rate == 0.0:
+            status = "Unused" if win else "Unknown"
+        else:
+            status = bucket_status(cnt, last, rate)
+        out[name] = {"count": cnt, "last_seen": last, "discard_rate": round(rate, 3),
+                     "status": status}
+    return {"window_days": days, "records_in_window": len(win), "skills": out}
+
+
+def render_report(agg: dict, today=None) -> str:
+    today = today or _dt.date.today()
+    rows = sorted(agg["skills"].items(), key=lambda kv: (-kv[1]["count"], kv[0]))
+    counts = {}
+    for _, v in rows:
+        counts[v["status"]] = counts.get(v["status"], 0) + 1
+    lines = [f"# Skill Health - {today.isoformat()}",
+             "Denominator: %d skills / %d-day window, %d records (all sources)"
+             % (len(rows), agg["window_days"], agg["records_in_window"]),
+             " | ".join(f"{k} {v}" for k, v in sorted(counts.items())), "",
+             "| skill | count | last_seen | discard_rate | status |", "|---|---|---|---|---|"]
+    for n, v in rows:
+        lines.append(f"| {n} | {v['count']} | {v['last_seen'] or '-'} | {v['discard_rate']} | {v['status']} |")
+    lines.append("")
+    lines.append("Active/Low labels are frequency buckets, not a retire verdict.")
+    return "\n".join(lines) + "\n"
+
+
+def _run_report(args) -> int:
+    import os
+    home = os.path.join(os.path.expanduser("~"), ".claude")
+    inv = args.inv_dir or os.path.join(home, ".harness", "invocations")
+    sk = args.skills_dir or os.path.join(home, "skills")
+    if not os.path.isdir(sk):
+        print(f"ERROR: skills folder not found: {sk} (pass --skills-dir <folder that holds <skill>/SKILL.md>)",
+              file=sys.stderr)
+        return 2
+    names = sorted(d for d in os.listdir(sk) if os.path.isfile(os.path.join(sk, d, "SKILL.md")))
+    text = render_report(aggregate_invocations(inv, names, args.days))
+    if args.out:
+        parent = os.path.dirname(os.path.abspath(args.out))
+        os.makedirs(parent, exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"wrote {args.out}")
+    else:
+        print(text, end="")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Deterministic scoring for skill-ops Health/Quality mode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -114,6 +216,13 @@ def main(argv=None) -> int:
     p_sq.add_argument("--structural", type=float, required=True)
     p_sq.add_argument("--usage", type=float, required=True)
     p_sq.set_defaults(func=lambda a: print(json.dumps({"s_q": s_q(a.structural, a.usage)})) or 0)
+
+    p_rep = sub.add_parser("report")
+    p_rep.add_argument("--inv-dir", default=None)
+    p_rep.add_argument("--skills-dir", default=None)
+    p_rep.add_argument("--days", type=int, default=30)
+    p_rep.add_argument("--out", default=None)
+    p_rep.set_defaults(func=_run_report)
 
     args = ap.parse_args(argv)
     return args.func(args)

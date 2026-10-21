@@ -1,6 +1,6 @@
 ---
 skill_type: analysis
-tools: Read, Write, Bash
+tools: Read, Write, Glob, Bash
 triggers:
   - "/collab-audit"
   - "AI 협업 진단"
@@ -20,6 +20,9 @@ depends_on:
   agents: []
   files:
     - "scripts/session_hygiene_scan.py"
+    - "scripts/extract_session_meta.py"
+    - "scripts/harness_log_counts.py"
+    - "~/.claude/.harness/invocations/ (optional; Section 7 reads it)"
 concurrency_profile: sequential
 ---
 
@@ -38,21 +41,20 @@ Whether the analysis infers reasons behind observed patterns, not just lists fac
 ## Trigger
 
 - `/collab-audit`
-- "AI 협업 진단"
-- "협업 분석"
-- "AI 협업 진단해줘"
+- Natural-language phrases (English and Korean) are listed in the frontmatter `triggers` and `description`.
 
 ## Discard If
 
 - Fewer than 2 observed sessions AND fewer than 100 messages — insufficient sample to extract patterns
-- Simple code review request → use code-reviewer instead
-- Only quantitative session metrics needed → use project-check instead
+- Simple code review request → this skill does not review code; do a normal code review instead
+- Only quantitative session metrics needed → run the Step 0 scripts and report their JSON; no 14-section report is needed
 
 ---
 
 ## Key Assumptions 
 1. **2+ observed sessions OR 100+ messages** (meeting either one is enough) — if both are broken: Discard If triggers.
-2. **Access to memory/session-handoff-LATEST.md** — if broken: handoff pattern analysis unavailable, skip that dimension.
+2. **Access to memory/session-handoff-LATEST.md** — if broken (file missing): handoff pattern analysis unavailable, skip that dimension.
+3. **Invocation ledger `~/.claude/.harness/invocations/*.jsonl` (written by session-checkpoint)** — optional. If it does not exist, Section 7 says "no log" for invocation counts. File formats: https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FILE-CONVENTIONS.md
 
 ## Mode Detection (execute first)
 
@@ -68,14 +70,16 @@ Minimum conditions — one of:
 - 100+ messages
 - **Single-session high-density exception** → refer to Invariant 4 criteria. If exception met, mark `⚠ Single-session analysis — pattern confidence limited` then proceed.
 
-**Deterministic gate (preferred)**: if session-meta JSON files are available (one per session, with fields such as `message_count`, `artifact_count`, `originator`, `first_message`, `cwd`), run `scripts/session_hygiene_scan.py --meta-dir <DIR>` and read `meets_minimum` / `single_session_exception` straight from its JSON output — do not re-derive these booleans by eyeballing the transcripts. Fall back to manual counting only when no such metadata directory exists (e.g. a single live conversation with no file access).
+**Deterministic gate (preferred)**: if session-meta JSON files are available (one per session, with fields such as `message_count`, `artifact_count`, `originator`, `first_message`, `cwd`), run `python3 "${CLAUDE_SKILL_DIR}/scripts/session_hygiene_scan.py" --meta-dir <DIR>` and read `meets_minimum` / `single_session_exception` straight from its JSON output — do not re-derive these booleans by eyeballing the transcripts. Fall back to manual counting only when no such metadata directory exists (e.g. a single live conversation with no file access).
 
 If session-meta JSON does not exist yet, build it first from real Claude Code session JSONL (the gate cannot run on raw JSONL):
 ```bash
-python scripts/extract_session_meta.py --out-dir <scratchpad>/collab-meta --days 30 --max 20
-python scripts/session_hygiene_scan.py --meta-dir <scratchpad>/collab-meta
+python3 "${CLAUDE_SKILL_DIR}/scripts/extract_session_meta.py" --out-dir <scratchpad>/collab-meta --days 30 --max 20
+python3 "${CLAUDE_SKILL_DIR}/scripts/session_hygiene_scan.py" --meta-dir <scratchpad>/collab-meta
 ```
-The extractor reads `~/.claude/projects` by default (`--projects-dir` overrides) and stores counts only, never prompt text; its docstring is the canonical field definition.
+`${CLAUDE_SKILL_DIR}` is this skill's folder; Claude Code fills it in. In other agents, replace it with the path where you installed the skill. Use `python` instead of `python3` where only that exists (common on Windows).
+
+The extractor reads `~/.claude/projects` by default (`--projects-dir` overrides) and stores counts plus the session's `cwd` and `entrypoint`, never prompt text; its docstring is the canonical field definition. It skips subagent transcripts before applying `--max` and prints how many it skipped on stderr. If a script is missing or cannot start, say so, count by hand, and write "manual count — script not run" in the report.
 
 If all unmet:
 > "Insufficient data — minimum 2 sessions or 100 messages required. Currently [N] messages, [M] artifacts observed."
@@ -103,10 +107,10 @@ Mark result 1 line before Section 11: `[Delivery intensity: Direct / Calibrated]
 ### Step 0.6: Source Hygiene Filter (deterministic-first measurement)
 When multiple observation sources exist (e.g. session JSONLs), determine — before analysis — whether **each source is an organic user session or an automation byproduct**. A qualitative caveat alone (the old Step 1 approach) is not enough; automated sessions can be mistaken for user behavior.
 
-**Deterministic gate**: run `scripts/session_hygiene_scan.py --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session into **one of three states** — `include` (organic) / `uncertain` (cannot confirm either way) / `exclude` (confidently auto-derived) — and returns `included_count`, `excluded_count`, `uncertain_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye. `--meta-dir` reads `*.json` files **non-recursively** (files in subfolders are ignored). Required field types: `message_count` (int), `artifact_count` (int), `deep_conversation_ratio` (float), `session_meta.source.thread_spawn` (bool) — a wrong type classifies the session as unreadable. If `unreadable` > 0, report the count of unreadable sessions and mark the result `PARTIAL`.
+**Deterministic gate**: run `python3 "${CLAUDE_SKILL_DIR}/scripts/session_hygiene_scan.py" --meta-dir <DIR>` against the directory of session-meta JSON files. The script classifies every session into **one of three states** — `include` (organic) / `uncertain` (cannot confirm either way) / `exclude` (confidently auto-derived) — and returns `included_count`, `excluded_count`, `uncertain_count`, `meets_minimum`, and `single_session_exception` in one JSON object — read those fields directly rather than re-judging exclusion by eye. `--meta-dir` reads `*.json` files **non-recursively** (files in subfolders are ignored). Required field types: `message_count` (int), `artifact_count` (int), `deep_conversation_ratio` (float), `session_meta.source.thread_spawn` (bool) — a wrong type classifies the session as unreadable. If `unreadable` > 0, report the count of unreadable sessions and mark the result `PARTIAL`.
 
 Detection criteria the script applies:
-- **Confident exclude**: session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`; OR cwd matches a naming convention specific to paired/multi-arm experiment harnesses (e.g. `pair-run`, `arm-a`/`arm-b`, `ab-test`); OR `originator` is an SDK/bot/exec-type process with no direct user-input signal (natural conversational opening message) present.
+- **Confident exclude**: session metadata contains auto-derivation markers such as `subagent`/`thread_spawn`/`agent_nickname`; OR cwd matches a naming convention specific to paired/multi-arm experiment harnesses (e.g. `pair-run`, `arm-a`/`arm-b`, `ab-test`); OR `originator` is an SDK/bot/exec-type process with no direct user-input signal (natural conversational opening message) present. The `originator` and `first_message` fields are not in Claude Code session JSONL, so `extract_session_meta.py` does not emit them and this last rule applies only to meta files from another source that carry them. The `cwd` rule works on extractor output.
 - **Uncertain (needs review, not auto-folded either way)**: cwd contains only a generic automation-adjacent word (currently: `pipeline`) with no other automation marker — a real user project named e.g. `data-pipeline-tool` must not be silently misclassified as an automated harness just because the word appears; OR the session-meta object is present but empty (no fields at all) — an empty object is not evidence of an organic session and must not be auto-classified as one.
 - **Include (organic)**: none of the above, and the object carries actual fields.
 
@@ -145,13 +149,13 @@ For data-empty sections, mark "Observation unavailable" then proceed to next.
 1. Include file header:
    ```
    ---
-   profile_version: 1.0 # bump when the section count or section names change; a report without this frontmatter is treated as `legacy` in compare mode
+   profile_version: 1.0 # report-format version (not the skill version): bump when the section count or section names change; a report without this frontmatter is treated as `legacy` in compare mode
    sections: 14
    date: YYYY-MM-DD
    language: [ko|en]
    ---
 
-   # MAGIC DOC: AI Collaboration Audit YYYY-MM-DD
+   # AI Collaboration Audit YYYY-MM-DD
    ```
 2. Save to `~/.claude/collab-audits/YYYY-MM-DD.md`.
    - Re-run same day: use `-2.md` suffix (no overwrite)
@@ -238,6 +242,7 @@ State observation count per flag (e.g., "repeated failure without recovery — 3
 
 ### 7. Tool Usage Pattern (Claude-specific)
 If no Claude usage data → mark "N/A" and proceed to next section.
+**Deterministic input**: do not estimate the invocation numbers in this section. Quote the output of `python3 "${CLAUDE_SKILL_DIR}/scripts/harness_log_counts.py" --days 30` as is (top skills and agents, discarded skills, session count, `sources`, `skipped_lines`). It reads the invocation ledger that session-checkpoint writes, counts records from every `source`, and accepts `discarded` entries in both forms (plain name or `{skill, reason}`); if the ledger is missing the script prints zeros, so write "no log" in that case.
 - Read/Grep/Glob ratio vs Bash reliance — "direct type" vs "search type"
 - Agent spawn frequency — "delegation type" vs "direct execution type"
 - Top 3 frequently used tools, rarely used tools
@@ -257,7 +262,7 @@ Also document recovery patterns after context loss.
 
 ### 9. Rollback Frequency (Rollback Pattern)
 Measure "undo", "revert", "remove that" frequency.
-- High: signals lack of brainstorming/planning
+- High: signals lack of design or planning before coding
 - Low: mature pre-design OR no verification (distinguish direction)
 - Post-rollback retry pattern — same direction retry vs direction shift
 
@@ -300,6 +305,8 @@ This rebuttal is additional data. By definition, blind spots are unknown; rebutt
 - "Changing this cascades everything else"
 
 ### 11.5 Advice (Actionable Guide)
+**Judge the previous advice (required, also on a fresh audit)**: if `~/.claude/collab-audits/` holds an earlier report, read the 11.5 advice of the newest one and judge it against this audit's observations using the criteria under "Advice Execution Status" (executed / partially executed / not executed / indeterminate, each with behavioral evidence). Put the result at the top of this section as a "Previous advice execution" subsection, so the judgment exists without running compare mode separately. If there is no earlier report, write one line: "No previous advice."
+
 2-3 specific actions (how + when) to actually start Section 11 development direction (where).
 
 Format: `[Observed pattern] → [Specific situation] → [Action]`
@@ -425,7 +432,7 @@ Based on previous development direction + current patterns, one next focus point
 - **Read**: MEMORY.md, artifact files, `~/.claude/collab-audits/*.md` (Compare mode)
 - **Write**: save `~/.claude/collab-audits/YYYY-MM-DD.md` and `~/.claude/.gitignore` (gitignore protection only)
 - **Glob**: list `~/.claude/collab-audits/` files (Compare mode)
-- **Bash**: scoped to invoking `scripts/extract_session_meta.py` (writes session-meta JSON via `--out-dir`) and `scripts/session_hygiene_scan.py` for the Step 0/0.6 deterministic gate, and read-only `git rev-parse`/`git ls-files` for the Step 5 tracked-status check only — not general-purpose execution. Never runs `git rm`, `git add`, or `git commit` itself.
+- **Bash**: scoped to invoking `extract_session_meta.py` (writes session-meta JSON via `--out-dir`), `session_hygiene_scan.py` for the Step 0/0.6 deterministic gate, and `harness_log_counts.py` (read-only, Section 7), all from `${CLAUDE_SKILL_DIR}/scripts/`, and read-only `git rev-parse`/`git ls-files` for the Step 5 tracked-status check only — not general-purpose execution. Never runs `git rm`, `git add`, or `git commit` itself.
 - Delete and other execute tools forbidden
 
 ## Recommended Usage Times

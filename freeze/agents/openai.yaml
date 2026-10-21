@@ -1,3 +1,3 @@
 name: freeze
-description: "Lock in specification and implementation plan before writing code."
+description: "Declare the editable file zone for the current task; everything outside it is frozen (read-only) until the user thaws it."
 allow_implicit_invocation: true

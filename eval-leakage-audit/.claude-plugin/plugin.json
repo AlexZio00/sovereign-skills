@@ -1,7 +1,7 @@
 {
   "name": "eval-leakage-audit",
-  "description": "Audits whether an eval/metric/experiment/holdout secures independent external ground truth or is circular via a 21-pattern taxonomy. Read-only.",
-  "version": "1.0.0",
+  "description": "Audits whether an eval/metric/experiment/holdout secures independent external ground truth or is circular via a 28-pattern taxonomy. Read-only.",
+  "version": "1.0.1",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

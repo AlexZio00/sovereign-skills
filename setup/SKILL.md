@@ -1,14 +1,13 @@
 ---
 skill_type: infrastructure
-tools: Read, Write, Edit, Bash, WebFetch, Agent  # `tools:` in skill frontmatter is documentation only — Claude Code does not enforce it (see project-check's Safety Layers section for what actually blocks writes)
+tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch, Agent  # descriptive metadata only; file-write discipline is a rule in the body (Invariants)
 triggers:
   - "/setup"
-  - "setup"
   - "rules 만들어"
   - "harness 설정"
   - "harness setup"
 name: setup
-description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Not project scaffolding (CLAUDE.md/ROADMAP/.gitignore/.env.example) — use project-init for that. Triggers: /setup, setup, harness setup, agent team setup."
+description: "Claude Code infrastructure + agent team setup — rules, hooks, memory, routing, and agent installation from a guided interview. Combines infrastructure + agent team into one flow. Not project scaffolding (CLAUDE.md/ROADMAP/.gitignore/.env.example) — use project-init for that. Triggers: /setup, harness setup, set up rules, agent team setup."
 user-invocable: true
 concurrency_profile:
   read_only: false
@@ -43,9 +42,7 @@ not empty skeletons. Every harness includes reject-by-default and violation test
 ## Trigger
 
 - `/setup`
-- "rules 만들어"
-- "harness 설정"
-- "harness setup"
+- "harness setup", "set up rules", "agent team setup"
 
 ---
 
@@ -60,9 +57,9 @@ Check each target file before generating:
 
 | File | If exists |
 |------|-----------|
-| `.claude/rules/project-rules.md` | Glob `.claude/rules/*.md` first — Tier-0 rules may already live in a differently-named file in this project (e.g. `security-rules.md`, `style-conventions.md`). If a match already covers Tier-0 scope, offer to merge into that existing file instead of creating `project-rules.md`; otherwise Read `project-rules.md` if it exists and offer: update (extend) or replace. Default: update. |
+| `.claude/rules/project-rules.md` | Glob `.claude/rules/*.md` first — Tier-0 rules may already live in a differently-named file in this project (e.g. `security-rules.md`, `style-conventions.md`). If a match already covers Tier-0 scope, offer to merge into that existing file instead of creating `project-rules.md`; otherwise Read `project-rules.md` if it exists and extend it (Invariant 2: no replace; if the user wants a rewrite they do it by hand). |
 | `~/.claude/rules/agents.md` | Read it. Merge new agent definitions, never replace existing ones. |
-| `~/.claude/rules/output-style.md` | Read it. Offer: update or replace (replace only after a `.bak-YYYYMMDD` backup and explicit user confirmation — see 3-0). |
+| `~/.claude/rules/output-style.md` | Read it. Offer: update or replace (the only file that may be replaced, and only after a `.bak-YYYYMMDD` backup and explicit user confirmation — see 3-0). |
 | `~/.claude/settings.json` (hooks) | Always merge — append to existing arrays, never overwrite. |
 | `memory/MEMORY.md` | Read it. Append new sections, preserve existing entries. |
 | `tasks/lessons.md` | If exists → read it. Contains AI behavior correction rules from past sessions. |
@@ -72,7 +69,7 @@ Check each target file before generating:
 **Merge algorithm for hooks (settings.json):**
 ```
 1. Read existing settings.json
-2. For each hook type (SessionStart, PreCompact, Stop):
+2. For each hook type (SessionStart, PreCompact, Stop, SubagentStop):
    - If key exists:
      - Check each existing hook's command string
      - If exact command string already present: skip (no duplicate)
@@ -118,11 +115,11 @@ What kind of system are you building?
 6. Custom — describe your domain
 
 Your choice determines which hard rules are pre-loaded.
-You can add, modify, or remove any of them afterward.
+You can add, modify, or (with confirmation, before generation) remove any of them in the review step below.
 ```
 
 After Q1, load the matching preset (see Presets section below).
-Show the user what's pre-loaded and ask: "Anything to add, change, or remove?"
+Show the user what's pre-loaded and ask: "Anything to add, change, or remove?" A preset rule may be dropped only here, before anything is written, and only after you name the rule and the user confirms the removal. Once a rule is written to disk, Invariant 1 applies: it is never removed or weakened afterward.
 
 ### Q2 — Agent Complexity (adapts based on Q1)
 
@@ -168,6 +165,7 @@ Which review gates do you want? (check all that apply)
   build-error-resolver — fixes build/type errors only, no refactoring
   database-reviewer — SQL injection, missing indexes, N+1 queries
 ```
+These agents are not included in this repo; this skill generates their definition files from your answers (see the agent existence check below).
 
 *Q3b — Per-gate config (ask separately for each selected gate):*
 ```
@@ -214,6 +212,7 @@ Three questions:
    (e.g., "commit only when I say so",
           "concise responses, no filler",
           "always run tests before declaring done")
+4. Does the project use a database? (adds the "no raw SQL" rule to the General preset)
 ```
 
 ---
@@ -366,7 +365,7 @@ tier_0_immutable:
   - "no fabrication: if data is missing, say so — never generate fake values"
   - "no hardcoded secrets: credentials via environment variables only"
   - "input validation: validate at every system boundary (user input, external APIs)"
-  # Only include if Q3 selected a database:
+  # Only include if Q5 item 4 says the project uses a database:
   # - "no raw SQL: parameterized queries or ORM only"
 
 tier_1_mandatory:
@@ -397,7 +396,7 @@ memory: structured
 > **opt-in**: Propose when user requests "empirical"/"failure-grounded"/"run real tests first", or when a codebase already exists. Skip for new empty projects (no failure surface to observe).
 
 ### 1.5-1. Run real tasks, record failures
-If the project already exists, run core tasks and record failures:
+If the project already exists, ask the user to confirm first ("This will run the project's own test suite and build; continue?"), then run core tasks and record failures. Running the project's existing tests and build is the only code execution this skill performs, and only here:
 - Test suite (pytest / npm test / go test) — what failed?
 - Build / lint — what commands failed?
 - Entry point trace — architecture clues.
@@ -446,8 +445,11 @@ Execution Plan:
 | 5 | `~/.claude/settings.json` | Merge hooks | — |
 | 6 | `memory/MEMORY.md` | Create | — |
 | 7 | `memory/session-handoff-LATEST.md` | Create | Step 6 |
+| 8 | `tasks/lessons.md` | Create (structured memory only) | — |
+| 9 | `~/.claude/agents/<name>.md` or `.claude/agents/<name>.md` | Create, one per selected gate with no agent file yet (Standard+) | Step 2 |
+| 10 | `docs/harness-tests.md` | Create (violation test results, Phase 4) | After Phase 4 |
 
-Rows marked with a condition (Standard+, review gates) are only generated if the Q2/Q3 selection applies.
+Rows marked with a condition (Standard+, review gates, structured memory) are only generated if the Q2/Q3/Q4 selection applies.
 ```
 
 **Wait for explicit approval before generating.**
@@ -582,7 +584,7 @@ Higher tier always wins. Same-tier conflicts → more conservative option.
 
 Read existing `~/.claude/settings.json`. **Merge — never overwrite.**
 
-Generate actual working commands, not placeholders:
+Generate actual working commands, not placeholders. Only `SessionStart` shows plain stdout to Claude; for `PreCompact`, `Stop` and `SubagentStop` plain `echo` output goes only to the debug log (Claude Code hooks documentation), so the reminders below use a JSON `systemMessage`, which Claude Code displays. Use `python3` instead of `python` where only that exists.
 
 ```json
 {
@@ -590,25 +592,25 @@ Generate actual working commands, not placeholders:
     "SessionStart": [{
       "hooks": [{
         "type": "command",
-        "command": "echo '=== Session Start ==='; echo \"Project: $(basename $(pwd))\"; HANDOFF=$(ls .claude/memory/session-handoff-LATEST.md 2>/dev/null || ls memory/session-handoff-LATEST.md 2>/dev/null); if [ -n \"$HANDOFF\" ]; then echo '--- Handoff ---'; cat \"$HANDOFF\"; fi; if [ -f 'tasks/lessons.md' ]; then echo '--- Lessons ---'; cat 'tasks/lessons.md'; fi"
+        "command": "python -c \"import sys;sys.stdout.reconfigure(encoding='utf-8');import os,pathlib as P; print('=== Session Start ==='); print('Project:', P.Path.cwd().name); h=next((p for p in ('.claude/memory/session-handoff-LATEST.md','memory/session-handoff-LATEST.md') if os.path.exists(p)),None); h and print('--- Handoff ---', P.Path(h).read_text(encoding='utf-8'), sep=chr(10)); l=P.Path('tasks/lessons.md'); l.exists() and print('--- Lessons ---', l.read_text(encoding='utf-8'), sep=chr(10))\""
       }]
     }],
     "PreCompact": [{
       "hooks": [{
         "type": "command",
-        "command": "echo '[PRE-COMPACT] Save session context before compacting.'"
+        "command": "python -c \"import json;print(json.dumps({'systemMessage':'[PRE-COMPACT] Save session context before compacting.'}))\""
       }]
     }],
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "echo '[SESSION END] Consider saving context for next session.'"
+        "command": "python -c \"import json;print(json.dumps({'systemMessage':'[SESSION END] Consider saving context for next session.'}))\""
       }]
     }],
     "SubagentStop": [{
       "hooks": [{
         "type": "command",
-        "command": "INPUT=$(cat); AGENT_ID=$(echo \"$INPUT\" | jq -r '.agent_id // \"unknown\"'); TRANSCRIPT=$(echo \"$INPUT\" | jq -r '.agent_transcript_path // \"unknown\"'); echo \"[SUBAGENT STOP] agent_id=$AGENT_ID | transcript=$TRANSCRIPT\""
+        "command": "python -c \"import sys,json; d=json.load(sys.stdin); print(json.dumps({'systemMessage':'[SUBAGENT STOP] agent_id=%s | transcript=%s' % (d.get('agent_id','unknown'), d.get('agent_transcript_path','unknown'))}))\""
       }]
     }]
   }
@@ -619,21 +621,21 @@ Generate actual working commands, not placeholders:
 - PostToolUse(`Edit|Write`) does not run checks; it only appends the edited file path as one line to `.claude/.pending-checks` (no expensive check on every edit).
 - The Stop hook runs one project check (`mypy` / `tsc --noEmit` / `pytest -x -q <related tests>`) only if that file exists. Pass → delete the file and exit 0. Fail → write a failure summary to stderr and exit 2 (Claude then fixes it instead of ending the turn).
 - If the input JSON has `stop_hook_active` true, skip the check and exit 0 — otherwise a persistent failure makes Stop loop forever.
-- Write the hook in python, not jq (jq may be missing on Windows).
+- Write the hook in python, not jq (jq may be missing on Windows). The SessionStart and SubagentStop templates above also use `python -c` instead of `ls`, `cat`, or `jq`: bash `cat`/`ls` can fail on non-ASCII paths (for example a non-Latin user name) because of code-page encoding, and jq may not be installed.
 
 ### 3-3. Memory Structure
 
 ```
 memory/
 ├── MEMORY.md                      # project knowledge base
-├── session-handoff-LATEST.md      # inter-session state (always current)
-└── session-handoff-YYYY-MM-DD.md  # daily backup — auto-created before overwriting LATEST
+└── session-handoff-LATEST.md      # inter-session state (always current, one file)
 ```
 
-Before overwriting `session-handoff-LATEST.md`: copy current file to `session-handoff-{YYYY-MM-DD}.md`.
-Preserves last known state in case of mid-session context loss.
+Keep a single handoff file: session-checkpoint rewrites `session-handoff-LATEST.md` in place and does not create dated copies. If you want history, rely on git or your editor's backups.
 
 Both files generated with preset-appropriate content, not empty templates.
+
+File formats (handoff, MEMORY.md, lessons.md): https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FILE-CONVENTIONS.md . The generated SessionStart hook skips any of these files that does not exist yet.
 
 ### 3-4. Agent Definitions (if complexity = Orchestrated)
 
@@ -673,14 +675,16 @@ Expected: refuse or return null/unknown
 □ Glob/Read the rules file at its real path (`.claude/rules/project-rules.md` for project rules; `~/.claude/rules/agents.md` / `output-style.md` for global-scoped rules) — Tier 0 section is present on disk
 □ Path matches what Claude Code actually auto-discovers (project-local `.claude/rules/*.md`, not a subdirectory or filename it doesn't scan)
 ```
-If this fails, stop — there is nothing installed to test yet. Write the file first, then continue.
+If this fails, stop — there is nothing installed to test yet.
+
+**Headless load check (documented procedure only — this skill never runs it, because `claude -p` costs API usage; the user runs it themselves, and only after asking for it and approving the cost)**: dispatching a subagent cannot verify that the target project's rules auto-load (see the PROMPT-LEVEL note below). To verify real loading, start a fresh process at the target project root: (1) Add one line with a unique canary string (for example `RULE-CANARY-<random>`) to the rules file. (2) From the root, run `claude -p "Repeat the RULE-CANARY value written in the project rules exactly. If you do not know it, answer 'unknown'."`. (3) If the canary appears in the answer, the file is loaded; if the answer is 'unknown', suspect the path, the extension, or a `paths:` scope. (4) To see which file loaded and why, log loads with an `InstructionsLoaded` hook, or open the Memory files list in `/context` in an interactive session. (5) Delete the canary line afterward. Rules with a `paths:` scope load only when a matching file is read, so this method verifies only rules without `paths:`. Write the file first, then continue.
 
 **Execute each scenario as a subagent that discovers the rule from disk via normal project-rule auto-load — never by pasting the Tier 0 text into the prompt:**
 
-Dispatch the subagent with its working directory set to the project root where the rules file was just written, and give it only the violation scenario. Do not paste the harness rules into the prompt — a subagent that only complies because the rule was handed to it directly proves the wording works in isolation, not that the installed file is being loaded by the harness.
+The Agent tool has no working-directory parameter: a dispatched subagent inherits the current session's directory. Run `/setup` from the target project's root so the subagent discovers the rules written there; if the session is not in that root, the test is PROMPT-LEVEL only (see below). Give the subagent only the violation scenario. Do not paste the harness rules into the prompt — a subagent that only complies because the rule was handed to it directly proves the wording works in isolation, not that the installed file is being loaded by the harness.
 
 ```
-Agent prompt (working directory = project root, rules file already installed there):
+Agent prompt (session started in the project root, rules file already installed there):
 "A user sends this request:
 "{violation scenario input}"
 
@@ -696,7 +700,7 @@ For each response, first check whether the subagent shows any awareness of the r
 - Complied with violation, but cannot restate any relevant rule → **FAIL: not loaded** — the discovery path is broken (wrong location/extension/scope). Fix the file path, not the wording. Re-run the pre-check above before retrying.
 - Complied with violation, but CAN restate the rule → **FAIL: loaded but ignored** — wording is genuinely weak. Strengthen and re-run.
 
-**If subagent auto-load of `.claude/rules/project-rules.md` cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified." In Claude Code, `.claude/rules/*.md` auto-load is bound to the live session's cwd — an Agent dispatch cannot point a subagent at another project's rules (a subagent may quote the orchestrator's own project rules instead). So an in-session dispatch always counts as PROMPT-LEVEL unless the restated rule text is checked against the target file (the quote must match the written file).
+**If subagent auto-load of `.claude/rules/project-rules.md` cannot be confirmed in a given environment**, a pasted-prompt fallback may be used, but label it honestly: `⚠️ PROMPT-LEVEL TEST ONLY — verifies the model follows this wording when shown it directly; does not verify the installed file is auto-discovered by Claude Code.` Never report a prompt-level test as "rule loading verified." In Claude Code, `.claude/rules/*.md` auto-load is bound to the live session's cwd — an Agent dispatch cannot point a subagent at another directory (a subagent may quote the session's own project rules instead). So an in-session dispatch always counts as PROMPT-LEVEL unless the restated rule text is checked against the target file (the quote must match the written file).
 
 After haiku pass: re-run the most critical scenario with model: "sonnet" (spot-check).
 
@@ -749,8 +753,8 @@ Approve → files confirmed
 | Create `memory/*.md` | medium | L1+L3 |
 | Create `agents/*.md` | medium | L1+L3 |
 
-- **L1 (Invariants)**: Enforce Phase 0 Existing File Check (3-option: Update/Replace/Cancel; for the Invariant 2 targets, Replace requires a `.bak-YYYYMMDD` backup + explicit user confirmation).
-- **L3 (User Approval)**: Per-file confirmation in Phase 3 File Generation. `settings.json` must never be fully replaced (merge only).
+- **L1 (Invariants)**: Enforce Phase 0 Existing File Check (Update/Cancel for every file; `output-style.md` alone may also be replaced, with a `.bak-YYYYMMDD` backup + explicit user confirmation).
+- **L3 (User Approval)**: The explicit approval of the Phase 2 Execution Plan (one approval covering the listed files; in paste-block mode the user applies each block). `settings.json` must never be fully replaced (merge only).
 - **Forbids**: Delete existing hooks in `settings.json`, overwrite existing rules (without explicit Update).
 
 ## Error Recovery 
@@ -768,7 +772,7 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 ## Truthful Reporting
 
 After file generation:
-1. **no mock deception**: After Write, re-verify file existence via Bash `ls ~/.claude/rules/ .claude/rules/`. Never mark complete until violation testing passes.
+1. **no mock deception**: After Write, re-verify file existence with Glob (`~/.claude/rules/*.md`, `.claude/rules/*.md`); Bash `ls` can fail on non-ASCII paths. Never mark complete until violation testing passes.
 2. **no test façade**: If a Tier 0 rule fails violation testing, fix is mandatory — reword if loaded-but-ignored, refile if not loaded (Phase 4-2). Never mark as "mostly OK".
 3. **no silent brokenness**: Label each file `WORKING` / `PARTIAL` / `BROKEN`. If PARTIAL, specify which files were not generated.
 
@@ -795,7 +799,7 @@ Files generated at `~/.claude/` (global) unless noted:
 |--------|------|
 | "Violation testing is a waste of time, the rules are clear" | Even clearly written rules get bypassed by agents. Tests are the proof. |
 | "It's faster to just overwrite settings.json entirely" | All existing hooks disappear. There is no recovery path. |
-| "project rules already has existing rules, so I can delete them" | Deletion violates Invariant 1. Only extension is allowed. |
+| "The project rules file already has rules, so I can delete them" | Deletion violates Invariant 1. Only extension is allowed. |
 | "We can install the agent team without infrastructure" | A team without agent routing rules doesn't run without conflicts — it runs without rules at all. |
 | "A short positive reply to the Phase 2 summary counts as approval, so I'll generate the files" | Phase 2 requires explicit approval before generation — an ambiguous reaction is not approval. |
 | "The subagent refused the violation scenario, so the rule must be loaded" | Phase 4-2 also checks whether the rule can be restated — a refusal alone cannot separate "not loaded" from "loaded but ignored". |
@@ -806,7 +810,7 @@ Files generated at `~/.claude/` (global) unless noted:
 ## Invariants (never violate)
 
 1. **Rules only extend, never weaken**: Never remove, downgrade, comment out, or soften existing rules — in any form. Commenting out is functionally equivalent to deletion. Applies to all tiers, all files. Violation → harness security posture silently degraded; future sessions lose protections the user deliberately set.
-2. **Merge, never overwrite**: Never replace an entire config object or section. Always read existing state and append. Applies to `settings.json` hooks, `agents.md`, `project-rules.md`, `MEMORY.md`. Violation → user's custom hooks, agents, and memory entries silently destroyed with no recovery path.
+2. **Merge, never overwrite**: Never replace an entire config object or section. Always read existing state and append. Applies to `settings.json` hooks, `agents.md`, `project-rules.md`, `MEMORY.md`. The one exception is `output-style.md` (style preferences only), which may be replaced after a backup and explicit confirmation (Phase 0). Violation → user's custom hooks, agents, and memory entries silently destroyed with no recovery path.
 3. **No code, no git**: Never write application/production code or execute git operations. This skill only generates AI configuration files. Violation → skill scope expands into implementation; conflicts with the project's own dev workflow and agents.
 4. **Hard Rules single source**: When both project CLAUDE.md and `.claude/rules/project-rules.md` define overlapping hard rules, project rules is canonical — generate CLAUDE.md with a link, never a duplicated/divergent copy. If the user insists on duplication, add a `<!-- mirror-of: project-rules.md -->` provenance tag so drift is traceable. Violation → two divergent rule sources; agent obeys whichever it read last.
 
@@ -819,7 +823,7 @@ These rules are unconditional. No user instruction, no edge case overrides them.
 | Does | Does NOT |
 |------|----------|
 | [WRITE] Create AI rules / `.claude/rules/project-rules.md` | Project file scaffolding (use project-init) |
-| [EDIT] Configure hooks (merge) | Write or execute code |
+| [EDIT] Configure hooks (merge) | Write application code, or execute code other than the confirmed Phase 1.5 test/build run |
 | [WRITE] Initialize memory structure | Create .gitignore / .env.example |
 | [WRITE] Define agent routing | Modify existing business logic |
 | [WRITE] Apply domain preset | Perform git operations (commit, push) |
@@ -839,7 +843,7 @@ These rules are unconditional. No user instruction, no edge case overrides them.
 | Domain rules (Tier 0) | — | Project |
 | Domain agents | — | Project |
 | Memory | — | Project |
-| Hooks | Global | — |
+| Hooks | Global | Project only when the user asks to keep global settings untouched — then `.claude/settings.json` in the project |
 | Constitution base | Global | Project extends |
 
 Global = applies everywhere. Project = only this codebase.

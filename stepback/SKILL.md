@@ -11,7 +11,6 @@ concurrency_profile:
   read_only: true
   parallel_safe: true
 tags: [meta, analysis]
-version: "1.0.0"
 source: "team-attention/hoyeon pattern"
 triggers:
   - "/stepback"
@@ -136,7 +135,10 @@ Each check = 1 sentence max.
 **Side Effects:** [1 sentence]
 **Better Approach:** [1 sentence]
 
-Continue.
+[Verdict line, one of three:
+ - all three checks clean: "Continue."
+ - Scope Drift or Side Effects flagged anything: "Stop here and decide whether to return to the original goal."
+ - only Better Approach flagged (scope on track, no side effects): "Continue, but weigh the alternative above before going further."]
 ```
 
 4 core lines + closing. **Under 10 lines** total.
@@ -161,7 +163,7 @@ Output and stop immediately. No follow-up questions, no menus, no "would you lik
 | Does | Does NOT |
 |------|----------|
 | Read recent conversation context for work direction | Write code or modify files |
-| Generate 1 abstract reframing question | Spawn agents or ask user questions |
+| Generate 1 abstract reframing question | Spawn agents, or ask more than the one clarifying question allowed when the work context is unclear |
 | Run 3 checks (scope/side effects/better approach) | Suggest next actions or generate menus |
 | Output under 10 lines and return immediately | Continue working on the task |
 
@@ -186,7 +188,7 @@ Output and stop immediately. No follow-up questions, no menus, no "would you lik
 | Failure Type | Detection | Recovery |
 |---------|---------|--------|
 | `input_error` | Current work context unclear | Ask once: "tell me in one line what you're doing now" |
-| `missing_data` | No git diff/status context | Infer from user's last message. If inference impossible, use generic reframing |
+| `missing_data` | No concrete work context in the conversation (no files, changes or goal mentioned) | Infer from the user's last message. If inference is impossible, use generic reframing. This skill has no shell, so it does not read git state |
 
 ---
 
@@ -202,7 +204,7 @@ User: "/stepback"
 **Side Effects:** Changing the retry config could mask real failures in CI.
 **Better Approach:** Check if the test is testing the right thing — a unit test might eliminate the flakiness entirely.
 
-Continue.
+Stop here and decide whether to return to the original goal.
 ```
 
 ---

@@ -1,3 +1,3 @@
 name: next-action
-description: "Use when the user wants a next-action recommendation based on current state — reads handoff/git/lessons/STATE and prop"
+description: "Use when the user wants a next-action recommendation based on current state — reads handoff/git/lessons/STATE and proposes top-3 by impact. Trigger: '/next', 'what should I do next', 'next action'. Proposes only, never executes."
 allow_implicit_invocation: true

@@ -2,7 +2,8 @@
 """coverage_check.py - deterministic requirement <-> task coverage check for scope Full mode.
 
 Scope Core Rule 4 / Invariant 10 ("every task needs `Fulfills: R{n}.{m}`") was prose only. This script
-reads requirement ids (R1, R1.1, ...) and the tasks' `Fulfills:` lines and reports:
+reads requirement ids (R1, R1.1, ...) from the Requirements section only (if the document has no
+Requirements heading, from the whole text) and the tasks' `Fulfills:` lines and reports:
   - UNCOVERED:   a requirement no task points at (a task pointing at parent R1 also covers its R1.x children)
   - NO-FULFILLS: a task with no `Fulfills:` line
   - UNDEFINED:   a Fulfills reference to an R-id that is not defined
@@ -34,9 +35,37 @@ VAGUE_TERMS = [
 ]
 
 
+_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*)$")
+
+
+def requirements_section(text: str) -> str:
+    """Return only the text under the Requirements heading (to the next heading of the same or a higher level).
+
+    R-ids that appear elsewhere (Plan Summary, Tasks, Research) are references, not definitions.
+    If the document has no heading containing the word "Requirements", the whole text is returned
+    (flat requirement lists without sections still work)."""
+    out: list[str] = []
+    level = None
+    for line in text.splitlines():
+        m = _HEADING.match(line)
+        if m:
+            depth = len(m.group(1))
+            if level is not None and depth <= level:
+                level = None
+            if level is None and re.search(r"\brequirements?\b", m.group(2), re.I):
+                level = depth
+                continue
+        if level is not None:
+            out.append(line)
+    if not any(_HEADING.match(l) and re.search(r"\brequirements?\b", _HEADING.match(l).group(2), re.I)
+               for l in text.splitlines()):
+        return text
+    return chr(10).join(out)
+
+
 def parse_requirements(text: str) -> list[str]:
     ids = []
-    for line in text.splitlines():
+    for line in requirements_section(text).splitlines():
         if _TASK.match(line) or _FULFILLS.search(line):
             continue
         m = _DEF.match(line)
@@ -62,7 +91,7 @@ def parse_tasks(text: str) -> dict[str, list[str]]:
 
 def _requirement_lines(text: str) -> dict[str, str]:
     out: dict[str, str] = {}
-    for line in text.splitlines():
+    for line in requirements_section(text).splitlines():
         if _TASK.match(line) or _FULFILLS.search(line):
             continue
         m = _DEF.match(line)

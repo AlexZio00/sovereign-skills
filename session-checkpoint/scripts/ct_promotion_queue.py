@@ -8,6 +8,9 @@ reach a T2 threshold (3+ mentions), confirms they don't already exist in
 MEMORY.md's CT section, and appends the survivors to
 ~/.claude/.harness/ct-promotion-queue.jsonl.
 
+The queue is consumed by memory-dream, an optional skill that is not included in
+this repo; without it the queue file only accumulates.
+
 This script never writes to MEMORY.md or context-log.md — read-only on both.
 The queue-file append is its only write path (statically verifiable: no code
 path opens memory_md_path in write/append mode — test_ct_promotion_queue.py's
@@ -36,7 +39,7 @@ import json
 import os
 import re
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 _ENTRY_RE = re.compile(r"^-?\s*\[(\d{4}-\d{2}-\d{2})\]")
 _PATH_TOKEN_RE = re.compile(r"[A-Za-z0-9_./\\-]+\.[A-Za-z]{1,5}")
@@ -87,8 +90,7 @@ def is_quarantined_entry(text: str) -> bool:
 
 def tokenize(line: str) -> set[str]:
     """File-path-shaped tokens + quoted phrases + proper nouns — a
-    lightweight clustering heuristic (DRY with memory-dream SKILL.md's SAGE
-    lightweight discriminator: string matching only, no new similarity
+    lightweight clustering heuristic (string matching only, no new similarity
     engine)."""
     tokens: set[str] = set()
     tokens.update(_PATH_TOKEN_RE.findall(line))
@@ -150,9 +152,8 @@ def load_queue_records(queue_path: str) -> list[dict]:
     (append-only tolerance) — json.loads can succeed on a line that parses
     to something other than a dict (a bare list/str/number), and a
     downstream record.get() call on that would crash with AttributeError
-    (found by code-reviewer 2026-08-02, MEDIUM; reachable because
-    memory-dream's Step 5d appends to this file directly without schema
-    validation)."""
+    (reachable because memory-dream, which is not included in this repo,
+    may append to this file directly without schema validation)."""
     if not os.path.isfile(queue_path):
         return []
     records: list[dict] = []
@@ -215,8 +216,7 @@ def is_duplicate_in_queue(topic_summary: str, existing_records: list[dict],
 def check_resurfaced(topic_tokens: set[str], tombstones_dir: str) -> bool:
     """If REGRET_KEYWORD_MIN_MATCH or more of topic_tokens match a
     tombstone's (normalized) item_summary, treat this as a previously
-    deleted fact resurfacing (reuses memory-dream SKILL.md's "Regret
-    comparison" logic)."""
+    deleted fact resurfacing (the same "regret comparison" idea as memory-dream)."""
     if not os.path.isdir(tombstones_dir):
         return False
     normalized_tokens = {t.strip().lower() for t in topic_tokens if t.strip()}
@@ -251,7 +251,7 @@ def build_record(cluster: dict, context_log_name: str, scope: str, project_path,
     topic = summarize_topic(cluster)
     lines_sorted = sorted(cluster["lines"], key=lambda x: x[0])
     record: dict = {
-        "ts": datetime.now(UTC).isoformat(timespec="seconds"),
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "scope": scope,
     }
     if scope == "project" and project_path:
@@ -353,6 +353,9 @@ def cmd_scan(args) -> int:
 
 
 def main(argv=None) -> int:
+    for _s in (sys.stdout, sys.stderr):
+        if hasattr(_s, "reconfigure"):
+            _s.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="Stage 1 CT promotion queue scanner (deterministic, opt-in)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_scan = sub.add_parser("scan")

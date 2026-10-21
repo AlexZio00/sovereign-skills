@@ -1,3 +1,3 @@
 name: project-overview
-description: "Use when the user wants a deterministic cross-project status map generated from registered projects' session handoffs. T"
+description: "Use when the user wants a deterministic cross-project status map generated from registered projects' session handoffs. Triggers: '/project-overview', 'project map', 'overall status'. Reads ~/.claude/projects-registry.md (opt-in list), parses each project's memory/session-handoff-LATEST.md state-snapshot v1 block (ts+ctx only), and rewrites the AUTO:START/AUTO:END region of ~/.claude/OVERVIEW.md. Does not touch STATE.md. Does not scan directories automatically."
 allow_implicit_invocation: true

@@ -5,7 +5,12 @@ anchors (code fences, file paths, shell commands, imperative-mood lines),
 penalizes vague directives and length over budget. Same additive scoring
 skeleton as slop_detector.py, different weight table for a different reader
 (a model re-reading its own instructions, not a human skimming a README).
-[adamentwistle/claude-code-tools 차용]
+Concept adapted from adamentwistle/claude-code-tools.
+
+The vague-directive pattern also matches three common Korean vague phrases
+("moderately", "on your own", "depending on the case"); they are written as
+\\u escapes so this file contains no Hangul.
+Output is UTF-8 regardless of the console code page.
 """
 from __future__ import annotations
 
@@ -25,7 +30,7 @@ REWARDS: list[tuple[str, int, re.Pattern]] = [
 ]
 
 PENALTIES: list[tuple[str, int, re.Pattern]] = [
-    ("vague_directive", 2, re.compile(r"\b(적당히|알아서|경우에 따라|as appropriate|as needed|use your judgment)\b", re.I)),
+    ("vague_directive", 2, re.compile(r"(\uc801\ub2f9\ud788|\uc54c\uc544\uc11c|\uacbd\uc6b0\uc5d0 \ub530\ub77c|\b(?:as appropriate|as needed|use your judgment)\b)", re.I)),
 ]
 
 
@@ -72,6 +77,9 @@ def lint_text(text: str) -> dict:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", type=Path)
     parser.add_argument("--json", action="store_true")

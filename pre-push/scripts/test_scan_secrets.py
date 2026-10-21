@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """Regression tests for scan_secrets.py.
 
-Calls scan_lines() directly (no subprocess/perl dependency — sidesteps the
-"python3 resolves to a Windows Store stub" PATH gotcha this harness already
-tracks, per environment-first). Fixtures ported 1:1 from the Perl-era test
-suite, itself built from the adversarial evasion probe
-(~/.claude/.harness/evasion-corpus/pre-push-scan-secrets.md, 2026-07-16) —
+Calls scan_lines() directly (no subprocess/perl dependency). Fixtures ported 1:1 from the
+Perl-era test suite, itself built from an adversarial evasion probe --
 every EVASION_NOW_FIXED case used to evade (exit 0) before the v2.2.0
 hardening pass and must now be caught (exit 1). KNOWN_GAP cases are
 deliberately left unfixed (see scan_secrets.py header comment) and must
@@ -31,7 +28,7 @@ def run(fixture: str) -> int:
 CASES = {
     # --- f1: AWS Access Key ID ---
     "f1_control_akia_still_caught": (
-        '+aws_key = "AKIAABCDEFGHIJKLMNOP"', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+aws_key = "AKIAABCDEFGHIJKLMNOP"', 1),  # gitleaks:allow (synthetic test fixture)
     "f1_evasion_now_fixed_asia_prefix": (
         '+aws_access_key_id = "ASIATESTFAKEKEY12345"', 1),
 
@@ -39,11 +36,11 @@ CASES = {
     "f2_control_rsa_still_caught": (
         '+-----BEGIN RSA PRIVATE KEY-----', 1),
     "f2_control_generic_still_caught": (
-        '+-----BEGIN PRIVATE KEY-----', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+-----BEGIN PRIVATE KEY-----', 1),  # gitleaks:allow (synthetic test fixture)
     "f2_evasion_now_fixed_pgp_block": (
-        '+-----BEGIN PGP PRIVATE KEY BLOCK-----', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+-----BEGIN PGP PRIVATE KEY BLOCK-----', 1),  # gitleaks:allow (synthetic test fixture)
     "f2_evasion_now_fixed_pkcs8_encrypted": (
-        '+CONFIG_BLOB = "-----BEGIN ENCRYPTED PRIVATE KEY-----MIIFDjBABgkqhkiG9w0BBQ0w"', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+CONFIG_BLOB = "-----BEGIN ENCRYPTED PRIVATE KEY-----MIIFDjBABgkqhkiG9w0BBQ0w"', 1),  # gitleaks:allow (synthetic test fixture)
     "f2_evasion_now_fixed_ssh2_4dash": (
         '+---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----', 1),
 
@@ -57,24 +54,24 @@ CASES = {
 
     # --- f4a: quoted credential assignment ---
     "f4a_control_password_still_caught": (
-        '+password = "abcdef123456"', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+password = "abcdef123456"', 1),  # gitleaks:allow (synthetic test fixture)
     "f4a_evasion_now_fixed_pwd_keyword": (
         '+db_pwd = "Tr0ub4dor&3xyz9Q"', 1),
     "f4a_evasion_now_fixed_bearer_token_keyword": (
-        '+BEARER_TOKEN="7f3a9c2e8b1d4f6a9e0c3b5d8f2a1c4e"', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+BEARER_TOKEN="7f3a9c2e8b1d4f6a9e0c3b5d8f2a1c4e"', 1),  # gitleaks:allow (synthetic test fixture)
     "f4a_evasion_now_fixed_curly_quotes": (
         '+    cfg.password = “SuperSecretPass123”', 1),
 
     # --- f4b: unquoted credential assignment ---
     "f4b_control_secret_key_still_caught": (
-        '+SECRET_KEY=abc123def456', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+SECRET_KEY=abc123def456', 1),  # gitleaks:allow (synthetic test fixture)
     "f4b_evasion_now_fixed_github_token_keyword": (
-        '+GITHUB_TOKEN=1234567890abcdef1234567890abcdef12345678', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+GITHUB_TOKEN=1234567890abcdef1234567890abcdef12345678', 1),  # gitleaks:allow (synthetic test fixture)
     "f4b_known_gap_prefix_anchor_still_evades": (
         # Deliberately deferred (Lane B): loosening the anchor to tolerate
         # a "MY_"-style prefix risks false-positiving on unrelated names
         # like SECRET_ROTATION_ID. Documented as still-evading, not fixed.
-        '+  MY_SECRET_KEY=zK9pL3mQ8xT2vB7nR4wY6hJ1cF5dS0aG', 0),  # gitleaks:allow (합성 테스트 픽스처)
+        '+  MY_SECRET_KEY=zK9pL3mQ8xT2vB7nR4wY6hJ1cF5dS0aG', 0),  # gitleaks:allow (synthetic test fixture)
 
     # --- f5: Platform tokens (ZWSP normalization) ---
     "f5_control_slack_token_still_caught": (
@@ -84,11 +81,11 @@ CASES = {
 
     # --- f6: Dockerfile ENV/ARG (case-insensitive) ---
     "f6_control_env_uppercase_still_caught": (
-        '+ENV SECRET_KEY=abc123def456', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+ENV SECRET_KEY=abc123def456', 1),  # gitleaks:allow (synthetic test fixture)
     "f6_evasion_now_fixed_env_lowercase": (
-        '+env SECRET_KEY=abc123def456', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+env SECRET_KEY=abc123def456', 1),  # gitleaks:allow (synthetic test fixture)
     "f6_evasion_now_fixed_arg_vs_env": (
-        '+ARG DB_PASSWORD=hunter2ULTRA9x', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+ARG DB_PASSWORD=hunter2ULTRA9x', 1),  # gitleaks:allow (synthetic test fixture)
 
     # --- f8: npm auth token (whitespace tolerant) ---
     "f8_control_no_whitespace_still_caught": (
@@ -102,9 +99,9 @@ CASES = {
     "f9_evasion_now_fixed_homoglyph": (
         '+    ANTHROPIC_KEY = "sk-аnt-api03-abcdefghijklmnopqrstuvwxyz0123456789ABCDEF"', 1),
     "f9_evasion_now_fixed_lookbehind_removed": (
-        '+  curl -H "Authorization: Bearer confsk-UvgAf1EDQZCJHbVL4EHEBv5d180pmfsTdqrJ1nXYnfIG15iH"', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+  curl -H "Authorization: Bearer confsk-UvgAf1EDQZCJHbVL4EHEBv5d180pmfsTdqrJ1nXYnfIG15iH"', 1),  # gitleaks:allow (synthetic test fixture)
     "f9_evasion_now_fixed_sk_svcacct": (
-        '+OPENAI_SVC_KEY = "sk-svcacct-A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6"', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+OPENAI_SVC_KEY = "sk-svcacct-A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6"', 1),  # gitleaks:allow (synthetic test fixture)
     "f9_evasion_now_fixed_xai_prefix": (
         '+    -H "Authorization: Bearer xai-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN" \\', 1),
 
@@ -128,7 +125,7 @@ CASES = {
     # --- Lane B, items 1+3: now fixed (whole-line-reversed re-scan + repeated
     # quote+operator concatenation collapse, both stateless single-line fixes) ---
     "laneb_evasion_now_fixed_runtime_string_reversal": (
-        '+    token = "9876543210ZYXWVUTSRQPONMLKJIHGFEDCBA_phg"[::-1]  # reversed at runtime', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+    token = "9876543210ZYXWVUTSRQPONMLKJIHGFEDCBA_phg"[::-1]  # reversed at runtime', 1),  # gitleaks:allow (synthetic test fixture)
     "laneb_evasion_now_fixed_string_concat_split": (
         '+    aws_key = "AKIA" + "IOSFODNN7EXAMPLE"  # split to dodge contiguous regex', 1),
     "laneb_evasion_now_fixed_string_concat_chain_3way": (
@@ -139,7 +136,7 @@ CASES = {
 
     # --- Sanity: removed lines and benign content stay clean ---
     "sanity_removed_line_not_scanned": (
-        '-aws_key = "AKIAABCDEFGHIJKLMNOP"', 0),  # gitleaks:allow (합성 테스트 픽스처)
+        '-aws_key = "AKIAABCDEFGHIJKLMNOP"', 0),  # gitleaks:allow (synthetic test fixture)
     "sanity_benign_line_stays_clean": (
         '+  print("hello world")', 0),
 
@@ -157,7 +154,7 @@ CASES = {
     "fp_probe_legit_cyrillic_text_stays_clean": (
         '+  welcome_message = "Добро пожаловать"', 0),
     "fp_probe_korean_text_stays_clean": (
-        '+  greeting = "안녕하세요"', 0),
+        '+  greeting = "こんにちは"', 0),
     "fp_probe_zwsp_typo_in_normal_word_stays_clean": (
         '+  na​me = "test"', 0),
     "fp_regression_env_word_in_comment_now_fixed": (
@@ -175,7 +172,7 @@ CASES = {
         # doesn't actually hold a secret. Not fixed here — same family as the
         # deferred f4b prefix-anchor item (see f4b_known_gap_* above).
         # Documented so it isn't mistaken for a new regression later.
-        '+SECRET_ROTATION_ID=abc123def456', 1),  # gitleaks:allow (합성 테스트 픽스처)
+        '+SECRET_ROTATION_ID=abc123def456', 1),  # gitleaks:allow (synthetic test fixture)
 
     # --- same-line allow marker (v2.4.0) ---
     "allow_marker_scan_secrets_same_line": (
@@ -186,6 +183,11 @@ CASES = {
         '+# scan-secrets: allow\n+aws_key = "AKIAABCDEFGHIJKLMNOP"', 1),  # gitleaks:allow
     "allow_marker_does_not_hide_merge_conflict": (
         '+<<<<<<< HEAD  # scan-secrets: allow', 1),
+    # the marker must follow a comment leader; the bare words inside a string do not suppress
+    "allow_marker_text_without_comment_leader_does_not_suppress": (
+        '+aws_key = "AKIAABCDEFGHIJKLMNOP gitleaks:allow"', 1),  # gitleaks:allow
+    "allow_marker_slash_comment_leader": (
+        '+const k = "AKIAABCDEFGHIJKLMNOP"; // scan-secrets: allow', 0),  # gitleaks:allow
 }
 
 
@@ -205,6 +207,36 @@ def main():
             print(f"  {name}: expected exit {expected}, got {actual}")
         sys.exit(1)
     sys.exit(0)
+
+
+def _run_cli(cmd, data):
+    import subprocess
+    return subprocess.run(cmd, input=data, capture_output=True)
+
+
+def test_cli_survives_non_utf8_input_and_prints_utf8():
+    """An undecodable byte must not crash the scanner, and the emoji report must be valid UTF-8
+    whatever the console code page is."""
+    script = str(Path(__file__).parent / "scan_secrets.py")
+    data = b'+note = "caf\xe9"\n+aws_key = "AKIAABCDEFGHIJKLMNOP"\n'  # gitleaks:allow
+    r = _run_cli([sys.executable, "-I", script], data)
+    assert r.returncode == 1, r.stderr
+    r.stdout.decode("utf-8")  # raises if the report is not UTF-8
+    assert b"AWS" in r.stdout
+
+
+def test_perl_scanner_honors_allow_marker():
+    import shutil
+    perl = shutil.which("perl")
+    if not perl:
+        import pytest
+        pytest.skip("perl not installed")
+    script = str(Path(__file__).parent / "scan_secrets.pl")
+    marked = b'+aws_key = "AKIAABCDEFGHIJKLMNOP"  # scan-secrets: allow\n'  # gitleaks:allow
+    bare = b'+aws_key = "AKIAABCDEFGHIJKLMNOP"\n'  # gitleaks:allow
+    r = _run_cli([perl, script], marked)
+    assert r.returncode == 0 and b"[ALLOW] 1" in r.stderr, (r.stdout, r.stderr)
+    assert _run_cli([perl, script], bare).returncode == 1
 
 
 def test_all_cases():

@@ -1,7 +1,7 @@
 {
   "name": "full-audit",
-  "version": "1.0.0",
-  "description": "Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review, anti-false-positive kill-test, persistent coverage map.",
+  "version": "1.1.0",
+  "description": "Exhaustive audit of an entire area (codebase/docs/skills/memory/config): deterministic sweep, content review and rule dry-run (three layers), anti-false-positive kill-test, persistent coverage map.",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

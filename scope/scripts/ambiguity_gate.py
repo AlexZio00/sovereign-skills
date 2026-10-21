@@ -16,6 +16,12 @@ import argparse
 import json
 import sys
 
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 _REQUIRED_QUICK_KEYS = ("function", "boundary", "verification", "assumptions")
 
 
@@ -54,6 +60,9 @@ def quick_gate(scores: dict) -> tuple:
 def full_gate(clarity_scores: list) -> tuple:
     if not clarity_scores:
         raise ValueError("clarity_scores must not be empty")
+    for v in clarity_scores:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not (0 <= v <= 5):
+            raise ValueError(f"each clarity score must be a number within 0-5 inclusive, got {v!r}")
     avg = sum(clarity_scores) / len(clarity_scores)
     return (avg >= 3.5, avg)
 
@@ -120,7 +129,11 @@ def main(argv=None) -> int:
 
 
 def _run_quick(args) -> int:
-    scores = json.loads(args.scores)
+    try:
+        scores = json.loads(args.scores)
+    except json.JSONDecodeError as e:
+        print(json.dumps({"ok": False, "error": f"--scores is not valid JSON: {e}"}, ensure_ascii=False))
+        return 1
     try:
         ok, avg, weakest = quick_gate(scores)
     except ValueError as e:
@@ -131,15 +144,23 @@ def _run_quick(args) -> int:
 
 
 def _run_full(args) -> int:
-    scores = [float(s) for s in args.scores.split(",")]
-    ok, avg = full_gate(scores)
+    try:
+        scores = [float(s) for s in args.scores.split(",")]
+        ok, avg = full_gate(scores)
+    except ValueError as e:
+        print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
+        return 1
     print(json.dumps({"ok": ok, "avg": avg}, ensure_ascii=False))
     return 0
 
 
 def _run_min_items(args) -> int:
-    with open(args.file, encoding="utf-8") as f:
-        text = f.read()
+    try:
+        with open(args.file, encoding="utf-8") as f:
+            text = f.read()
+    except OSError as e:
+        print(json.dumps({"ok": False, "error": f"cannot read {args.file}: {e}"}, ensure_ascii=False))
+        return 2
     print(json.dumps(min_items_check(text, is_new_project=args.new_project), ensure_ascii=False))
     return 0
 

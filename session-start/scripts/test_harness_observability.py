@@ -195,6 +195,41 @@ def _rejection_rate_invalid_period():
     return hobs.cmd_rejection_rate(types.SimpleNamespace(period="not-a-period")) == 1
 case("cmd_rejection_rate invalid --period returns exit 1", _rejection_rate_invalid_period)
 
+# 11. interventions: the writer's `rule_reference` field is read (older `l0_clause` still accepted)
+def _rule_reference_load():
+    conn = _tmp_conn()
+    path = _tmp_jsonl([
+        {"ts": "t", "date": "2026-07-01", "type": "correction", "rule_reference": "rules/a.md"},
+        {"ts": "t", "date": "2026-07-02", "type": "correction", "l0_clause": "legacy-clause"},
+    ])
+    hobs.load_interventions_month(conn, path, "2026-07")
+    got = [r[0] for r in conn.execute("SELECT rule_reference FROM interventions ORDER BY date")]
+    os.unlink(path)
+    return got == ["rules/a.md", "legacy-clause"]
+case("interventions rule_reference read, l0_clause alias kept", _rule_reference_load)
+
+# 12. an older cache with the l0_clause column is renamed in place
+def _old_column_migrates():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE interventions (ts TEXT NOT NULL, date TEXT NOT NULL, month TEXT NOT NULL,"
+                 " session_id TEXT, type TEXT, skill TEXT, agent TEXT, model TEXT, l0_clause TEXT, context TEXT)")
+    hobs.ensure_schema(conn)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(interventions)")]
+    return "rule_reference" in cols and "l0_clause" not in cols
+case("old l0_clause column is renamed to rule_reference", _old_column_migrates)
+
+# 13. receipts: branch/commit are read from the writer's nested `subject` object
+def _receipt_subject():
+    conn = _tmp_conn()
+    path = _tmp_jsonl([{"receiptId": "r1", "sessionId": "s1", "family": "checkpoint",
+                        "createdAt": "2026-07-01T00:00:00Z", "sha256": "abc",
+                        "subject": {"cwd": "/p", "branch": "main", "commit": "abc1234"}}])
+    hobs.load_receipts_month(conn, path, "2026-07")
+    row = conn.execute("SELECT branch, commit_sha FROM receipts").fetchone()
+    os.unlink(path)
+    return row == ("main", "abc1234")
+case("receipts branch/commit read from subject", _receipt_subject)
+
 def main():
     fails = []
     for name, fn in CASES:

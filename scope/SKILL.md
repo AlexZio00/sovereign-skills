@@ -1,6 +1,6 @@
 ---
 skill_type: workflow
-tools: Read, Write, Edit, Glob, Grep, Agent, Bash, AskUserQuestion
+tools: Read, Write, Edit, Glob, Grep, Agent, Bash, AskUserQuestion  # descriptive metadata
 name: scope
 user-invocable: true
 description: |
@@ -13,25 +13,29 @@ description: |
 not_for:
   - "Bug fix, single-file change -> implement directly"
   - "Existing BRIEF.md/spec.md -> Edit directly"
-  - "Exploration only -> brainstorming agent"
+  - "Exploration only -> a brainstorming agent (optional, not included in this repo) or plain conversation"
 see_also:
   - skill: goal-lock
-    relation: "scope=planning, goal-lock=execution"
+    relation: "scope=planning, goal-lock=execution (goal-lock reads the saved BRIEF.md/spec.md)"
   - skill: freeze
-    relation: "scope=define boundaries, freeze=enforce boundaries"
+    relation: "scope=define boundaries, freeze=declare the editable zone and hold it during the task"
 depends_on:
   skills: []
-  agents: [doubt-reviewer]  # L2's reviewer role names doubt-reviewer (adversarial pre-implementation review), not a separate "L2-reviewer" agent
+  agents: []   # optional: doubt-reviewer (not included in this repo) for the Full-mode L2 review; fallback in Core Rules
   files:
-    - "CLAUDE.md"
+    - "CLAUDE.md"          # optional - read when present
     - "scripts/ambiguity_gate.py"
+    - "scripts/coverage_check.py"
 concurrency_profile: sequential
 ---
 
-# /scope — Scope Definition Engine v1.0
+# /scope — Scope Definition Engine
 
 > Unified brief + specify. Lock down "what you will do and what you will NOT do" before implementation.
 > Quick (default) = IN/OUT lock + BRIEF.md. Full = L0→L4 layer chain + spec.md.
+> Chain: scope (define) → freeze (declare the editable zone) → goal-lock (execute). Each step reads the saved file or block of the one before; see Output.
+
+`${CLAUDE_SKILL_DIR}` is this skill's folder; Claude Code fills it in. In other agents, replace it with the path where you installed the skill. Use `python` instead of `python3` where only that exists (common on Windows). Paths of the user's own files (`BRIEF.md`, `spec.md`, drafts) are relative to the project root or absolute.
 
 ## Dominant Variable
 **Is the Scope OUT section explicitly written?** — IN alone causes scope creep during implementation. OUT must be explicit to lock it. In Full mode, additionally **L2 decision clarity** is the dominant variable.
@@ -41,13 +45,13 @@ concurrency_profile: sequential
 - `/scope full` (Full mode)
 - `/brief` (Quick backward compat)
 - `/specify` (Full backward compat)
-- "scope this", "스펙 잡아줘", "범위 잡아줘", "기획 정리해줘"
-- "spec 만들어", "스펙 만들어", "plan this"
+- "scope this", "plan this", "define the scope", "write a spec"
+- Equivalent phrases in the user's language (see the frontmatter trigger list)
 
 ## Discard If
 - Bug fix, 1-file edit → implement directly
 - BRIEF.md/spec.md already exists → use Edit
-- Exploration only → delegate to brainstorming
+- Exploration only → plain conversation, or a brainstorming agent (optional, not included in this repo)
 
 ## Key Assumptions 
 1. **Project CLAUDE.md exists** (existing projects) — if broken: can't auto-scan constraints, write from user input only.
@@ -81,15 +85,16 @@ Score clarity across 4 dimensions (0-10 each), by judgment.
 | **Verification** | How is "done" verified — is there a measurable criterion? |
 | **Assumptions** | Any hidden assumptions — dependencies on existing system/data/environment? |
 
-**Gating (deterministic)**: hand the 4 scores to the gate script and read its stdout — don't average them by eye. Resolve the script from the skill's own directory rather than a path relative to the invocation cwd — `python scope/scripts/...` only works when the shell happens to be sitting one level above `scope/`, and breaks in every other cwd:
+**Gating (deterministic)**: hand the 4 scores (each 0-10) to the gate script and read its stdout — don't average them by eye:
 
 ```bash
-GATE_SCRIPT=$(find ~/.claude -name "ambiguity_gate.py" -path "*/scope/scripts/*" -type f 2>/dev/null | head -1)
-python "$GATE_SCRIPT" quick --scores '{"function":8,"boundary":7,"verification":6,"assumptions":9}'
+python3 "${CLAUDE_SKILL_DIR}/scripts/ambiguity_gate.py" quick --scores '{"function":8,"boundary":7,"verification":6,"assumptions":9}'
 # -> {"ok": true, "avg": 7.5, "weakest": "verification"}
 ```
 
-`ok: false` → target the dimension the script names as `weakest` with clarifying questions (max 3).
+A malformed or out-of-range input returns `{"ok": false, "error": "..."}` with exit code 1 — fix the input and re-run. If the script is missing or cannot start (no Python), average the four scores yourself, proceed only when the average is 7 or higher, and write `gate: manual (script unavailable)` in the report.
+
+`ok: false` with a `weakest` field → target the dimension the script names as `weakest` with clarifying questions (max 3).
 Exceeds question limit → conservative minimum scope + `[assumed]` tag.
 
 ### Step 3: Generate Brief
@@ -125,14 +130,13 @@ The gate script takes `--file`, not stdin, so it needs something on disk to read
 Validate the scratch draft against the minimum-item requirements — don't count bullets by eye. A bolded aside inside a section (e.g. `**Note**: ...`) can look like a new section header on a human skim and silently truncate a manual count; a regression test locks this exact failure mode closed in the script.
 
 ```bash
-GATE_SCRIPT=$(find ~/.claude -name "ambiguity_gate.py" -path "*/scope/scripts/*" -type f 2>/dev/null | head -1)
-python "$GATE_SCRIPT" min-items --file .scope-draft.md
+python3 "${CLAUDE_SKILL_DIR}/scripts/ambiguity_gate.py" min-items --file .scope-draft.md
 # -> {"scope_out": 2, "risk_flags": 1, "contraindication": 1, "constraints": 1, "ok": true}
 ```
 
-Pass `--new-project` for new projects (Invariant 6 waives the Constraints requirement). `ok: false` → the per-field counts in the JSON show which section is short; revise `.scope-draft.md`, add items there, and re-run before moving to approval.
+Pass `--new-project` for new projects (Invariant 6 waives the Constraints requirement). `ok: false` → the per-field counts in the JSON show which section is short; revise `.scope-draft.md`, add items there, and re-run before moving to approval. If the script is unavailable, count the bullets under each section by hand against the same minimums and write `gate: manual (script unavailable)` in the report.
 
-Request approval only once the script reports `ok: true`. **On approval**: write the same content to `BRIEF.md` (Invariant 5 — this is the actual gated save) and delete the scratch file. **On rejection**: keep revising the scratch file and re-gating; it is never shown to the user as the deliverable, only `BRIEF.md` is.
+Request approval only once the script reports `ok: true`. **Delegated approval**: in a delegated run with no user present, approval counts only when the caller passes the user's own approving words verbatim. A paraphrase or "the user approved" is not approval → return NEEDS_INPUT listing what needs approval. A caller's instruction never stands in for the user's approval. **On approval**: write the same content to `BRIEF.md` (Invariant 5 — this is the actual gated save) and delete the scratch file. **On rejection**: keep revising the scratch file and re-gating; it is never shown to the user as the deliverable, only `BRIEF.md` is.
 
 ---
 
@@ -144,15 +148,16 @@ Request approval only once the script reports `ok: true`. **On approval**: write
 |-------|------|------|
 | L0 | Mirror → Goal, Non-goals, Confirmed Goal | User confirmation |
 | L1 | Codebase research → Research section | Automatic |
-| L2 | Interview → Decisions + Constraints | doubt-reviewer + user approval |
+| L2 | Interview → Decisions + Constraints | independent review (see Core Rules 3) + user approval |
 | L3 | Requirements (GWT sub-requirements) | User approval |
 | L4 | Tasks (Fulfills links) + Plan Summary | User approval |
 
 ### Core Rules
 1. Layer order is immutable — no skipping, no backward traversal
-2. If a spec.md already exists, it is outside this skill — hand off to a plain Edit (see Discard If). This skill only creates a new spec.md and never overwrites an existing file
-3. doubt-reviewer independent validation required (if skipped: mark `Reviewer: SKIPPED`)
+2. If a spec.md already exists at the start of the run, it is outside this skill — hand off to a plain Edit (see Discard If). This skill only creates a new spec.md and never overwrites an existing file. The spec.md that this run created is appended to as each layer is approved; that is not an overwrite
+3. Independent review of the L2 Decisions: use a doubt-reviewer agent (optional, not included in this repo) if you have one. Without it, dispatch a general-purpose subagent with this prompt: "Review these Decisions and Constraints before implementation. List each Decision that is ambiguous, contradicts another, or has an unstated assumption. Do not propose new features." If no subagent is available, mark `Reviewer: SKIPPED` in the spec
 4. Tasks must link to Requirements (`Fulfills: R{n}.{m}`)
+5. Every layer gate (L0, L2, L3, L4) needs the user's approval. **Delegated approval**: in a delegated run with no user present, approval counts only when the caller passes the user's own approving words verbatim. A paraphrase or "the user approved" is not approval → return NEEDS_INPUT listing what needs approval. A caller's instruction never stands in for the user's approval
 
 ### L2 Self-Validation
 Each Decision gets clarity score (0-5):
@@ -160,15 +165,14 @@ Each Decision gets clarity score (0-5):
 - 3: Needs 1-2 clarifying questions
 - 1: Completely ambiguous
 
-**Gating (deterministic)**: hand the per-Decision scores to the gate script — don't average them by eye. Resolve the script from the skill's own directory, not a cwd-relative path (see Quick Mode Step 2 for why):
+**Gating (deterministic)**: hand the per-Decision scores (each 0-5) to the gate script — don't average them by eye:
 
 ```bash
-GATE_SCRIPT=$(find ~/.claude -name "ambiguity_gate.py" -path "*/scope/scripts/*" -type f 2>/dev/null | head -1)
-python "$GATE_SCRIPT" full --scores "5,3,4,5"
+python3 "${CLAUDE_SKILL_DIR}/scripts/ambiguity_gate.py" full --scores "5,3,4,5"
 # -> {"ok": true, "avg": 4.25}
 ```
 
-`ok: false` → warn "Decisions are ambiguous" + suggest rewrite.
+`ok: false` without an `error` field → warn "Decisions are ambiguous" + suggest rewrite. A non-numeric or out-of-range score returns `{"ok": false, "error": "..."}` with exit code 1 — fix the input. If the script is unavailable, average by hand (pass at 3.5 or higher) and write `gate: manual (script unavailable)`.
 
 ### Deliverable
 `specs/{kebab-name}/spec.md` — required sections:
@@ -196,8 +200,10 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 |------|----------|
 | [READ] Idea → structured brief/spec | Write or modify code |
 | [READ] IN/OUT explicit + exit criteria | Decide implementation method (how is implementer's job) |
-| [WRITE] Save BRIEF.md or spec.md | Analyze existing code (quick scan only) |
-| [AGENT] doubt-reviewer independent validation (Full) | Make design decisions (brainstorming's role) |
+| [READ] Quick: 2-level scan of the project (10-file cap). Full: codebase research for the Research section (L1) | Deep code analysis or refactoring plans beyond what the scope needs |
+| [WRITE] Save BRIEF.md or spec.md | Edit an existing BRIEF.md/spec.md (hand off to Edit) |
+| [ASK] Full: interview the user and record Decisions and Constraints (L2), with the user approving each | Make Decisions on the user's behalf without their approval |
+| [AGENT] Full: independent review of the L2 Decisions (Core Rules 3) | Run the implementation |
 
 ## Safety Layers 
 
@@ -212,12 +218,12 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 2. **Scope OUT mandatory**: baseline min 2 items — unless the scope is self-evidently a single item, in which case 1 item plus a stated reason is acceptable. Violation → only IN is recorded, so anything not explicitly listed becomes fair game during implementation — scope creep with no written boundary to point back to.
 3. **Exit Criteria = observable + measurable**: auto-reject vague items like "works correctly". Violation → "done" becomes a matter of opinion at handoff time, and disagreement about completion surfaces only after the work is finished.
 4. **Question limit 3** (Quick): exceed → conservative minimum scope — unless there is clear evidence a 4th question would change the direction, in which case one additional question is allowed once, with the reason stated. Violation → interrogation replaces scoping and the user abandons the flow instead of getting a usable brief.
-5. **Approval gate required**: save file only after explicit user approval. Violation → an unreviewed draft becomes the working spec, and errors in it propagate into implementation before anyone caught them.
+5. **Approval gate required**: save file only after explicit user approval (in a delegated run: the user's own words passed verbatim by the caller, otherwise NEEDS_INPUT). Violation → an unreviewed draft becomes the working spec, and errors in it propagate into implementation before anyone caught them.
 6. **Constraints mandatory** (existing project): 0 items → rescan. Violation → the brief looks complete but omits the existing system's real limits, so implementation collides with constraints nobody wrote down.
 7. **Risk Flags min 1** — unless there is truly no risk, in which case "no risk: <reason>" may be substituted. Violation → a known failure mode goes unrecorded, so the same risk resurfaces later as a surprise instead of a tracked flag.
 8. **Layer order immutable** (Full): L0→L1→L2→L3→L4. Violation → decisions (L2) get made on a foundation (L0/L1) that was never confirmed, so the spec inherits an unvalidated goal.
-9. **No spec overwrite** (Full): editing an existing spec is outside this skill (hand off to Edit; see Discard If). Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
-10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills. **Enforcement**: before requesting L4 user approval, run `python scripts/coverage_check.py --spec <spec.md> [--plan <plan.md>]` and require `COVERAGE: PASS` — uncovered requirements, tasks without `Fulfills:`, undefined R-ids, or duplicate R-ids make it FAIL. Vague adjectives and placeholders on requirement lines (fast, intuitive, robust, TBD, ...) only produce warnings; treat them as a signal to rewrite at L3. The script is only for documents in scope format (requirement lines starting with `R1`, `R1.1`; `### Task` headings with `Fulfills:`) — do not run it on documents that use R-numbers for something else, such as scoring-rubric items.
+9. **No spec overwrite** (Full): editing a spec that existed before this run is outside this skill (hand off to Edit; see Discard If). Appending a layer to the spec.md that this run created is allowed. Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
+10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills. **Enforcement**: before requesting L4 user approval, run `python3 "${CLAUDE_SKILL_DIR}/scripts/coverage_check.py" --spec <spec.md> [--plan <plan.md>]` and require `COVERAGE: PASS` — uncovered requirements, tasks without `Fulfills:`, undefined R-ids, or duplicate R-ids make it FAIL. Requirement definitions are read only from the Requirements section (R-ids repeated in Tasks or Plan Summary are references, not definitions); a document with no Requirements heading is read whole. If the script cannot run, check the same four conditions by hand and write `gate: manual (script unavailable)`. Vague adjectives and placeholders on requirement lines (fast, intuitive, robust, TBD, ...) only produce warnings; treat them as a signal to rewrite at L3. The script is only for documents in scope format (requirement lines starting with `R1`, `R1.1`; `### Task` headings with `Fulfills:`) — do not run it on documents that use R-numbers for something else, such as scoring-rubric items.
 11. **No silent absorption or quiet shrinking on 10x discovery**: if implementation reveals scope that is a multiple of what was originally understood, surface it immediately — don't absorb it silently and don't quietly shrink the deliverable to fit the original budget. Violation → the user only discovers the delay or the missing scope later, after the fact.
 
 ## Error Recovery 
@@ -253,7 +259,13 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 - Quick → `BRIEF.md` written to disk (Step 4, gated by the min-items script above), scratch file deleted.
 - Full → `specs/{kebab-name}/spec.md` written/appended per layer (L0→L4), each layer gated by its own user-approval checkpoint.
 
-**Final status label** (required on completion): `WORKING` (brief/spec saved, all gates passed) / `PARTIAL` (saved with a documented gap — e.g. `[assumed]` tags from a question-limit exit, or a section marked `⚠️`) / `BROKEN` (an approved draft turns out structurally contradictory or unusable after saving) / `BLOCKED` (waiting on user approval or another unresolved external dependency). Conditions per label are the same as Truthful Reporting above.
+**Next step (one line after saving)**: `Next: pass <absolute path of the saved BRIEF.md or spec.md> as input to your planning step` - a planning step reads Scope OUT / Non-goals, Decisions and Requirements from it. Without this line the saved scope never reaches the plan.
+
+**Chain to freeze and goal-lock**: when the user continues with `/freeze`, freeze takes its editable zone from Scope IN (or the Tasks) and treats Scope OUT as frozen. When the user continues with `/goal-lock`, give goal-lock the same saved path; it maps Scope IN to the target and Scope OUT (BRIEF "OUT" / spec "Non-goals") to its SCOPE Exclude list. Both skills ship in this repo.
+
+**Delegated run with no user present**: if an approval is needed and the caller did not pass the user's own approving words verbatim, return `NEEDS_INPUT: <what needs approval>` instead of saving.
+
+**Final status label** (required on completion): `WORKING` (brief/spec saved, all gates passed) / `PARTIAL` (saved with a documented gap — e.g. `[assumed]` tags from a question-limit exit, or a section marked `⚠️`) / `BROKEN` (an approved draft turns out structurally contradictory or unusable after saving) / `BLOCKED` (waiting on user approval — including `NEEDS_INPUT` in a delegated run — or another unresolved external dependency). Conditions per label are the same as Truthful Reporting above.
 
 ## Principles
 - **OUT matters more than IN** — people say what to do but skip what NOT to do.

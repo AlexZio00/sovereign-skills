@@ -7,16 +7,16 @@ not_for:
   - "Single file 1-line fix"
 see_also:
   - skill: scope
-    relation: "scope=planning lock, goal-lock=execution lock"
+    relation: "scope=planning lock, goal-lock=execution lock; goal-lock reads the saved BRIEF.md/spec.md and maps its OUT list to SCOPE Exclude"
   - skill: freeze
-    relation: "freeze=zone freeze, goal-lock=goal loop"
+    relation: "freeze=zone freeze, goal-lock=goal loop; goal-lock reads an active FROZEN SCOPE block and follows freeze's thaw protocol"
   - skill: verification
-    relation: "goal-lock's VERIFY/REFINE loop is implementer self-check, not independent verification — an independent verification pass after FINALIZE is mandatory for any non-trivial code change, not merely recommended"
+    relation: "(optional agent, not included in this repo) goal-lock's VERIFY/REFINE loop is implementer self-check, not independent verification. For a non-trivial code change, run an independent verification pass after FINALIZE if you have one; if not, write 'independent verification: SKIPPED' in OUTPUT"
   - skill: doubt-reviewer
-    relation: "ATTACK Tier-1 reuses doubt-reviewer's trigger conditions and defers to it via S8 rather than dispatching it directly — goal-lock has no sub-agent dispatch of its own (see B5), so the calling session must dispatch doubt-reviewer and resume goal-lock with its verdict"
+    relation: "(optional agent, not included in this repo) ATTACK Tier-1 defers to it via S8; goal-lock does not dispatch agents itself, so the calling session dispatches the reviewer and resumes goal-lock with its verdict"
 ---
 
-# /goal-lock — Agent Discipline Engine v1.0
+# /goal-lock — Agent Discipline Engine
 
 > Lock the goal. Run the loop. Ship clean.
 >
@@ -55,7 +55,7 @@ Missing/contradictory input → STOP. Conflicts → PRIORITY. STOP RULES → hal
 | Mode | Condition | Input Sheet | Loop |
 |------|-----------|-------------|------|
 | **Quick** | 1 file, clear change, ≤10 lines | 3 fields (GOAL/DONE/SCOPE) | DO→VERIFY only |
-| **Full** | Everything else | All 7 fields | B1~B5 full |
+| **Full** | Everything else | 7 fields (+ optional field 8, EVAL TYPE) | B1~B5 full |
 
 User specifies `/goal-lock quick`, or change fits Quick criteria. When unsure, use Full.
 
@@ -64,6 +64,8 @@ User specifies `/goal-lock quick`, or change fits Quick criteria. When unsure, u
 ## [A] GOAL Input Sheet
 
 ### Full Mode (7 fields)
+
+The 7 required fields are: GOAL, DONE EVIDENCE, CONTEXT, STARTING POINT, SCOPE, CONSTRAINTS, BUDGET. BUDGET may say "none given" (never invent one). Field 8, EVAL TYPE, is optional.
 
 ```markdown
 ## GOAL Input Sheet
@@ -92,13 +94,13 @@ found eventually — threshold relaxation, mock wrapping, hardcoding all
 exploit a DONE EVIDENCE that was underspecified to begin with. Check for
 loopholes at design time, especially on long-running or repeated tasks.
 
-**Evidence-Rigor Pre-spec** [borrowed from ultraprompt]: when DONE EVIDENCE
-includes concurrency, benchmark, p99-style statistics, or long-running-process
-claims, pre-check the verification agent's evidence-rigor rules (N≥5 repeats,
-before/after symmetry, evidence-scope matching, flaky-means-new-bug,
-positive-signal-required) and write DONE EVIDENCE to already satisfy them —
-this prevents a later insufficient-evidence rejection at the verify step by
-fixing the design at spec time instead.
+**Evidence-Rigor Pre-spec**: when DONE EVIDENCE includes concurrency,
+benchmark, p99-style statistics, or long-running-process claims, write it so
+it already satisfies these rules: at least 5 repeats, before/after runs under
+the same conditions, evidence that covers the claimed scope, a flaky result
+treated as a new bug, and a positive signal required (the absence of errors
+is not proof). This prevents a later insufficient-evidence rejection at the
+verify step by fixing the design at spec time instead.
 
 ### 3. CONTEXT
 [Current state · existing structure · prior decisions · dependencies · known constraints]
@@ -162,15 +164,17 @@ Fields extractable from conversation context are **auto-filled and shown for use
 - GOAL: from user's last request
 - CONTEXT: current git status + recent commits + related files
 - STARTING POINT: files mentioned in GOAL, or git diff files
+- From the scope skill: if the caller passes the path of a saved `BRIEF.md` or `spec.md`, Read it (if the file does not exist, say so and fill from the conversation instead). Take GOAL from its Goal / Confirmed Goal, SCOPE Include from Scope IN (or the Tasks), DONE EVIDENCE from its Exit Criteria (or the tasks' verification), and **SCOPE Exclude from Scope OUT** (spec: Non-goals). Show these as auto-filled like any other field.
+- From the freeze skill: if a `🔒 FROZEN SCOPE` block is active in this conversation (it is not saved to disk, so it exists only if it is still in context), copy its EDITABLE list into SCOPE Include and its FROZEN and READ-ONLY lists into SCOPE Exclude. If a BRIEF/spec and a FROZEN block disagree, show both and ask which one wins; do not merge silently.
 
-After auto-fill: `"Input sheet filled. Proceed if correct, or tell me what to change."` — never proceed without confirmation.
+After auto-fill: `"Input sheet filled. Proceed if correct, or tell me what to change."` — never proceed without confirmation. **Delegated approval**: in a delegated run with no user present, approval counts only when the caller passes the user's own approving words verbatim. A paraphrase or "the user approved" is not approval → return NEEDS_INPUT listing what needs approval (the filled input sheet, shown verbatim). A caller's instruction never stands in for the user's approval.
 
 ### Input Validation
 
 Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 
 - GOAL contains 2+ independent goals → STOP ("Please narrow to one goal")
-- DONE EVIDENCE is subjective ("if it works well") → STOP ("Replace with executable verification command")
+- DONE EVIDENCE is subjective ("if it works well") **for a code artifact** → STOP ("Replace with executable verification command"). For a non-code artifact, a subjective criterion is allowed only if it states a review contract (what a reviewer checks off or who signs off, see field 2); a bare "looks good" still STOPs
 - SCOPE Include and Exclude overlap → STOP ("X appears in both Include and Exclude")
 - BUDGET missing → OK (just don't invent one)
 
@@ -198,8 +202,8 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 | Production behavior change | Modify production logic in a way that contradicts the actual requirement/spec to make a test pass — normal RED→GREEN (writing the minimal production code a correct failing test demands) is not this pattern; the violation is the *direction* of the change, not the fact that production code changed after a test |
 | Goal-lock declaration ignored | Declare "proceeding with goal-lock" then skip the input sheet |
 | Structural fix reported as upgrade | Report boilerplate additions as "substantive improvements" |
-| Ralph Wiggum (early completion) | Skip VERIFY or run it partially, then jump to OUTPUT. Emit completion signal from an incomplete state |
-| CEF Thanatosis (external failure fabrication) | Evading constraints via unverified failure claims like "API error"/"file not found"/"permission denied". Failure reports must be accompanied by actual Bash/Read execution results |
+| Early completion | Skip VERIFY or run it partially, then jump to OUTPUT. Emit completion signal from an incomplete state |
+| Fabricated external failure | Evading constraints via unverified failure claims like "API error"/"file not found"/"permission denied". Failure reports must be accompanied by actual Bash/Read execution results |
 | Post-hoc abstention | Execute an irreversible action first, then declare "failed"/"on hold" after the fact. Abstention judgment is only valid before the commit-point gate — declaring it after the action has already landed is still success masquerading |
 | Layer laundering | Narrating a unit-test pass as if it proves the user-facing feature actually works — laundering one evidence layer as a higher one |
 | Silent self-correction | On an EVAL TYPE=yes task, quietly re-running DONE EVIDENCE multiple times off the record to hide failures, then reporting only the last (passing) run |
@@ -210,9 +214,9 @@ Any of 7 fields (Quick: 3) **missing or contradictory → don't guess, STOP.**
 - Go: `t.Skip()`, `//go:build ignore`
 - Rust: `#[ignore]`, `#[should_panic]` misuse
 
-**Judgment-reversal discipline** (arXiv 2608.11624, 2608.21377): when user pushback lands mid-loop, sort it into one of three buckets before reacting — (a) **a new fact** (a new log, a new requirement, a new constraint) → incorporate it, (b) **a pointed-out reasoning error** (they name which premise or step is wrong) → re-examine that specific point, (c) **pressure or preference with no new information** ("are you sure?", "look again", "that doesn't seem right") → restate your original reasoning once, and if nothing they said actually invalidates a specific premise, **keep the original judgment**. When a judgment does change, log it in OUTPUT as `prior conclusion → new conclusion (reason: ...)`. Reversing a conclusion under pressure alone, with no new information, is success masquerading of the same weight as the patterns above.
+**Judgment-reversal discipline**: when user pushback lands mid-loop, sort it into one of four buckets before reacting — (a) **a new fact** (a new log, a new requirement, a new constraint) → incorporate it, (b) **a pointed-out reasoning error** (they name which premise or step is wrong) → re-examine that specific point, (c) **pressure or preference with no new information** ("are you sure?", "look again", "that doesn't seem right") → restate your original reasoning once, and if nothing they said actually invalidates a specific premise, **keep the original judgment**, (d) **a rejection that the result is not what was asked** ("this isn't it", "that's not what I asked", "redo it") → before treating it as (c), re-read the user's own request wording from this session verbatim and compare it with the result. If your interpretation added something the wording does not contain, that is new information — handle it as (a); if the wording and the result match, handle it as (c) and keep the original judgment. This keeps a wrong interpretation from being locked in as if it were a wrong judgment. When a judgment does change, log it in OUTPUT as `prior conclusion → new conclusion (reason: ...)`. Reversing a conclusion under pressure alone, with no new information, is success masquerading of the same weight as the patterns above.
 
-### B1.1 Evidence-Rigor Ladder + Reporting Order [borrowed from ultraprompt]
+### B1.1 Evidence-Rigor Ladder + Reporting Order
 
 **5-tier evidence ladder** — no claim can outrank this ladder:
 `executed (actually observed running) > integration-tested > unit-tested > typed (type-checked only) > reasoned (reasoning only)`
@@ -263,10 +267,9 @@ PLAN → DO → VERIFY(code) → FINALIZE → OUTPUT
 | Chain length | Can the total number of steps/tool calls be cut before optimizing any single step? |
 
 **Chain length as a dominant variable**: reliability tracks step count, not
-just each step's individual correctness. Benchmarks show tool-chain accuracy
-falling from roughly 39% to 13% as chains lengthen, and sequential-turn-depth
-scores dropping from 82.3 to 51.2 over comparable depth increases — longer
-chains fail more often even when every individual step looks reasonable.
+just each step's individual correctness. Published tool-use benchmarks report
+accuracy falling steeply as chains get longer — longer chains fail more often
+even when every individual step looks reasonable.
 Before tuning how a step is done, ask whether it needs to exist at all;
 fewer, more consequential steps beat more, smaller ones.
 
@@ -296,9 +299,9 @@ label says so. An actionable finding sends you back to PLAN for an
 avoidance strategy. Tradeoff/contract-misread findings get logged in
 CONTEXT only. Discard noise.
 
-**Tier-1 (conditional — defer to doubt-reviewer, or an equivalent
-adversarial pre-implementation review skill, instead of judging further
-yourself)**: if GOAL/SCOPE/CONTEXT match any of the following, stop
+**Tier-1 (conditional — defer to a doubt-reviewer agent (optional, not
+included in this repo), or any equivalent adversarial pre-implementation
+reviewer, instead of judging further yourself)**: if GOAL/SCOPE/CONTEXT match any of the following, stop
 self-judging and halt with **S8**: a change to branching or module
 boundaries · a property the type system can't verify · an irreversible
 blast radius · a change to a core parameter · a change to data-collection
@@ -309,13 +312,18 @@ instead: the same approach failing repeatedly is S6's job, and "right
 before declaring a large task complete" is a known gap goal-lock doesn't
 cover by itself — the calling session should judge whether that review is
 warranted at FINALIZE time for large tasks.) goal-lock is a single-process
-skill with no sub-agent dispatch of its own (see B5) — it cannot invoke
-doubt-reviewer directly. The calling session dispatches it and resumes
-goal-lock with the resulting verdict.
+skill with no sub-agent dispatch of its own — it cannot invoke a reviewer
+directly. The calling session dispatches it and resumes goal-lock with the
+resulting verdict. If you have no doubt-reviewer, dispatch a general-purpose
+subagent with this prompt: "Attack this plan before it is implemented. List
+each way it could fail, each assumption it depends on, and anything
+irreversible. Do not propose new features." If no subagent is available,
+tell the user which S8 condition matched and ask whether to proceed.
 
 **First-Attempt Ledger**: before making any changes, run the DONE EVIDENCE
 command once and record the raw result under a `## First run (raw)` field in
-`.goal-lock-progress.md`. Root-causing, fixing, and re-running proceed as
+`.goal-lock-progress.md` (a scratch file in the project root; this step
+creates it if it does not exist; see B5 for its lifecycle). Root-causing, fixing, and re-running proceed as
 normal after that. OUTPUT reports the first-run result side by side with the
 final result — hiding the first failure and reporting only the final pass is
 success masquerading.
@@ -357,7 +365,7 @@ EVIDENCE while GOAL remains unmet is still a FAIL.
 Items not verified: `NOT RUN: {label}` using the failure-label enum below,
 plus a one-line detail. Never "it should be fine."
 
-**GroundEval**: verify that verification tool calls **actually executed**. If the OUTPUT claims "tests passed" but no `pytest`/`npm test` Bash call exists in the tool history, the claim is ungrounded. Every verification claim in OUTPUT must trace back to an actual tool invocation.
+**Grounding check**: verify that verification tool calls **actually executed**. If the OUTPUT claims "tests passed" but no `pytest`/`npm test` Bash call exists in the tool history, the claim is ungrounded. Every verification claim in OUTPUT must trace back to an actual tool invocation.
 
 **Failure-label enum**: when a verification claim can't be grounded,
 classify it with one of these fixed labels instead of a free-text reason —
@@ -405,7 +413,7 @@ validated through a self-review loop.
 
 #### FINALIZE
 - After goal achieved, **no additional refactoring.**
-- Clean up: temp code, debug prints, failed experiments, junk files.
+- Clean up: temp code, debug prints, failed experiments, junk files. Delete `.goal-lock-progress.md` once the final status is WORKING (keep it for PARTIAL, BROKEN or BLOCKED so the run can resume). Never commit it.
 - Before reporting: **re-check scope + verification** — didn't touch Exclude, met DONE EVIDENCE.
 - **Comprehension check**: can the key change be explained in one sentence?
   If not, flag `⚠️ High complexity — review recommended` in OUTPUT. Code you
@@ -418,9 +426,10 @@ validated through a self-review loop.
 **Changed files**: [list]
 **Key changes**: [what and why]
 **Completion evidence**: [commands run + results] or [REFINE: original→rewrite DELTA summary]
-**Verification tool calls**: [actual tools invoked during VERIFY — GroundEval principle] or [REFINE: 3 CRITIQUE weaknesses + REWRITE fixes]
+**Verification tool calls**: [actual tools invoked during VERIFY — grounding check] or [REFINE: 3 CRITIQUE weaknesses + REWRITE fixes]
 **Verification**: [passed/failed/not run — each with reason] or [REFINE: adopted/kept original/uncertain]
 **Risks/trade-offs**: [if any]
+**Rejected root-cause candidates**: [required for bug-fix and debugging runs — one line per candidate with the evidence (observation or command) that rejected it; if there was only one candidate, write "single candidate — alternatives not examined"]
 **Remaining known issues**: [if any]
 **Follow-up work**: [if any]
 
@@ -440,12 +449,12 @@ validated through a self-review loop.
 |---|-----------|--------|
 | S1 | Goal splits into 2+ independent goals | "Goal is branching. Which one first?" |
 | S2 | Input missing/contradictory | Specify exactly what's ambiguous |
-| S3 | Need to change SCOPE Exclude area | "Need to modify X but it's Excluded. Allow?" |
+| S3 | Need to change SCOPE Exclude area | "Need to modify X but it's Excluded. Allow?" If a `🔒 FROZEN SCOPE` block is active and X is in its FROZEN or READ-ONLY list, do not just ask "Allow?": follow freeze's thaw protocol: state the reason, give the blast radius, and re-emit the FROZEN SCOPE block with X moved to EDITABLE once the user agrees in their own words. Update SCOPE Include/Exclude to match. If the freeze skill is not installed, show the same three items (reason, blast radius, updated zone lists) yourself |
 | S4 | Destructive / external side effect needed | "DB deletion/API call/push needed. Proceed?" |
 | S5 | Insufficient confidence in root cause **after** the PLAN GATE discriminating check | "Not sure if cause is A or B" |
 | S6 | Same blocker repeated (2+ times) — stagnation circuit breaker | Ask one question before escalating: "Is this repetition a problem with how DO is attempting it, or was the GOAL input sheet (GOAL / DONE EVIDENCE / SCOPE) set up wrongly from the start?" If it looks like an **execution error** (approach problem), report "Same problem repeating. Need to change the DO approach" and escalate to a human. If it looks like a **design error** (the input sheet itself), report "This repetition looks like a problem with the GOAL input sheet design, not the execution approach — the input sheet needs rewriting" and propose rewriting the input sheet to a human instead of retrying DO. In both cases there is no auto-retry. **What counts as a repeat**: count a repeat only when the command, input, working tree and environment are unchanged and no new information arrived. If the cause is outside the code (missing dependency or command, permissions, service down, port in use, auth, disk), report it separately as an **environment error** — distinct from execution and design errors — and give the human one command to run instead of retrying source edits. A timeout or forced kill is not automatically classified as an environment error |
-| S7 | Already aware that execution evidence (a deterministic oracle — a failing test, a broken existing contract) contradicts an explicit user instruction — an awareness-is-not-resistance response [borrowed from Blind Obedience 07385] | STOP before forcing the implementation through: "The instruction contradicts execution evidence: [evidence]. Proceed anyway?" Even after approval, do not paper over it with a later self-directed autonomous fix (a Ghost Error cannot be recovered by iterative post-hoc correction) — report the outcome exactly as it is |
-| S8 | ATTACK Tier-1 matches one of its six escalation conditions | "This change is a candidate for adversarial pre-implementation review: [matching condition]. Dispatch doubt-reviewer (or equivalent), then resume with its verdict (proceed / revise first / escalate)." If the user explicitly says "just proceed," continue on the Tier-0 result alone — that's an intentional override, not a bypass |
+| S7 | Already aware that execution evidence (a deterministic oracle — a failing test, a broken existing contract) contradicts an explicit user instruction, and you would otherwise comply anyway | STOP before forcing the implementation through: "The instruction contradicts execution evidence: [evidence]. Proceed anyway?" Even after approval, do not paper over it with a later unrequested autonomous fix (an error you knowingly built in is not repaired by quiet after-the-fact corrections) — report the outcome exactly as it is |
+| S8 | ATTACK Tier-1 matches one of its six escalation conditions | "This change is a candidate for adversarial pre-implementation review: [matching condition]. Dispatch a reviewer (a doubt-reviewer agent if you have one, otherwise the general-purpose subagent prompt in ATTACK Tier-1), then resume with its verdict (proceed / revise first / escalate). With no reviewer available, ask the user whether to proceed." If the user explicitly says "just proceed," continue on the Tier-0 result alone — that's an intentional override, not a bypass |
 
 > **S7 scope**: "execution evidence" applies only to a code context where a
 > deterministic oracle exists (tests, type checker, an existing API/contract).
@@ -457,10 +466,10 @@ validated through a self-review loop.
 ### B5. Long-running Tasks
 
 - Short status reports at major milestones — separate completed vs incomplete.
-- Save current state in `.goal-lock-progress.md` (session crash protection).
+- Save current state in `.goal-lock-progress.md` in the project root (session crash protection). It is created at the First-Attempt Ledger step and updated at each milestone; FINALIZE deletes it when the final status is WORKING (kept for PARTIAL, BROKEN, BLOCKED so the run can resume). It is a scratch file: never commit it (add it to `.gitignore` or leave it out of `git add`).
 - Resume from last verification point. Never restart from scratch.
 - At BUDGET 80% or extended stall → report status, ask whether to continue.
-- **Early self-doubt boundary**: long-reasoning models have been shown to misjudge remaining budget by up to 24%, triggering premature self-doubt ("I'm probably about to run out") that causes early abandonment or inefficient hedging — measured at -15pp accuracy and +54% token use on eventual success. When a hard counter like `budget.remaining()` is available, trust that measurement over your own felt pressure — don't shrink and quit early when the actual budget is still fine.
+- **Early self-doubt boundary**: long-reasoning models can misjudge how much budget remains, which triggers premature self-doubt ("I'm probably about to run out") and leads to early abandonment or inefficient hedging that costs both accuracy and tokens. When a hard counter is available (for example a token or time meter the harness exposes), trust that measurement over your own felt pressure — don't shrink and quit early when the actual budget is still fine.
 - **Constraint re-echo**: at each BUDGET-80% checkpoint or progress-resume point, echo the GOAL input sheet's CONSTRAINTS/SCOPE-Exclude verbatim, separately from the status report. This is a static check against constraints quietly falling out of view during long tasks as attention shifts to raw progress — a full separate memory agent or a learned injection-timing policy would be overkill for this scale of harness.
 
 ### B5.1 Physical Completion Gate (Stop Hook)
@@ -541,9 +550,7 @@ auto-retries N times with no approval gate between rounds), that continuity
 itself becomes the risk — a wrong assumption, an accumulated
 rationalization, or drift from one round carries straight into the next
 with nothing there to interrupt it. Ralph Mode [the "run fresh agent instances
-in a loop" pattern popularized as the Ralph Wiggum technique; not to be
-confused with the B1 "Ralph Wiggum" masquerading pattern above, which is
-about premature completion signaling, not context isolation] is a
+in a loop" pattern, sometimes called the Ralph Wiggum technique] is a
 structural alternative for exactly that situation.
 
 - **Each round inherits nothing from prior rounds** — no carried-over
@@ -599,7 +606,7 @@ convenient for the agent in the moment.
 ### bug-fix
 ```
 GOAL: Fix [symptom]
-DONE EVIDENCE: Reproduction test → PASS + all existing tests PASS
+DONE EVIDENCE: Reproduction test → PASS + all existing tests PASS + one retry of the same defect through a different input or path than the original trigger → no recurrence (a fix that only blocks the trigger leaves the defect latent — distinguish symptom removal from defect removal)
 SCOPE Exclude: No API signature changes, no new features
 ```
 
@@ -630,7 +637,7 @@ CONSTRAINTS: Existing data must be preserved, destructive changes require approv
 
 | Does | Does NOT |
 |------|----------|
-| Auto-fill input sheet + get user confirmation | Start work without user confirmation |
+| Auto-fill input sheet (from conversation, a saved BRIEF.md/spec.md, an active FROZEN SCOPE block) + get user confirmation | Start work without user confirmation |
 | Enforce PLAN→DO→VERIFY→FINALIZE→OUTPUT loop | Skip loop steps |
 | Halt immediately on STOP RULES | Continue with "probably fine" |
 | Detect and block success masquerading patterns | Design code logic (that's the developer/agent's role) |
@@ -640,11 +647,11 @@ CONSTRAINTS: Existing data must be preserved, destructive changes require approv
 
 1. **DONE EVIDENCE must be actually executed**: Run all items before OUTPUT. "It should pass" is not verification. Violation → unverified code reported as "done."
 
-2. **SCOPE Exclude is absolute**: Need to touch Exclude → S3 STOP. Only proceed after user approval. Violation → unintended changes reach production.
+2. **SCOPE Exclude is absolute**: Need to touch Exclude → S3 STOP. Only proceed after user approval (in a delegated run: the user's own words passed verbatim by the caller, otherwise NEEDS_INPUT). Violation → unintended changes reach production.
 
 3. **Success masquerading detected → OUTPUT PARTIAL/BROKEN**: If B1 pattern found in code, mark that verification as FAIL and downgrade OUTPUT to PARTIAL/BROKEN. Violation → false success report.
 
-4. **Incomplete input sheet → no work**: Any of 7 (Quick: 3) fields missing/contradictory → STOP. Don't guess. Violation → unclear goal → rework.
+4. **Incomplete input sheet → no work**: Any of the 7 required fields (Quick: 3) missing/contradictory → STOP (BUDGET may say "none given"; EVAL TYPE is optional). Don't guess. Violation → unclear goal → rework.
 
 ## Error Recovery
 

@@ -102,6 +102,19 @@ case("CLI quick subcommand runs", lambda: _run_cli(
     ["quick", "--scores", '{"function":8,"boundary":8,"verification":8,"assumptions":8}']).returncode == 0)
 case("CLI full subcommand runs", lambda: _run_cli(["full", "--scores", "5,5,5,5"]).returncode == 0)
 
+case("CLI quick bad JSON gives error JSON, no traceback", lambda: (
+    lambda r: r.returncode == 1 and '"ok": false' in r.stdout and "Traceback" not in r.stderr)(
+    _run_cli(["quick", "--scores", "not-json"])))
+case("CLI full non-numeric scores gives error JSON", lambda: (
+    lambda r: r.returncode == 1 and '"ok": false' in r.stdout and "Traceback" not in r.stderr)(
+    _run_cli(["full", "--scores", "5,x,4"])))
+case("CLI full score above 5 rejected", lambda: (
+    lambda r: r.returncode == 1 and "0-5" in r.stdout)(_run_cli(["full", "--scores", "5,9,4"])))
+case("CLI full negative score rejected", lambda: _run_cli(["full", "--scores", "5,-1"]).returncode == 1)
+case("CLI min-items missing file gives error JSON", lambda: (
+    lambda r: r.returncode == 2 and "Traceback" not in r.stderr)(
+    _run_cli(["min-items", "--file", os.path.join(tempfile.gettempdir(), "no-such-brief-file.md")])))
+
 def _cli_min_items_new_project():
     with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as f:
         f.write(_BRIEF_NEW_PROJECT_NO_CONSTRAINTS)

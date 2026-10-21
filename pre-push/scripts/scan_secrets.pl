@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 # scan_secrets.pl — Deterministic secrets scanner for git diffs
-# Version: 2.1.0
-# Usage: git diff --staged | perl ~/.claude/skills/pre-push/scripts/scan_secrets.pl
+# Usage: git diff --staged | perl scan_secrets.pl   (run from the skill's scripts/ folder or by full path)
 # Exit code: 0 = clean, 1 = issues found
 #
 # Design: scans ONLY added (+) lines to avoid blocking secret removal commits.
@@ -17,6 +16,11 @@ while (<STDIN>) {
   # blocking commits that are REMOVING secrets (that would be counterproductive).
   next unless /^\+/;
   next if /^\+\+\+/;  # skip "+++ b/filename" diff file headers
+
+  # Same-line allow marker (same rule as scan_secrets.py): `scan-secrets: allow` or `gitleaks:allow`
+  # after a comment leader skips credential checks for this one line. Skips are counted and
+  # reported on stderr in END so a marker cannot hide a finding silently.
+  if (m{(?:\#|//|/\*|--|;)\s*(?:scan-secrets:\s*allow|gitleaks:allow)\b}) { $allowed++; next; }
 
   # f1: AWS Access Key ID
   $f1=1 if /AKIA[0-9A-Z]{16}/;
@@ -77,6 +81,7 @@ while (<STDIN>) {
 
 END {
   my $found = 0;
+  print STDERR "[ALLOW] $allowed added line(s) skipped by an allow marker (scan-secrets: allow / gitleaks:allow) - review them in the diff\n" if $allowed;
   if ($f_merge){ print "🚨 CRITICAL: Unresolved merge conflict markers detected\n";                                    $found=1; }
   if ($f1)     { print "🚨 CRITICAL: AWS Access Key ID detected\n";                                                   $found=1; }
   if ($f2)     { print "🚨 CRITICAL: Private key detected\n";                                                         $found=1; }

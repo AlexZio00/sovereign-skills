@@ -23,7 +23,7 @@ happens separately in canary_score.py.
 
 Usage:
   python canary_mix.py select --pool both --n-clean 1 --n-seeded 1 --out <manifest.json> \
-      [--stage-dir <review bundle dir>] [--canaries-dir <pool dir>]
+      [--stage-dir <review bundle dir>] [--canaries-dir <pool dir>] [--ext .md]
 """
 from __future__ import annotations
 
@@ -39,12 +39,26 @@ import shutil
 DEFAULT_CANARIES_DIR = pathlib.Path(__file__).resolve().parent / "canaries"
 
 
-def load_canary_pool(canaries_dir: pathlib.Path) -> dict:
+def normalize_ext(ext: str | None) -> str | None:
+    """"md" and ".md" both mean ".md"; empty means no filter."""
+    if ext is None:
+        return None
+    ext = ext.strip()
+    if not ext:
+        return None
+    return ext if ext.startswith(".") else "." + ext
+
+
+def load_canary_pool(canaries_dir: pathlib.Path, ext: str | None = None) -> dict:
+    """With ext (for example ".md" or "md") only files with that suffix enter the pool - use --ext .md for a docs
+    area and a code suffix for a code area. Sidecar .json files are always excluded."""
+    ext = normalize_ext(ext)
     pool = {"clean": [], "seeded": []}
     for kind in ("clean", "seeded"):
         d = canaries_dir / kind
         if d.is_dir():
-            pool[kind] = sorted(p for p in d.iterdir() if p.is_file() and p.suffix != ".json")
+            pool[kind] = sorted(p for p in d.iterdir() if p.is_file() and p.suffix != ".json"
+                                and (ext is None or p.suffix == ext))
     return pool
 
 
@@ -87,17 +101,26 @@ def write_manifest(selected: list, out_path: pathlib.Path) -> None:
 
 
 def cmd_select(args) -> int:
-    pool = load_canary_pool(pathlib.Path(args.canaries_dir))
+    pool = load_canary_pool(pathlib.Path(args.canaries_dir), ext=args.ext)
     n_clean = 0 if args.pool == "seeded" else args.n_clean
     n_seeded = 0 if args.pool == "clean" else args.n_seeded
     selected = select_canaries(pool, n_clean=n_clean, n_seeded=n_seeded)
+    ext = normalize_ext(args.ext)
     if not selected:
-        print(f"[CANARY-MIX] selected 0 -- pool is empty: {args.canaries_dir}")
+        if ext:
+            print(f"[CANARY-MIX] selected 0 -- no files with suffix {ext} in pool: {args.canaries_dir}")
+        else:
+            print(f"[CANARY-MIX] selected 0 -- pool is empty: {args.canaries_dir}")
         return 2
     if args.stage_dir:
         selected = stage_canaries(selected, pathlib.Path(args.stage_dir))
     write_manifest(selected, pathlib.Path(args.out))
-    print(f"[CANARY-MIX] selected {len(selected)} (clean={n_clean} seeded={n_seeded}) -> {args.out}")
+    got_clean = sum(1 for e in selected if e["kind"] == "clean")
+    got_seeded = sum(1 for e in selected if e["kind"] == "seeded")
+    note = ""
+    if got_clean < n_clean or got_seeded < n_seeded:
+        note = f" [WARN] requested clean={n_clean} seeded={n_seeded}; pool had fewer"
+    print(f"[CANARY-MIX] selected {len(selected)} (clean={got_clean} seeded={got_seeded}){note} -> {args.out}")
     return 0
 
 
@@ -111,6 +134,7 @@ def main(argv=None) -> int:
     p_select.add_argument("--n-seeded", type=int, default=1, dest="n_seeded")
     p_select.add_argument("--out", required=True)
     p_select.add_argument("--stage-dir", default=None, dest="stage_dir")
+    p_select.add_argument("--ext", default=None, help="pool suffix filter; the leading dot is optional (for example .md or md = docs-area canaries)")
     p_select.add_argument("--canaries-dir", default=str(DEFAULT_CANARIES_DIR), dest="canaries_dir")
     p_select.set_defaults(func=cmd_select)
 

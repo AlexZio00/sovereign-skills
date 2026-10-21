@@ -84,6 +84,44 @@ with tempfile.TemporaryDirectory() as td:
     results.append(("9 recall_summary k/n + n<5 unmeasured",
                     summ == {"detected": 1, "total": 2, "unmeasured": True}, summ))
 
+# 10) a trailing :line / :line:col on the finding path still matches; verdict case is ignored
+LOC = [{"kind": "seeded", "path": "/p/s.py", "staged_path": "/run/bundle/module_ab12.py", "defect_id": "d1"},
+       {"kind": "clean", "path": "/p/c.py", "staged_path": "/run/bundle/module_cd34.py"}]
+r = cs.score(LOC, [{"file": "bundle/module_ab12.py:42", "verdict": "confirmed"},
+                   {"file": "/run/bundle/module_cd34.py:7:3", "verdict": " Confirmed "}])
+results.append(("10 :line(:col) suffix + verdict case", r["missed_seeded"] == [] and len(r["fp_on_clean"]) == 1, r))
+r = cs.score(LOC, [{"file": r"C:\run\bundle\module_ab12.py:9", "verdict": "UNCERTAIN"}])
+results.append(("10b non-CONFIRMED with :line still ignored", len(r["missed_seeded"]) == 1, r))
+
+# 11) re-scoring the same manifest does not double-count; a different manifest does count
+with tempfile.TemporaryDirectory() as td:
+    mp = pathlib.Path(td) / "m.json"
+    fp = pathlib.Path(td) / "f.json"
+    lp = pathlib.Path(td) / "sub" / "ledger.jsonl"
+    mp.write_text(json.dumps(MANIFEST), encoding="utf-8")
+    fp.write_text(json.dumps(FINDINGS), encoding="utf-8")
+    a = types.SimpleNamespace(manifest=str(mp), findings=str(fp), skill="full-audit", recall_ledger=str(lp))
+    cs.cmd_score(a)
+    cs.cmd_score(a)
+    n_same = len(lp.read_text(encoding="utf-8").strip().splitlines())
+    mp.write_text(json.dumps(MANIFEST + [{"kind": "seeded", "path": "/canaries/seeded/s3.py", "defect_id": "d3"}]),
+                  encoding="utf-8")
+    cs.cmd_score(a)
+    n_new = len(lp.read_text(encoding="utf-8").strip().splitlines())
+    results.append(("11 ledger dedupe by manifest hash + seeded_id", n_same == 2 and n_new == 5, (n_same, n_new)))
+
+# 12) default ledger path is outside the skill folder; env var overrides it
+import os  # noqa: E402
+here = pathlib.Path(cs.__file__).resolve().parent
+default = cs._default_ledger()
+os.environ["FULL_AUDIT_RECALL_LEDGER"] = str(pathlib.Path(tempfile.gettempdir()) / "x.jsonl")
+try:
+    over = cs._default_ledger()
+finally:
+    del os.environ["FULL_AUDIT_RECALL_LEDGER"]
+results.append(("12 default ledger outside install dir + env override",
+                here not in default.parents and over.name == "x.jsonl", (default, over)))
+
 fails = [r for r in results if not r[1]]
 
 

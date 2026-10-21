@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """handoff_attestation.py — session-handoff-LATEST.md integrity verification (SHA-256)
 plus an evidence-chain receipt log.
 
@@ -23,7 +23,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 
 def _default_paths():
@@ -135,7 +135,7 @@ def _next_seq(receipts_path, session_id, family):
 
 def build_receipt(family, session_id, cwd=None, receipts_path=None):
     cwd = cwd or os.getcwd()
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     created_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     month_key = now.strftime("%Y-%m")
     seq = _next_seq(receipts_path, session_id, family)
@@ -165,7 +165,7 @@ def build_receipt(family, session_id, cwd=None, receipts_path=None):
 def write_receipt(family, session_id, cwd=None, receipts_dir=None):
     receipts_dir = receipts_dir or RECEIPTS_DIR_DEFAULT
     os.makedirs(receipts_dir, exist_ok=True)
-    month_key = datetime.now(UTC).strftime("%Y-%m")
+    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
     receipts_path = os.path.join(receipts_dir, f"{month_key}.jsonl")
     receipt = build_receipt(family, session_id, cwd=cwd, receipts_path=receipts_path)
     with open(receipts_path, "a", encoding="utf-8") as f:
@@ -218,6 +218,9 @@ def verify_receipts(receipts_dir=None, limit=20):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     mode = sys.argv[1] if len(sys.argv) > 1 else "verify"
     if mode == "write-receipt":
         family = sys.argv[2] if len(sys.argv) > 2 else "checkpoint"

@@ -35,7 +35,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 ## Key Assumptions
 
 1. **`session-handoff-LATEST.md` is a hint, not a fact** — parsed results (ts/ctx) are carried over as-is without fact-checking. The generated overview reflects "what each project last reported," not "current ground truth."
-2. **Registry is opt-in** — never pull in unowned projects or auto-scanned directories. Only projects explicitly listed in `projects-registry.md` are in scope. Write exactly one `- name: /abs/path` line per project; a multi-line YAML entry parses silently wrong because the script matches one line at a time.
+2. **Registry is opt-in** — never pull in unowned projects or auto-scanned directories. Only projects explicitly listed in `projects-registry.md` are in scope. Write exactly one `- name: /abs/path` line per project. The script matches one line at a time and accepts only a value that is an absolute path (`/...`, `~/...`, `C:\...` or `C:/...`); any other bullet (a note, a URL, a relative path) is ignored and reported as a `WARN` line on stderr.
 3. **AUTO block generation is fully deterministic** — a regex-based script (`scripts/generate_overview.py`) does all the parsing/rendering, including neutralizing markdown-table-breaking characters in the text it pulls from other projects' handoffs, isolating a single non-UTF-8 handoff file so it can't abort the whole run, and refusing (BLOCKED, no write) instead of guessing when the AUTO marker pair itself is mangled. The model only triggers execution and reports the result — no LLM inference in the parsing/rendering logic itself.
 
 ## Trigger
@@ -47,22 +47,21 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 - Zero registered projects (`projects-registry.md` missing or empty list) → instruct the user to add a project to the registry first, then stop
 - Already run recently with no state change across projects (handoff file mtimes unchanged) → suggest skipping the re-run (not forced — run if the user wants)
 
+File formats (registry, handoff snapshot block, OVERVIEW.md): https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FILE-CONVENTIONS.md
+
 ## Workflow
 
-1. Confirm `~/.claude/projects-registry.md` exists. If missing, return BLOCKED: "registry missing — create it first."
-2. Locate and run this skill's own script (`scripts/generate_overview.py`, no arguments — it uses the default registry/output paths on its own):
+1. Confirm `~/.claude/projects-registry.md` exists. If missing, report BLOCKED: "registry missing — create it with one `- name: /absolute/path` line per project." (The script reports the same thing on stderr and exits 1.)
+2. Run this skill's own script (no arguments — it uses the default registry and output paths on its own):
    ```bash
-   OVERVIEW_SCRIPT=$(find ~/.claude -name "generate_overview.py" -path "*/project-overview/scripts/*" -type f 2>/dev/null | head -1)
-   if [ -n "$OVERVIEW_SCRIPT" ]; then
-     python "$OVERVIEW_SCRIPT"
-   else
-     echo "BLOCKED: generate_overview.py not found under ~/.claude"
-   fi
+   python3 "${CLAUDE_SKILL_DIR}/scripts/generate_overview.py"
    ```
+   `${CLAUDE_SKILL_DIR}` is this skill's folder; Claude Code fills it in. In other agents, replace it with the path where you installed the skill. Use `python` instead of `python3` where only that exists (common on Windows). If the script file is missing or Python cannot start it, report BLOCKED with the error text and stop; do not write `OVERVIEW.md` by hand.
 3. Check the exit code:
    - `0` → report the stdout's first line verbatim to the user. Both `WORKING: N project(s) -> <output>` and `PARTIAL: N project(s) -> <output> (M with no snapshot)` are valid values the script itself produces (it counts the no-snapshot projects and picks the label itself) — don't assume exit 0 always means `WORKING`.
    - `1` → report the stderr `BLOCKED: ...` message verbatim to the user. Never proceed on assumption.
 4. On success, tell the user the `~/.claude/OVERVIEW.md` path.
+5. **Report snapshot age in chat only, never in the file**: compare each project's `Last Update` timestamp in the generated AUTO block with today's date. For every row older than 7 days, report `stale: <name> <N> days ago (ts)`. If a timestamp cannot be read as a date, report `age unknown` for that row. Do not add this as an Age column in `generate_overview.py`: a date-dependent value would make the AUTO block change every day even when the inputs are the same, which breaks Invariant 4 (byte-identical output).
 
 ## Output
 
@@ -76,7 +75,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 |------|----------|
 | [READ] Parse handoff files of registered projects only | Auto-scan directories (e.g. an entire drive) |
 | [WRITE] Overwrite only the `AUTO:START`~`AUTO:END` region of `OVERVIEW.md` | Read/write `STATE.md` — this skill never references STATE.md at all |
-| [READ] Parse only the `ts`/`cx` fields of the `state-snapshot v1` block | Introduce new fields like `status` (planning/dev/ops/paused) |
+| [READ] Parse only the `ts`/`ctx` fields of the `state-snapshot v1` block | Introduce new fields like `status` (planning/dev/ops/paused) |
 | [MANUAL] Run only when the user explicitly triggers it | Auto-wire into existing hooks like session-checkpoint |
 
 ## Safety Layers
@@ -91,7 +90,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 ## Invariants (never violate)
 
 1. **Text outside AUTO markers is always preserved**: if `apply_auto_markers()` alters any text outside the markers, that's a bug. Violation → notes a human wrote directly into OVERVIEW.md get lost on re-run.
-2. **Only scan explicitly registered projects**: never add auto directory-discovery logic to this script. Violation → information about unowned projects leaks into the map (Output Disclosure Boundary violation).
+2. **Only scan explicitly registered projects**: never add auto directory-discovery logic to this script. Violation → information about unowned projects leaks into the map.
 3. **STATE.md is absolutely untouched**: no code path in this skill reads or writes `STATE.md`. Violation → direct Scope Boundary violation, risk of contaminating the cross-project blocker list.
 4. **Idempotency**: re-running with identical input (unchanged registry + handoff files) must produce a byte-identical AUTO block. Violation → undermines the entire "deterministic auto-generation" design goal.
 5. **Cross-project text is data, not markup**: `ts`/`ctx` values come from another project's handoff file and are untrusted — a stray `|` or newline in there must not be allowed to split table columns or break rows. Violation → a single malformed handoff field corrupts the whole table for every other project listed in it.
@@ -100,9 +99,9 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 
 | Failure Type | Detection | Recovery |
 |---------|---------|--------|
-| `missing_data` | `projects-registry.md` missing or empty | Return BLOCKED, instruct user to create/add to the registry |
-| `tool_failure` | Failed to read a specific project's handoff file (permissions/path, or a non-UTF-8 encoding) | Mark only that project as "no snapshot" (or "decode error" for a non-UTF-8 file), continue the rest (partial failure doesn't block the whole run — explicit labeling keeps it transparent per no-silent-brokenness). Final status label becomes `PARTIAL` for that run. |
-| `input_error` | `OVERVIEW.md` has a mangled marker pair (`AUTO:END` appears before `AUTO:START`, either marker is missing/orphaned, or a marker is duplicated — from a manual edit) | Don't crash and don't guess at a splice point. Auto-repairing by appending a fresh pair was tried and found unsafe (external audit, 2026-09): an orphan `AUTO:START` lost the manually-written text sitting after it on the next run, and `AUTO:END`-before-`AUTO:START` kept re-appending a pair on every run (non-idempotent, unbounded growth). Current behavior: raise `MarkerCorruptionError`, write nothing, report `BLOCKED` with the exact marker problem, and let a human fix the markers by hand. |
+| `missing_data` | `projects-registry.md` missing or empty (or holds no valid `- name: /absolute/path` line) | Return BLOCKED (exit code 1, message on stderr), instruct user to create/add to the registry. A project whose handoff file is missing is not an error: its row says "no handoff file". A missing `OVERVIEW.md` is created with a title line and the AUTO block |
+| `tool_failure` | Failed to read a specific project's handoff file (permissions/path, or a non-UTF-8 encoding) | Mark only that project as "no snapshot" (or "decode error" for a non-UTF-8 file; a readable handoff without a snapshot block says "handoff has no state-snapshot block"), continue the rest (partial failure doesn't block the whole run — explicit labeling keeps it transparent per no-silent-brokenness). Final status label becomes `PARTIAL` for that run. |
+| `input_error` | `OVERVIEW.md` has a mangled marker pair (`AUTO:END` appears before `AUTO:START`, either marker is missing/orphaned, or a marker is duplicated — from a manual edit) | Don't crash and don't guess at a splice point. Auto-repairing by appending a fresh pair was tried and found unsafe: an orphan `AUTO:START` lost the manually-written text sitting after it on the next run, and `AUTO:END`-before-`AUTO:START` kept re-appending a pair on every run (non-idempotent, unbounded growth). Current behavior: raise `MarkerCorruptionError`, write nothing, report `BLOCKED` with the exact marker problem, and let a human fix the markers by hand. |
 | `logic_inconsistency` | Integration test finds AUTO block mismatch on re-run | Script regression — revert the commit and re-review the implementation |
 
 ## Truthful Reporting

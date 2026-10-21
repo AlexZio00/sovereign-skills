@@ -3,8 +3,8 @@ for memory/handoff documents.
 
 Adapted from the compound-engineering-plugin's validate-doc-claims.py pattern.
 Two consumers motivated this: session-checkpoint's Key Files path-verification
-step and memory-dream's self-referential completion-claim check, both of which
-previously relied on an agent running Glob/Grep by hand and reporting the
+step and the completion-claim check of memory-dream (an optional skill, not
+included in this repo), both of which previously relied on an agent running Glob/Grep by hand and reporting the
 result in prose. This script gives the same check a fixed exit-code contract
 instead — something a completion claim can point at, rather than trusting the
 prose that describes it.
@@ -136,6 +136,9 @@ def cmd_check_provenance(args) -> int:
 
 
 def main(argv=None) -> int:
+    for _s in (sys.stdout, sys.stderr):
+        if hasattr(_s, "reconfigure"):
+            _s.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="Memory claim validator (paths + provenance)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p_paths = sub.add_parser("check-paths")

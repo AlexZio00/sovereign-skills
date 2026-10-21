@@ -14,11 +14,14 @@ canaries/
   clean/<name>.py            # a real, unremarkable file — nothing wrong with it
   seeded/<name>.py            # a file with exactly one planted defect
   seeded/<name>.json          # sidecar: {"defect_id", "expected_finding_keywords", "category", "note"}
-  recall_ledger.jsonl          # written by canary_score.py — append-only, safe to delete to reset history
 ```
+
+The recall ledger is not stored here. `canary_score.py` writes it to `~/.claude/full-audit/recall_ledger.jsonl` (override with `--recall-ledger` or the `FULL_AUDIT_RECALL_LEDGER` environment variable). It is append-only and safe to delete to reset history.
+
+To use your own pool instead of this bundled one, pass `--canaries-dir <your pool>` to `canary_mix.py select`. Keep your pool in your project, not in the install folder, so a skill update does not erase it.
 
 Rules for adding a pair:
 - The clean file must be something a reviewer could plausibly flag by mistake (real logic, not a stub) — otherwise it's too easy to pass and the false-positive rate it measures is meaningless.
 - The seeded file's name and body must give no hint that it's a planted defect (no `_bad`, `_vuln`, comments admitting the bug, etc.) — a reviewer who can tell which files are canaries isn't being measured under normal conditions.
 - `expected_finding_keywords` should describe the defect's *nature* (e.g. `"hardcoded"`, `"injection"`), never a variable/function name from the source — a keyword copied from the code lets any finding that merely quotes that name count as a "hit" for the wrong reason (see the note in `canary_score.py`).
-- Keep file names unique across the whole pool, not just within `clean/`/`seeded/` — `canary_mix.py --stage-dir` copies by file name and refuses to silently overwrite a collision.
+- File names in the pool are free to repeat or be descriptive: `canary_mix.py --stage-dir` copies each selected file under a random neutral name (`module_<random hex><suffix>`), so the reviewer never sees the pool name. The sidecar must have the same stem as its seeded file. The manifest records both the pool path and the `staged_path`; the reviewer bundle uses only `staged_path`.

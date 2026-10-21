@@ -3,8 +3,12 @@
 Cheap regex/keyword pre-pass for doc-drift's Step 0 -- flags density of
 hedging phrases, hype vocabulary, empty intensifiers, and antithesis
 constructions ("it's not just X, it's Y"). This is a heuristic, not a
-verdict: doc-drift's Invariant 2 (exclude confidence < 80%) still governs
-whether any flagged span becomes a reported finding. [adamentwistle/claude-code-tools 차용]
+verdict: a flagged span becomes a doc-drift finding only with a resolvable
+anchor (Invariant 1), and only at confidence >= 80% (otherwise it goes to the
+UNCERTAIN section, Invariant 2). Concept adapted from
+adamentwistle/claude-code-tools.
+
+Output is UTF-8 regardless of the console code page.
 """
 from __future__ import annotations
 
@@ -43,6 +47,9 @@ def score_text(text: str) -> dict:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", type=Path)
     parser.add_argument("--json", action="store_true")

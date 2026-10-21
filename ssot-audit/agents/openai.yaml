@@ -1,0 +1,3 @@
+name: ssot-audit
+description: "Find where a fact is duplicated or contradicted across files, name the source of truth, and consolidate after approval."
+allow_implicit_invocation: true

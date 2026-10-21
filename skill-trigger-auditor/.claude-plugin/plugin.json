@@ -1,0 +1,12 @@
+{
+  "name": "skill-trigger-auditor",
+  "description": "Audits whether skills, agents and slash commands route correctly and safely: description clarity, collisions, built-in command conflicts, holdout precision/recall, with an optional empirical probe that measures real Skill tool calls.",
+  "version": "1.0.0",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT"
+}

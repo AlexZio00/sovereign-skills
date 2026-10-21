@@ -53,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_discards_month ON discards(month);
 CREATE TABLE IF NOT EXISTS interventions (
   ts TEXT NOT NULL, date TEXT NOT NULL, month TEXT NOT NULL,
   session_id TEXT, type TEXT, skill TEXT, agent TEXT, model TEXT,
-  l0_clause TEXT, context TEXT
+  rule_reference TEXT, context TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_interventions_month ON interventions(month);
 CREATE INDEX IF NOT EXISTS idx_interventions_date ON interventions(date);
@@ -71,6 +71,15 @@ def get_db_path() -> pathlib.Path:
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
+    # An older cache named the interventions column `l0_clause`; rename it in place.
+    # The database is only a cache of the JSONL logs, so if the rename is unavailable
+    # (SQLite older than 3.25), delete observability.db and run `rebuild`.
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(interventions)")]
+    if "l0_clause" in cols and "rule_reference" not in cols:
+        try:
+            conn.execute("ALTER TABLE interventions RENAME COLUMN l0_clause TO rule_reference")
+        except sqlite3.OperationalError:
+            _warn("observability.db uses the old column name l0_clause; delete the file and run rebuild")
     conn.executescript(DDL)
     conn.commit()
 
@@ -161,11 +170,11 @@ def load_interventions_month(conn, jsonl_path, month: str) -> int:
     for rec in _iter_jsonl(jsonl_path):
         date = rec.get("date", "")
         conn.execute(
-            "INSERT INTO interventions (ts,date,month,session_id,type,skill,agent,model,l0_clause,context)"
+            "INSERT INTO interventions (ts,date,month,session_id,type,skill,agent,model,rule_reference,context)"
             " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (rec.get("ts", ""), date, date[:7] if len(date) >= 7 else month,
              rec.get("session_id"), rec.get("type"), rec.get("skill"), rec.get("agent"),
-             rec.get("model"), rec.get("l0_clause"),
+             rec.get("model"), rec.get("rule_reference") or rec.get("l0_clause"),  # l0_clause = older name
              secret_redact.redact(rec.get("context"), limit=2000)),  # mask secrets in our own log field
         )
         n += 1
@@ -182,7 +191,9 @@ def load_receipts_month(conn, jsonl_path, month: str) -> int:
             " VALUES (?,?,?,?,?,?,?,?,?)",
             (rec.get("receiptId") or rec.get("receipt_id"), rec.get("sessionId") or rec.get("session_id"),
              rec.get("family"), rec.get("createdAt") or rec.get("created_at"), month,
-             rec.get("branch"), rec.get("commit") or rec.get("commit_sha"), rec.get("sha256"),
+             rec.get("branch") or (rec.get("subject") or {}).get("branch"),
+             rec.get("commit") or rec.get("commit_sha") or (rec.get("subject") or {}).get("commit"),
+             rec.get("sha256"),
              secret_redact.scrub(json.dumps(rec, ensure_ascii=True))),  # preserve the audit trail, masking only secrets
         )
         n += 1
@@ -357,6 +368,9 @@ def cmd_rejection_rate(args) -> int:
 
 
 def main(argv=None) -> int:
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="Harness observability index (JSONL -> SQLite)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("rebuild").set_defaults(func=cmd_rebuild)

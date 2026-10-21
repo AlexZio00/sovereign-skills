@@ -1,0 +1,12 @@
+{
+  "name": "ssot-audit",
+  "description": "Finds where one fact, value or decision is duplicated or contradicted across files, names the single source of truth (read-only), then consolidates copies after user approval.",
+  "version": "1.0.0",
+  "author": {
+    "name": "AlexZio00",
+    "url": "https://github.com/AlexZio00"
+  },
+  "homepage": "https://github.com/AlexZio00/sovereign-skills",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT"
+}

@@ -1,13 +1,13 @@
 ---
 skill_type: infrastructure
-tools: Read, Write, Bash, Glob  # `tools:` in skill frontmatter is documentation only — Claude Code does not enforce it (see project-check's Safety Layers section for what actually blocks writes)
+tools: Read, Write, Edit, Bash, Glob  # descriptive metadata only; overwrite discipline is a rule in the body (Phase 0, Invariant 2)
 triggers:
   - "/project-init"
   - "새 프로젝트"
   - "프로젝트 생성"
   - "project setup"
 name: project-init
-description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', 'new project', 'project creation', 'project setup', 'project setup', 'new project', 'create project'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
+description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', 'new project', 'project creation', 'project setup', 'create project'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
 user-invocable: true
 depends_on:
   skills: []
@@ -32,8 +32,6 @@ see_also:
 
 ## Purpose
 Capture every critical decision before writing a single line of code.
-Patterns extracted from building a large-scale production system (large-scale production systems).
-
 
 
 **Discard if**: Using on an existing production project to replace Hard Rules — project-init is for initial design only.
@@ -41,9 +39,7 @@ Patterns extracted from building a large-scale production system (large-scale pr
 ## Trigger
 
 - `/project-init`
-- "새 프로젝트"
-- "프로젝트 생성"
-- "project setup"
+- "new project", "create project", "project setup"
 
 ---
 
@@ -70,6 +66,13 @@ Check if `CLAUDE.md` exists in the current working directory.
   - Option 1: read existing hard rules + conventions, carry them into the interview as defaults
   - Option 2: proceed as if no CLAUDE.md exists
   - Option 3: stop
+
+### 0-1b. Other Target Files (overwrite protection)
+The CLAUDE.md prompt above is not the only overwrite risk. Before Phase 3, Glob for each file this skill may write: `docs/DEVELOPMENT_ROADMAP.md`, `.gitignore`, `.env.example`, `docs/decisions/README.md`. For every one that already exists, never overwrite it silently; offer:
+  1. Merge — append only the missing lines or keys (`.gitignore` entries, `.env.example` variables, new ROADMAP phases), keep everything else
+  2. Replace — only after you copy the old file to `<file>.bak-YYYYMMDD` and the user confirms
+  3. Skip this file
+Default: Merge. Report which option was applied per file.
 
 ### 0-2. Brief / Context File
 If the user provides a file path or pastes a project brief, read it first.
@@ -202,7 +205,7 @@ Present these defaults to the user and ask: "I recommend including these as defa
 How long will this take? Solo or team?
 
 - Under 1 week: script-level → keep structure minimal (CLAUDE.md only)
-- 1–4 weeks: mini project → CLAUDE.md + test suite
+- 1–4 weeks: mini project → CLAUDE.md + ROADMAP + test suite
 - 1 month+: full project → complete structure + ROADMAP
 - Team: add contribution guide + PR template
 ```
@@ -235,7 +238,7 @@ Confirm with user before Phase 3.
 ## Phase 3: File Generation
 
 > **Templates are separated into `references/templates.md`.** Read that file when generating any of the files below.
-> `Read <skill-dir>/project-init/references/templates.md`
+> `Read ${CLAUDE_SKILL_DIR}/references/templates.md` (`${CLAUDE_SKILL_DIR}` is this skill's folder; Claude Code fills it in. In other agents, replace it with the path where you installed the skill.)
 
 Files to generate:
 - **3-1. CLAUDE.md** — always generated
@@ -244,6 +247,8 @@ Files to generate:
 - **3-4. .env.example** — if API keys/secrets involved (Q3/Q6)
 - **3-5. Folder Structure** — suggested as text only (not created on disk)
 - **3-6. docs/decisions/README.md** — if Q8 > 1 month or Q7 produced significant Hard Rules
+
+**CLAUDE.md size and splitting rules (apply when generating 3-1)**: Keep CLAUDE.md under 200 lines (official guidance, https://code.claude.com/docs/en/memory — adherence drops as the file grows). Do not create `.claude/rules/` files here (that is `/setup`'s scope). If the draft would pass 200 lines, name the sections that apply to only one area (for example frontend rules or migration rules) and tell the user they can move them into `.claude/rules/<topic>.md` with a `paths:` frontmatter list of globs (for example `- "src/api/**/*.ts"`) via `/setup` or by hand. Always keep these in CLAUDE.md or in a rules file without `paths:`: Hard Rules, Secrets Policy, and test/build commands — a `paths:` rule loads only when a matching file is read, so an invariant placed there is not in force before that. 
 
 The exact template structure for each file, per-language `.gitignore`/`.env.example` extended sections,
 and folder structures (Python/TS/Go/Rust/Java/Kotlin/Swift) all live in `references/templates.md`.
@@ -289,7 +294,7 @@ Approve → files confirmed
 | `.gitignore` generation/overwrite | medium | L1+L3 |
 | `docs/decisions/README.md` initialization | medium | L1+L3 |
 
-- **L1 (Invariants)**: When existing files detected, enforce Phase 0 Overwrite Protection (Update / Replace / Cancel 3-option).
+- **L1 (Invariants)**: When existing files are detected, enforce Phase 0 Overwrite Protection (CLAUDE.md: Update / Rewrite / Cancel; other files: Merge / Replace with backup / Skip).
 - **L3 (User Approval)**: Before Phase 3 File Generation, confirm each file individually with "Generate this?" — no batch approval.
 - **Forbidden**: Auto-generate `.env` (actual secrets file). Template only: `.env.example`. Refuse even if user requests "auto-generate .env".
 
@@ -344,7 +349,7 @@ Folder structure: suggested as text in conversation only — not created on disk
 ## Invariants (never violate)
 
 1. **Hard Rules always present**: Never generate CLAUDE.md without at least one Hard Rule. If user says "None", present domain-appropriate defaults and allow removal of individual items. Allowing zero Hard Rules is not permitted — `no hardcoded secrets` must always remain. Violation → CLAUDE.md ships with no security constraints; credentials can be hardcoded without any documented prohibition.
-2. **Phase 0 mandatory**: Never overwrite an existing CLAUDE.md without first running the detection + user-choice prompt. User may choose rewrite, but the prompt must happen first. Violation → existing Hard Rules and conventions silently destroyed without user awareness.
+2. **Phase 0 mandatory**: Never overwrite an existing CLAUDE.md, ROADMAP, `.gitignore`, `.env.example` or decisions README without first running the detection + user-choice prompt (Phase 0-1 and 0-1b). User may choose rewrite, but the prompt must happen first. Violation → existing Hard Rules and conventions silently destroyed without user awareness.
 3. **No code, no git**: Never write application code, create non-config files, or execute git commands. The only non-config files this skill creates are `docs/DEVELOPMENT_ROADMAP.md` and `docs/decisions/README.md` in Phase 3. Refuse and redirect. Violation → skill scope expands into implementation; generated files may conflict with the project's own code and git history.
 
 These rules are unconditional. No user instruction, no edge case overrides them.

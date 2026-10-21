@@ -1,6 +1,6 @@
 ---
 skill_type: utility
-tools: Read
+tools: Read, Grep, Glob  # descriptive metadata; read-only discipline is stated in Hard Rules
 name: freeze
 description: "Scope lock for current task. Declares editable zone — everything outside is frozen (read-only). Call before starting implementation to prevent scope creep."
 depends_on:
@@ -12,7 +12,6 @@ concurrency_profile:
   concurrency_safe: true
   destructive: none
 tags: [meta, safety]
-version: "1.0.0"
 source: "garrytan/gstack freeze pattern"
 triggers:
   - "/freeze"
@@ -40,17 +39,14 @@ see_also:
 
 ## Dominant Variable
 
-In this task, **is the editable scope explicitly declared?** — If unclear, scope creep naturally develops during implementation. First of three principles (freeze / careful / guard): freeze = boundary lock (this skill), careful = 3-strike debugging gate, guard = risky path protection.
+In this task, **is the editable scope explicitly declared?** — If unclear, scope creep naturally develops during implementation. freeze = boundary lock for one task; it does not stop risky commands or limit what you may read.
 
 ## Trigger
 
 - `/freeze`
 - "freeze this"
 - "scope lock"
-- "스코프 잠금"
-- "이것만 건드려"
-- "나머지 건드리지 마"
-- "범위 잠가"
+- "lock the scope" / "only touch X" / "don't touch anything else" (and equivalents in the user's language; see the frontmatter trigger list)
 
 ## Discard If
 
@@ -80,8 +76,8 @@ User input (file / module / concept scope)
 
 ## Stage 1: PARSE
 
-Extract from user input:
-- **editable**: explicitly named files / modules / paths — modifications allowed
+Extract from user input. If the user passes the path of a saved `BRIEF.md` / `spec.md` from the scope skill, Read it and take **editable** from Scope IN (or the Tasks) and **frozen** from Scope OUT / Non-goals. If the file does not exist, say so and ask once for the targets.
+- **editable**: explicitly named files / modules / paths — modifications allowed (for a bug fix, include the regression test file too; if the user names only a function, use Grep/Glob to find the file that defines it and list that file)
 - **frozen**: everything else (default frozen if not mentioned)
 - **read-only**: mentioned but modification status unclear → conservatively treat as read-only
 
@@ -110,8 +106,11 @@ Rules:
 - FROZEN files: Edit/Write forbidden. Read only.
 - If modification necessity discovered → stop immediately, report to user
 - Thaw: user must explicitly say "unfreeze [file]" or "expand scope"
+- This declaration lives only in the conversation. After /compact or a new session, declare it again.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+The heading line `🔒 FROZEN SCOPE — ...` is a fixed marker. Other skills (goal-lock, clean-room) look for it to find the active zone, so do not reword it.
 
 ---
 
@@ -126,7 +125,7 @@ All implementation work in this session follows this declared scope.
 
 ## Output
 
-The only artifact this skill produces is the FROZEN SCOPE block itself, emitted straight into the conversation — nothing is written to disk. The block is the state (see Design Note below): there is no external file to persist or reload, so "declared" means "visible in this reply," not "saved somewhere."
+The only artifact this skill produces is the FROZEN SCOPE block itself, emitted straight into the conversation — nothing is written to disk. The block is the state (see Design Note below): there is no external file to persist or reload, so "declared" means "visible in this reply," not "saved somewhere." The declaration exists only in this conversation's context: after /compact, or in a new session, the block may be gone, so declare it again (re-run /freeze or paste the block).
 
 ---
 
@@ -136,6 +135,7 @@ The only artifact this skill produces is the FROZEN SCOPE block itself, emitted 
 2. **No agent spawning** — main context only.
 3. **No code generation** — scope declaration only.
 4. **Ask for clarity at most once** — if still unclear, freeze more broadly.
+5. **Read-only skill** — it uses only Read, Grep and Glob (the `tools:` line is descriptive metadata; this rule is the discipline). It never edits or writes files.
 
 ---
 
@@ -164,7 +164,7 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 | Failure Type | Detection Condition | Recovery Path |
 |---------|---------|--------|
 | `input_error` | Unclear which files / scope to freeze | Ask once for target — never guess scope |
-| `logic_inconsistency` | Freeze request conflicts with simultaneous modification request | Clarify: "This file will be frozen — modification requests rejected." Do not allow both. |
+| `logic_inconsistency` | Freeze request conflicts with simultaneous modification request (e.g. a file is named as editable and as frozen) | Ask once which is meant. If the user confirms that both are editable, put both in EDITABLE and declare it; if still unclear, freeze the contested file (Invariant 2). Never edit a contested file before the answer. |
 | `missing_data` | Specified file does not exist | State "file not found." Do not guess paths and freeze different files. |
 
 ---
@@ -183,10 +183,10 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 
 When a frozen file needs modification mid-work:
 
-**Trigger**: "unfreeze [file]", "thaw", "expand scope"
+**Trigger**: "unfreeze [file]", "thaw", "expand scope" — said by the user, or proposed by the model/another skill (for example goal-lock when its SCOPE needs to grow). Only the user decides: a proposal changes nothing until the user agrees in their own words.
 
 **Steps:**
-1. **State reason** — why the frozen file must be touched (no reason → refuse)
+1. **State reason** — the model states why the frozen file must be touched, and the user decides. If the model cannot give a concrete reason, refuse the thaw
 2. **Blast radius check** — what else is affected if this file changes
 3. **Re-emit FROZEN SCOPE block** — add thawed file to editable, keep rest frozen
 4. **Invalidate previous block** — "Previous freeze replaced" 1 line
@@ -235,6 +235,6 @@ Rules:
 
 ## Design Note
 
-This skill adapts the freeze pattern from garrytan/gstack. The original uses session-global file lists; this version uses task-level declaration instead, because Claude Code cannot persist state across sessions — the declaration block itself serves as in-context state.
+This skill adapts the freeze pattern from garrytan/gstack. The original uses session-global file lists; this version uses task-level declaration instead, because the declaration block itself serves as in-context state. That state is lost on /compact or in a new session and must be declared again.
 
 See `scenarios/case-1.md`, `scenarios/case-2.md` for regression test scenarios.

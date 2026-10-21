@@ -1,6 +1,6 @@
 {
   "name": "setup",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "Claude Code infrastructure and agent team setup — rules, hooks, memory system, routing, and agent installation in one guided flow.",
   "author": {
     "name": "AlexZio00",

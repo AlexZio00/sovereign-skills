@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | 🌐 **日本語** | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.14
+# sovereign-skills v6.5.15
 
-Claude Codeプロジェクトのライフサイクル全体をカバーする20個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
+Claude Codeプロジェクトのライフサイクル全体をカバーする22個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
 
-> **v6.5.14の変更点:** リファインメントリリース — スキルの追加・削除なし。公開版にもあったバグの修正: `session-start` はハンドオフのない初回セッションで全体を止めなくなった。`pre-push` はシークレットスキャナがなければ push を止める。`pytest` が 0 件収集で合格に見えていたテストファイル 11 個が実際に実行される。読み取り専用の `eval-leakage-audit` は Bash も禁止し書き込めない。`setup` は Replace の前にバックアップを取る。`project-init`・`collab-audit`・`scope`・`skill-ops` の自己矛盾していたルールを揃えた。追加: `pre-push` が新規コミットの DB ファイルをブロック、`scope` に `coverage_check.py`（要件↔タスク照合）、`collab-audit` に `extract_session_meta.py`、`eval-leakage-audit` は 28 パターン、`goal-lock` は既存失敗のベースライン、`integration-intake` はサプライチェーン点検を追加。詳細は [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.5.15の変更点:** スキルを2つ追加 — `ssot-audit`（1つの事実を含むすべてのコピーを探し、正本を特定する）と `skill-trigger-auditor`（スキルとコマンドが正しくルーティングされるかを点検する）。バグ修正: `pre-push` は、先にコミットして後からpushしてもテストとリントを飛ばさなくなった。`project-check` はハイフン入りのAPIキー（`sk-ant-…`、`sk-proj-…`）も検出するようになった。`setup` のhook例は `bash` + `jq` が不要になり、Windowsでも動く。その他のスキルの改善: `code-autopsy` は各指摘にNEWまたはPRE-EXISTINGの印とエビデンス階層を付ける。セッション系スキルは日付を過ぎたハンドオフ項目に印を付ける。`integration-intake` はリポジトリを再レビューする前に自分の過去の判定を照会する。22スキルすべてについて通読監査も行った。同梱スクリプトはどのインストール先からも見つかり（`${CLAUDE_SKILL_DIR}`）、Python 3.9+ と macOS で動き、任意の外部エージェントには表示とフォールバックが付き、共有ファイル形式は [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md) に文書化した。詳細は [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -29,17 +29,24 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする20�
 **既存プロジェクト（5分）：**
 ```
 /project-check      →  4次元スコア + 深刻度別ギャップリスト
-/code-autopsy       →  12Qコードレビュー（あらゆるLLMでスタンドアロンプロンプトとして使用可能）
-/collab-audit       →  14セクションAIコラボレーション診断
+/collab-audit       →  作業パターンから作る14セクションのAIコラボレーション診断
 ```
 
-**ガバナンス（必要時）：**
+**ガバナンスと監査（必要時）：**
 ```
 /integration-intake →  外部スキル/エージェント/ルール/プラグイン導入前 — 5項目スクリーニングゲート
 /full-audit         →  領域全体（コードベース/ドキュメント/スキル/メモリ/設定）の網羅監査 + カバレッジマップ
 /clean-room         →  タスクに安全隣接要素と安全な作業が混在する時
 /eval-leakage-audit →  eval/metric/holdoutを信頼する前 — 循環的自己確認でないか点検
 /doc-drift          →  読み込まれたコンテキスト（CLAUDE.md/MEMORY.md/skills）を古い/矛盾した表現で監査
+/ssot-audit         →  1つの事実が複数ファイルに — 正本を見つけて統合
+```
+
+**自分でスキルを書く場合：**
+```
+/skill-trigger-auditor →  スキルのdescriptionを変更する前に — ルーティングの衝突と誤発火を検出
+/skill-ops             →  編集前にスキルのスナップショット/ロールバック、実際に使われているスキルを確認
+/project-overview      →  複数プロジェクトを一枚で見渡す状況マップ
 ```
 
 ---
@@ -57,82 +64,94 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする20�
 
 | スキル | 機能 |
 |--------|------|
-| [scope](../scope/) | 実装前にIN/OUT/終了基準を定義。Quickモード（3つの質問）またはFullモード（レイヤードスペック）. Full モードに `coverage_check.py`（要件↔タスク照合）を同梱 |
+| [scope](../scope/) | 実装前にIN/OUT/終了基準を定義。Quickモード（3つの質問）またはFullモード（レイヤードスペック）。Fullモードに `coverage_check.py`（要件↔タスク照合）を同梱 |
 | [freeze](../freeze/) | 編集可能領域を宣言 — それ以外は凍結。実装中のスコープクリープを防止 |
-| [goal-lock](../goal-lock/) | エージェント規律エンジン — 目標をロックし、PLAN→DO→VERIFY→FINALIZE→OUTPUTループを強制、13種類の成功偽装パターンを検出 |
-| [pre-push](../pre-push/) | 必須pre-pushパイプライン — シークレットスキャン（12パターン）、ビルド/テスト、リント、並列AIコードレビュー。Critical/High発見時にpushをブロック |
-
-### コードレビュー
-
-| スキル | 機能 |
-|--------|------|
-| [code-autopsy](../code-autopsy/) | **更新 v7.2。** 12Q定量コードレビュー — 4軸スコア（Security/Stability/Robustness/Operability）、重要度アンカーテーブル、デプロイ判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate、CapCodeスコアgaming検出、CEF偽装エラー検出。スタンドアロンプロンプトとしてあらゆるLLMで使用可能 |
+| [goal-lock](../goal-lock/) | エージェント規律エンジン — 目標をロックし、PLAN→DO→VERIFY→FINALIZE→OUTPUTループを強制、16種類の成功偽装パターンを検出 |
+| [pre-push](../pre-push/) | 必須pre-pushパイプライン — シークレットスキャン（14パターン）、ビルド/テスト、リント、並列AIコードレビュー。pushが実際に運ぶもの（ステージ済みの変更 + まだ送られていないコミット）を検査。Critical/High発見時にpushをブロック |
 
 ### 視点転換
 
 | スキル | 機能 |
 |--------|------|
-| [stepback](../stepback/) | **更新。** ワンショット視点リセット — 1つの抽象的リフレーミング質問 + 3つのクイックチェック（スコープドリフト、副作用、より良いアプローチ）を10行以内で。作業中いつでも使用可能 |
-| [next-action](../next-action/) | **新規。** ハンドオフ/git/lessons/STATEを読み込み、影響度順に次のアクション上位3件を提案。提案のみ、実行はしない。いつでも使用可能 |
+| [stepback](../stepback/) | ワンショット視点リセット — 1つの抽象的リフレーミング質問 + 3つのクイックチェック（スコープドリフト、副作用、より良いアプローチ）と続行/中止の判定を10行以内で。作業中いつでも使用可能 |
+| [next-action](../next-action/) | ハンドオフ/git/lessons/STATEを読み込み、影響度順に次のアクション上位3件を提案。提案のみ、実行はしない。いつでも使用可能 |
 
 ### セッション管理
 
 | スキル | 機能 |
 |--------|------|
-| [session-start](../session-start/) | 前セッションのハンドオフをロード、教訓レビュー、ヘルスチェック、優先アクション付き「準備完了」シグナル |
-| [session-checkpoint](../session-checkpoint/) | compact前にセッションコンテキストを保存 — ハンドオフファイル、メモリ更新、教訓抽出、リフレクション（何がうまくいかなかったか、次にどう改善するか） |
+| [session-start](../session-start/) | 前セッションのハンドオフをロード、教訓レビュー、ヘルスチェック、優先アクション付き「準備完了」シグナル。日付がすでに過ぎたハンドオフ項目に印を付ける |
+| [session-checkpoint](../session-checkpoint/) | compact前にセッションコンテキストを保存 — ハンドオフファイル、メモリ更新、教訓抽出、リフレクション（何がうまくいかなかったか、次にどう改善するか）。未来の日付の項目は別の「Scheduled checks」リストに保管 |
+
+### コードレビュー
+
+| スキル | 機能 |
+|--------|------|
+| [code-autopsy](../code-autopsy/) | 12Q定量コードレビュー（v7.3） — 4軸スコア（Security/Stability/Robustness/Operability）、重要度アンカー、デプロイ判定（SHIP/FIX/RISKY/BLOCK）、Factuality Gate。各指摘にNEWまたはPRE-EXISTINGの印とエビデンス階層が付く。実証的根拠に基づく（Johnson 2019、Parnas 1972）。スタンドアロンプロンプトとしてあらゆるLLMで使用可能 |
 
 ### 品質
 
 | スキル | 機能 |
 |--------|------|
 | [project-check](../project-check/) | 既存プロジェクトを4次元でスキャン：インフラ、セキュリティ、品質、ハーネス。深刻度順にギャップを整列 |
-| [collab-audit](../collab-audit/) | 14セクションAIコラボレーション監査 — 実際の作業パターン（アンケートではなく）を分析し、行動プロファイル、盲点、成長方向を生成. 必要なセッションデータは `extract_session_meta.py` が生成 |
+| [collab-audit](../collab-audit/) | 14セクションAIコラボレーション監査 — 実際の作業パターン（アンケートではなく）を分析し、行動プロファイル、盲点、成長方向を生成。必要なセッションデータは `extract_session_meta.py` が生成 |
 
 ### 運用
 
 | スキル | 機能 |
 |--------|------|
-| [skill-ops](../skill-ops/) | **新規。** スキル/エージェント運用ハブ — スナップショット/ロールバック + 使用状況 + 呼び出し追跡の3モード |
-| [project-overview](../project-overview/) | **新規。** 登録済みプロジェクトのセッションハンドオフから決定論的クロスプロジェクト状況マップを生成 |
+| [skill-ops](../skill-ops/) | スキル/エージェント運用ハブ — スナップショット/ロールバック + 使用状況 + 呼び出し追跡 + 品質スコアの4モード。`skill_snapshot.py` と `skill_health_bucket.py` を同梱 |
+| [project-overview](../project-overview/) | 登録済みプロジェクトのセッションハンドオフから決定論的クロスプロジェクト状況マップを生成し、7日より古いスナップショットを報告 |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | **v6.5.15で新規追加。** スキル・エージェント・スラッシュコマンドのルーティングの衝突と誤発火を監査し、descriptionの変更をホールドアウトのトリガーテストで関門にする。任意のプローブで実際のSkillツール呼び出しを計測 |
 
 ### ガバナンス
 
 | スキル | 機能 |
 |--------|------|
-| [full-audit](../full-audit/) | **新規。** 領域全体（コードベース/文書/スキル/メモリ/設定）の網羅的監査 — 決定論的スイープ+内容レビューの2層方式、偽陽性防止kill-test、永続カバレッジマップ |
-| [integration-intake](../integration-intake/) | **新規。** 外部パターン（スキル/エージェント/ルール/プラグイン/MCP）導入の5項目スクリーニングゲート — 既存資産との重複チェック + 導入コンテンツのprovenance/インジェクションチェック |
-| [clean-room](../clean-room/) | **新規。** 安全隣接リクエストを安全スコープに切り出し、完全に隔離されたfresh-contextサブエージェントが実行 — 敵対的検証パス + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | **新規。** eval/metric/holdoutが実際に独立した外部グラウンドトゥルースを確保しているか、循環的な自己確認かを28パターンのtaxonomyで監査。読み取り専用 |
-| [doc-drift](../doc-drift/) | **新規。** Claude Codeがコンテキストに読み込むメモリ/ドキュメント(CLAUDE.md/MEMORY.md/skills/agents/commands)を古い主張・相互矛盾・危険/曖昧な表現で監査 — 優先度付き修正リストを生成 |
+| [full-audit](../full-audit/) | 領域全体（コードベース/文書/スキル/メモリ/設定）の網羅的監査 — 決定論的スイープ+内容レビューの2層方式、偽陽性防止kill-test、シード済みカナリア、永続カバレッジマップ |
+| [integration-intake](../integration-intake/) | 外部パターン（スキル/エージェント/ルール/プラグイン/MCP）導入の5項目スクリーニングゲート — 既存資産との重複チェック、導入コンテンツのprovenance/インジェクションチェック、ライセンス確認1行、過去の判定の台帳照会 |
+| [clean-room](../clean-room/) | 安全隣接リクエストを安全スコープに切り出し、完全に隔離されたfresh-contextサブエージェントが実行 — 敵対的検証パス + descope ledger |
+| [eval-leakage-audit](../eval-leakage-audit/) | eval/metric/holdoutが実際に独立した外部グラウンドトゥルースを確保しているか、循環的な自己確認かを監査 — 28パターンのtaxonomy、ゴールデンケース2件。読み取り専用 |
+| [doc-drift](../doc-drift/) | Claude Codeがコンテキストに読み込むメモリ/ドキュメント(CLAUDE.md/MEMORY.md/skills/agents/commands)を古い主張・相互矛盾・危険/曖昧な表現で監査 — 優先度付き修正リストを生成 |
+| [ssot-audit](../ssot-audit/) | **v6.5.15で新規追加。** リポジトリやノートフォルダ全体から、1つの事実・値・決定を含むすべてのコピーを探して正本を特定（読み取り専用）し、承認後にのみ重複を統合 |
 
 ---
 
 ## ライフサイクルフロー
 
 ```
-┌────────────────── セットアップ（1回）──────────────┐
+┌─────────────────── Setup (once) ────────────────────┐
 │  /project-init  →  /setup                           │
 └─────────────────────────────────────────────────────┘
          ↓
-┌────────────────── 日常ループ ───────────────────────┐
-│  /session-start                                      │
-│       ↓                                              │
-│  /scope → /freeze → /goal-lock → 作業                │
-│       → /stepback (いつでも) → /code-autopsy → /pre-push│
-│       ↓                                              │
-│  /session-checkpoint                                 │
-└──────────────────────────────────────────────────────┘
+┌──────────────────── Daily Loop ─────────────────────┐
+│  /session-start                                     │
+│       ↓                                             │
+│  /scope → /freeze → /goal-lock → work               │
+│       → /stepback (anytime) → /code-autopsy         │
+│       → /pre-push                                   │
+│       ↓                                             │
+│  /session-checkpoint                                │
+└─────────────────────────────────────────────────────┘
          ↓
-┌────────────────── 随時 ────────────────────────────┐
-│  /stepback         （視点リセット — いつでも）          │
-│  /project-check    （ヘルス監査）                     │
-│  /collab-audit     （行動診断）                       │
-│  /integration-intake （外部資産導入前）               │
-│  /full-audit       （領域全体の網羅監査）             │
-│  /clean-room       （安全隣接スコープの分離）         │
-│  /eval-leakage-audit （eval循環論理チェック）         │
-│  /doc-drift        （読み込みコンテキストのドリフト監査）│
+┌───────────────────── On Demand ─────────────────────┐
+│  /stepback         (perspective reset — anytime)    │
+│  /next-action      (top-3 next actions from state)  │
+│  /project-check    (health audit)                   │
+│  /code-autopsy     (12Q code review — any LLM)      │
+│  /collab-audit     (behavioral diagnostic)          │
+│  /integration-intake (before adopting external work)│
+│  /full-audit       (exhaustive area audit)          │
+│  /clean-room       (safety-adjacent scope carve-out)│
+│  /eval-leakage-audit (eval circular-logic check)    │
+│  /doc-drift        (loaded-context drift audit)     │
+│  /ssot-audit       (one fact, many copies)          │
+└─────────────────────────────────────────────────────┘
+         ↓
+┌─────────── Skill authors / multi-project ───────────┐
+│  /skill-ops        (snapshot, rollback, usage)      │
+│  /skill-trigger-auditor (routing collisions)        │
+│  /project-overview (cross-project status map)       │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -141,6 +160,8 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする20�
 ## インストール
 
 ### 方法A：スキルをコピー（最も簡単）
+
+各スキルは `SKILL.md` ファイルを含む独立したディレクトリです。必要なものをコピーしてください：
 
 ```bash
 # 全スキルをインストール
@@ -163,7 +184,7 @@ cp -r goal-lock ~/.claude/skills/
 
 各スキルに個別の`.claude-plugin/plugin.json`メタデータも含まれています。
 
-トリガーコマンド（例：`/goal-lock`）をClaude Codeで入力するとスキルが実行されます。
+スキルはClaude Codeでトリガーコマンド（例：`/goal-lock`）を入力して実行します。ClaudeがSKILL.mdを読み、その指示に従います。
 
 ### 方法C: Codex
 
@@ -195,83 +216,50 @@ SKILL.mdの内容は汎用マークダウンです — マークダウン指示�
 - **Codex**: OpenAI Codex — `.agents/skills/` から `SKILL.md` を直接読み込み。`agents/openai.yaml` は任意のUIメタデータ
 - **Cursor / その他**: マークダウン指示を読むあらゆるエージェント
 - スキルディレクトリ：`~/.claude/skills/`（Claude Code）またはエージェント別パス
-- `pre-push`は`scan_secrets.py`（推奨）と`scan_secrets.pl`（Perlフォールバック）の両方を同梱
+- 同梱のヘルパースクリプト（複数のスキル内の `scripts/*.py`）にはPython 3.9+が必要。スキルは `${CLAUDE_SKILL_DIR}/scripts/<name>.py` としてこれらを呼び出し、Claude Codeがこの値をスキル自身のフォルダに置き換えます。他のエージェントでは、スキルをインストールしたフォルダに読み替えてください。スクリプトを実行できない場合、各スキルが手動の手順にフォールバックするか停止するかを説明しています
+- `pre-push`は`scan_secrets.py`（推奨）と`scan_secrets.pl`（Perlフォールバック）の両方を同梱。任意：`ruff`（変更行のリント）と`gitleaks`（2つ目のシークレットスキャンエンジン、警告のみ）
 
----
+### セッション系スキルが読み書きするファイル
 
-## v6.2の変更点
+`session-start`、`session-checkpoint`、`next-action`、`project-overview`、`skill-ops`、`collab-audit` は、いくつかのプレーンテキストファイルを共有します: セッションのハンドオフ、`tasks/lessons.md`、`~/.claude/STATE.md`、`memory/MEMORY.md`、コンテキストログ、呼び出しログ。どれも必須ではなく、ファイルがなければスキルはその手順を飛ばします。形式: [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)。
 
-### 新規追加
-- **stepback** — ワンショット視点リセット。抽象的なリフレーミング質問1つ（DeepMind step-backパターン）+ クイックチェック3つ（スコープドリフト、副作用、より良いアプローチ）を10行以内で生成。読み取り専用、エージェントなし、コードなし。実装中いつでも使用して、正しい問題を正しいレベルで解いているかを確認。出典：team-attention/hoyeon。
+### このリポジトリに含まれない任意のエージェントとスキル
 
-### 更新内容
-- **code-autopsy** — メタ検出ゲート追加：スコアゲーミング検出用CapCodeシーリングメトリック、制約回避型偽装エラー検出用CEF。
-- **collab-audit** — 13→14セクション。新セクション12：思考レベル軌跡（情報要求者→思考設計者の5段階モデル + 時間的変化追跡 + AI属性修正）。
-- **goal-lock** — Ralph Wiggum早期完了検出（12番目の偽装パターン）+ VERIFY段階の検証トレーサビリティ（すべてのクレームが実際のツール呼び出しにトレース可能であること）追加。
-- **session-checkpoint** — ハンドオフ明確性自己チェック追加（ハンドオフ作成後2つのアンカー質問）。
-- **session-start** — コンテキスト腐敗防止（古いハンドオフエントリ用スライディングウィンドウ）。
-- **pre-push** — 新規追加依存関係の3-IOCサプライチェーンチェック追加。
-- **scope** — 禁忌フィールド追加（選択したアプローチが適切でない条件）。
-- **freeze** — Thaw Protocol追加（正式なアンフリーズワークフロー + ブラストラジアス確認 + 3回の警告）。
-- **project-init** — `.env.example`テンプレート拡張（OAuth、外部サービス、モニタリングセクション）+ セキュリティベースラインノート。
-- **project-check** — スコアデルタ追跡追加（現在 vs 以前のスキャン結果比較）。
-- **setup** — Tier 0違反テスト失敗向けRedesign Protocol追加（3オプションエスカレーション）。
+一部のスキルは、このリポジトリが提供**しない**エージェントやスキルに作業を渡すことがあります。SKILL.md内の各言及には任意の印とフォールバックが付いているため、なくても何も壊れません:
 
----
-
-## v6.1の変更点
-
-### 新規追加
-- **code-autopsy** — 12Q定量コードレビュープロンプト（Code Autopsy v7.0）。設計から監視可能性まで12の分析質問。4軸複合スコア（Security × 0.35 + Stability × 0.30 + Robustness × 0.20 + Operability × 0.15）。加重式付き重要度アンカーテーブル。CRITICALハードキャップ付きデプロイ判定。Factuality Gate（報告前の自己検証）。ファイル間影響分析。Quickモードおよびdiffモード。根拠：Google eng-practices、Johnson et al. 2019、Parnas 1972。あらゆるLLMでスタンドアロンプロンプトとして動作 — Claude Code専用ではありません。
-
----
-
-## v6.0の変更点
-
-### 新規追加
-- **goal-lock** — PLAN→DO→VERIFY→FINALIZE→OUTPUTループを備えたエージェント規律エンジン。13種類の成功偽装パターン（テスト削除、mockラッピング、閾値緩和など）を検出。小さな変更用Quickモード（3フィールド）、それ以外はFullモード（7フィールド）。
-
-### 統合
-- `harness-init` + `team-init` → **setup** — インフラとエージェントチームが1度に
-- `brief` + `adr` → **scope** — ADR機能が組み込まれたスコープ定義
-- `retro` → **session-checkpoint** — レトロスペクティブは現在session-checkpoint内Phase 1.7 Reflexion
-
-### 削除
-- `token-audit` — 代わりに`npx ccusage`を直接使用するか、パターンからccusageスキルをビルド
-- `adr`（スタンドアロン） — scopeに吸収されました
-- `retro`（スタンドアロン） — session-checkpointに吸収されました
-
-### アップグレード
-- すべてのスキル：Dominant Variable、Key Assumptions、Error Recovery、Safety Layersを追加
-- すべてのスキル：アクションタグ付きScope Boundary（[READ]/[WRITE]/[BASH]/[AGENT]）
-- `session-checkpoint`：Memento CoT圧縮、Reflexion、Invocationロギング
-- `pre-push`：大きなdiff決定論的バンドリング、Discard If条件
-- `collab-audit`：アンチパターンフラグ、Key Assumptions
+| 名前 | 使うスキル | なかった場合 |
+|------|----------|------------|
+| `code-reviewer`、`security-reviewer`、`database-reviewer`、`build-error-resolver` | pre-push | `/setup` でこれらのエージェントを生成できます。ない場合、pre-pushはインラインレビュー（code-autopsy FAST MODE）を実行し、エージェントの手順をSKIPPEDと記録します |
+| `refactor-cleaner` | pre-push | 手順を飛ばす |
+| `doubt-reviewer` | scope（Fullモード）、goal-lock | 敵対的プロンプトを使う汎用サブエージェント、またはレポートにSKIPPEDと記録 |
+| `verification`、`brainstorming`、`check-harness`、`memory-dream`、`forge` | 各種see-also / ルーティングの注記 | 参照先の案内のみ — なくてもスキルは動きます |
 
 ---
 
 ## エージェント設計パターンカバレッジ
 
-この20個中17個のスキル（元々のライフサイクルセット、v6.4のガバナンス系新規スキル、v6.5の監査系新規スキル — v6.3の運用系新規スキルはまだマッピングされていません）は、25個の既知エージェント設計パターンのうち17個を実装しています（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）：
+これらのスキルは、公開されているカタログ（[Gulli 2026](https://books.google.com/books/about/Agentic_Design_Patterns.html?id=QqR20QEACAAJ), [Sairahul 2026](https://x.com/sairahul1/status/2069045570556383464)）のエージェント設計パターン18個に対応しています：
 
 | パターン | 実装スキル | 方法 |
 |---------|-----------|------|
 | **Sequential Pipeline** | session-start → scope → goal-lock → pre-push → checkpoint | 完全なライフサイクルチェーン |
 | **Parallel Execution** | pre-push | 並列AIコードレビューエージェント |
 | **Loop (Retry)** | goal-lock | VERIFY失敗 → PLAN再入場、上限あり |
-| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | 独立したcode-reviewer + security-reviewer；12Q構造化レビュー；full-auditのPhase 2ファンアウトレビューパス；eval-leakage-auditはevalが独立したグラウンドトゥルースを確保しているか循環的自己確認かを批評 |
+| **Review & Critique** | pre-push, code-autopsy, full-audit, eval-leakage-audit | 独立したレビュアーサブエージェント（任意 — 上記参照）またはインラインレビュー；12Q構造化レビュー；full-auditのPhase 2ファンアウトレビューパス；eval-leakage-auditはevalが独立したグラウンドトゥルースを確保しているか循環的自己確認かを批評 |
 | **Iterative Refinement** | goal-lock | PLAN→DO→VERIFY→FINALIZE until DONE EVIDENCE通過 |
 | **Coordinator/Router** | setup | エージェントルーティングルール生成 |
 | **Plan-and-Execute** | goal-lock, scope | 実行前にレビュー可能な計画 |
 | **ReAct** | project-check | 調査 → スコア → パス推奨 |
 | **Reflexion** | session-checkpoint | Phase 1.7：失敗分析 → 次セッション用教訓 |
 | **Human-in-the-Loop** | goal-lock, pre-push, integration-intake | STOP RULES、Critical/Highがpushをブロック；integration-intakeの導入前5項目スクリーニングゲート |
-| **Custom Logic** | pre-push | 決定論的シークレットスキャン（Perl）+ AIレビュー |
+| **Custom Logic** | pre-push | 決定論的シークレットスキャン（Python、Perlフォールバック）+ AIレビュー |
 | **Event-Driven** | session-start | セッション開始時にトリガー、前の状態をロード |
-| **Guardrails/Safety** | goal-lock, clean-room | 13種類の成功偽装パターンを検出；clean-roomは安全隣接スコープをcarveして隔離されたサブエージェント実行に切り出す |
+| **Guardrails/Safety** | goal-lock, clean-room | 16種類の成功偽装パターンを検出；clean-roomは安全隣接スコープをcarveして隔離されたサブエージェント実行に切り出す |
 | **Memory Management** | session-checkpoint, doc-drift | ハンドオフファイル + メモリ更新 + 教訓抽出；doc-driftはコンテキストに読み込まれるメモリ/ドキュメントを古い主張・矛盾・危険な表現で監査 |
 | **Goal Setting** | goal-lock | GOAL + DONE EVIDENCE入力シート |
 | **Step-Back Abstraction** | stepback | DeepMind step-back：具体 → 抽象原則 |
+| **Prioritization** | next-action | ハンドオフ/git/lessons/STATEから挙がった候補アクションを影響度順に並べる |
+| **Evaluation & Monitoring** | skill-ops, skill-trigger-auditor, project-overview | スキルごとの使用状況の健全性；ホールドアウトプロンプトでのルーティング精度/再現率；プロジェクト横断の古いスナップショット報告 |
 
 ---
 
@@ -305,6 +293,9 @@ SKILL.mdの内容は汎用マークダウンです — マークダウン指示�
 | `clean-room` | `goal-lock` | clean-roomは作業途中でスコープに安全隣接要素と安全な作業が混在した時に発火し、goal-lockはそれが割り込むPLAN→DO→VERIFYループ |
 | `doc-drift` | `full-audit` | doc-driftはコンテキストに読み込まれるメモリ/ドキュメント（CLAUDE.md/MEMORY.md/skills/agents）のみをドリフト・矛盾で監査し、full-auditはカバレッジマップ付きで領域全体を掃く |
 | `eval-leakage-audit` | `full-audit`, `code-autopsy` | eval-leakage-auditはeval/metric/holdoutが循環論理か（測定の完全性）を点検し、full-auditとcode-autopsyはevalの独立性ではなくコード/領域をレビューする |
+| `ssot-audit` | `doc-drift`, `full-audit` | ssot-auditは1つの事実を複数ファイルにわたって追って正本を選び、doc-driftは読み込まれたコンテキストのドリフトを点検し、full-auditは領域全体を掃く |
+| `skill-trigger-auditor` | `skill-ops`, `doc-drift` | skill-trigger-auditorはスキルが正しいプロンプトで発火するかを点検し、skill-opsはスキルが使われているかを追跡してロールバックし、doc-driftはスキルの文面の古い主張を点検する |
+| `project-check` | `setup`, `collab-audit` | project-checkはリポジトリのセットアップをスコア化してギャップを挙げ（埋めるのはsetup）、collab-auditはリポジトリではなくAIとの働き方を見る |
 
 図（矢印 = 「引き渡す」/「情報を与える」）：
 
@@ -317,11 +308,18 @@ session-start <──> session-checkpoint
                                    │
                             next-action (状態を読み推奨)
                                    │
-    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift
-                     (オンデマンドガバナンス、どの段階でも)
+    integration-intake / full-audit / clean-room / eval-leakage-audit / doc-drift / ssot-audit
+                     (オンデマンドのガバナンスと監査、どの段階でも)
+                                   │
+         skill-ops / skill-trigger-auditor / project-overview
+                 (スキル作成者と複数プロジェクト環境向け)
 ```
 
 ---
+
+## 変更履歴
+
+バージョン履歴の全体（v3.0 → 最新）は [CHANGELOG.md](../CHANGELOG.md) を参照してください。
 
 ## ライセンス
 
