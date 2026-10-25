@@ -1,0 +1,15 @@
+{
+  "name": "agent-qa-testing",
+  "description": "Validate, run, and triage selected agent-qa regressions with recorded verdicts and memidex evidence.",
+  "version": "1.0.0",
+  "author": {
+    "name": "vostride",
+    "url": "https://github.com/vostride"
+  },
+  "homepage": "https://github.com/vostride/agent-qa",
+  "repository": "https://github.com/AlexZio00/sovereign-skills",
+  "license": "MIT",
+  "skills": [
+    "./"
+  ]
+}

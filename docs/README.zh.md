@@ -2,7 +2,7 @@
 
 # sovereign-skills v6.5.15
 
-覆盖 Claude Code 项目完整生命周期的 22 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
+覆盖 Claude Code 项目完整生命周期的 23 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
 > **v6.5.15 变更：** 新增两个技能 — `ssot-audit`（找出同一事实的所有副本并确定唯一权威来源）和 `skill-trigger-auditor`（检查技能和命令是否被正确路由）。缺陷修复：先提交、之后再推送时，`pre-push` 不再跳过测试和 lint；`project-check` 现在能识别带连字符的 API 密钥（`sk-ant-…`、`sk-proj-…`）；`setup` 的 hook 示例不再依赖 `bash` + `jq`，在 Windows 上也能运行。其他技能的升级：`code-autopsy` 为每条发现标注 NEW 或 PRE-EXISTING 并给出证据等级；会话类技能会标出日期已过的交接项；`integration-intake` 在重新审查某个仓库之前，先查询自己此前的判定。全部 22 个技能还经过了一次通读审计：内置脚本在任何安装位置都能被找到（`${CLAUDE_SKILL_DIR}`），可在 Python 3.9+ 和 macOS 上运行，可选的外部智能体都有标注和后备方案，共享文件格式已写入 [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)。详见 [CHANGELOG.md](../CHANGELOG.md)。
 
@@ -93,6 +93,7 @@
 
 | 技能 | 功能 |
 |------|------|
+| [agent-qa-testing](../agent-qa-testing/) | 使用 agent-qa 验证、运行和分析 Web／移动端回归测试，结合高级 memidex 记忆与自我改进能力 |
 | [project-check](../project-check/) | 从 4 个维度扫描现有项目：基础设施、安全、质量、测试框架。按严重度排序差距 |
 | [collab-audit](../collab-audit/) | 14 节 AI 协作审计 — 分析实际工作模式（非问卷），生成行为画像、盲点和成长方向。所需会话数据由 `extract_session_meta.py` 生成 |
 

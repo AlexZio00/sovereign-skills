@@ -159,6 +159,20 @@
       "source": "./skill-trigger-auditor",
       "category": "development",
       "tags": ["skill-routing", "trigger-audit", "collision", "regression", "holdout"]
+    },
+    {
+      "name": "agent-qa-testing",
+      "description": "Validate, run, and triage web/mobile regressions with agent-qa, advanced memidex memory, and self-improvement.",
+      "source": "./agent-qa-testing",
+      "category": "development",
+      "tags": [
+        "testing",
+        "regression",
+        "web",
+        "mobile",
+        "agent-qa",
+        "memidex"
+      ]
     }
   ]
 }

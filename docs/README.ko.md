@@ -2,7 +2,7 @@
 
 # sovereign-skills v6.5.15
 
-Claude Code 프로젝트 전체 라이프사이클을 위한 22개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
+Claude Code 프로젝트 전체 라이프사이클을 위한 23개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
 
 > **v6.5.15 변경사항:** 스킬 2개 추가 — `ssot-audit`(하나의 사실이 들어 있는 모든 사본을 찾아 정본을 지정)와 `skill-trigger-auditor`(스킬과 명령이 올바르게 라우팅되는지 점검). 버그 수정: `pre-push`는 먼저 커밋하고 나중에 push해도 테스트와 린트를 건너뛰지 않는다. `project-check`는 하이픈이 들어간 API 키(`sk-ant-…`, `sk-proj-…`)도 잡아낸다. `setup`의 hook 예제는 더 이상 `bash` + `jq`가 필요 없어 Windows에서도 동작한다. 나머지 스킬의 개선: `code-autopsy`는 각 발견 사항에 NEW 또는 PRE-EXISTING 표시와 증거 등급을 붙인다. 세션 스킬은 날짜가 지난 핸드오프 항목을 표시한다. `integration-intake`는 리포를 다시 검토하기 전에 자신의 이전 판정을 먼저 조회한다. 22개 스킬 전체에 정독 감사도 했다: 번들 스크립트는 어느 설치 위치에서나 찾을 수 있고(`${CLAUDE_SKILL_DIR}`), Python 3.9+와 macOS에서 실행되며, 선택적 외부 에이전트에는 표시와 대체 수단이 붙었고, 공유 파일 형식은 [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)에 문서화했다. 자세한 내용은 [CHANGELOG.md](../CHANGELOG.md).
 
@@ -93,6 +93,7 @@ Claude Code 프로젝트 전체 라이프사이클을 위한 22개 스킬 — �
 
 | 스킬 | 기능 |
 |------|------|
+| [agent-qa-testing](../agent-qa-testing/) | agent-qa로 웹·모바일 회귀 테스트를 검증·실행·분석. 고급 memidex 메모리와 자기 개선 기능 활용 |
 | [project-check](../project-check/) | 기존 프로젝트를 4개 차원으로 스캔: 인프라, 보안, 품질, 하네스. 심각도순 갭 정렬 |
 | [collab-audit](../collab-audit/) | 14개 섹션 AI 협업 감사 — 실제 작업 패턴(설문 아님)을 분석해 행동 프로필, 사각지대, 성장 방향 생성. 필요한 세션 데이터는 `extract_session_meta.py`가 만든다 |
 

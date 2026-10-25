@@ -2,7 +2,7 @@
 
 # sovereign-skills v6.5.15
 
-22 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
+23 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
 > **What changed in v6.5.15:** Two new skills — `ssot-audit` (find every copy of one fact and name the source of truth) and `skill-trigger-auditor` (check that skills and commands route correctly). Bug fixes: `pre-push` no longer skips tests and lint when you commit first and push later; `project-check` now catches hyphenated API keys (`sk-ant-…`, `sk-proj-…`); the `setup` hook examples no longer need `bash` + `jq`, so they work on Windows. Upgrades across the other skills: `code-autopsy` marks each finding NEW or PRE-EXISTING and states its evidence tier; the session skills flag handoff items whose date has passed; `integration-intake` looks up its own earlier verdicts before re-reviewing a repo. All 22 skills also went through a full read-through audit: bundled scripts are now found from any install location (`${CLAUDE_SKILL_DIR}`), run on Python 3.9+ and macOS, optional external agents are labeled with fallbacks, and shared file formats are documented in [docs/FILE-CONVENTIONS.md](docs/FILE-CONVENTIONS.md). See [CHANGELOG.md](CHANGELOG.md).
 
@@ -93,6 +93,7 @@ then daily:
 
 | Skill | What it does |
 |-------|-------------|
+| [agent-qa-testing](agent-qa-testing/) | Validate, run, and triage web/mobile regressions with agent-qa, advanced memidex memory, and self-improvement |
 | [project-check](project-check/) | Scan existing project across 4 dimensions: Infrastructure, Security, Quality, Harness. Gaps ordered by severity |
 | [collab-audit](collab-audit/) | 14-section AI collaboration audit — analyzes your actual work patterns (not surveys) to generate behavioral profile, blind spots, and growth direction. `extract_session_meta.py` builds the session data it needs |
 

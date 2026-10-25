@@ -2,7 +2,7 @@
 
 # sovereign-skills v6.5.15
 
-22 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
+23 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
 > **Cambios en v6.5.15:** Dos habilidades nuevas — `ssot-audit` (encuentra todas las copias de un mismo dato y señala la fuente de verdad) y `skill-trigger-auditor` (comprueba que las habilidades y los comandos se enruten correctamente). Correcciones de errores: `pre-push` ya no omite las pruebas ni el lint cuando se hace commit primero y push después; `project-check` ahora detecta claves de API con guiones (`sk-ant-…`, `sk-proj-…`); los ejemplos de hooks de `setup` ya no necesitan `bash` + `jq`, así que funcionan en Windows. Mejoras en otras habilidades: `code-autopsy` marca cada hallazgo como NEW o PRE-EXISTING e indica su nivel de evidencia; las habilidades de sesión señalan los elementos del handoff cuya fecha ya pasó; `integration-intake` consulta sus propios veredictos anteriores antes de revisar de nuevo un repositorio. Las 22 habilidades también pasaron por una auditoría de lectura completa: los scripts incluidos se encuentran desde cualquier ubicación de instalación (`${CLAUDE_SKILL_DIR}`), funcionan con Python 3.9+ y en macOS, los agentes externos opcionales están etiquetados con alternativas, y los formatos de archivo compartidos están documentados en [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md). Ver [CHANGELOG.md](../CHANGELOG.md).
 
@@ -93,6 +93,7 @@ Diariamente:
 
 | Habilidad | Función |
 |-----------|---------|
+| [agent-qa-testing](../agent-qa-testing/) | Valida, ejecuta y analiza regresiones web y móviles con agent-qa, memoria avanzada memidex y capacidades de mejora automática |
 | [project-check](../project-check/) | Escanea el proyecto existente en 4 dimensiones: Infraestructura, Seguridad, Calidad, Harness. Brechas ordenadas por severidad |
 | [collab-audit](../collab-audit/) | Auditoría de colaboración AI en 14 secciones — analiza patrones de trabajo reales (no encuestas) para generar perfil conductual, puntos ciegos y dirección de crecimiento. `extract_session_meta.py` genera los datos de sesión que necesita |
 

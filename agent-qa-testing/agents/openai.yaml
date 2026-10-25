@@ -1,0 +1,6 @@
+interface:
+  display_name: "agent-qa testing"
+  short_description: "Validate and triage agent-qa regression evidence"
+  default_prompt: "Use $agent-qa-testing to validate the selected regression and inspect its run evidence."
+policy:
+  allow_implicit_invocation: true
