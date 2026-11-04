@@ -178,11 +178,36 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/ambiguity_gate.py" full --scores "5,3,4,5"
 `specs/{kebab-name}/spec.md` — required sections:
 Meta / Goal / Non-goals / Confirmed Goal / Research / Decisions / Constraints / Known Gaps / Requirements / Tasks / Plan Summary
 
+Terms and skeleton (keep it compatible with the format `coverage_check.py` reads):
+- **Mirror**: the user's request restated in your own words at L0. It becomes the Confirmed Goal only after the user says it is right.
+- **Meta**: one block with the date, author (user or model), status (draft or approved) and Reviewer (the independent reviewer's verdict, or `SKIPPED`).
+- **Known Gaps**: what is still unknown or undecided, and why (if none, write "none: reason").
+- **GWT sub-requirements**: a requirement `R{n}` split into Given/When/Then one-line sub-requirements `R{n}.{m}`.
+
+```markdown
+## Meta
+- Date: {YYYY-MM-DD} | Author: {...} | Status: draft | Reviewer: {reviewer verdict | SKIPPED}
+## Goal / Non-goals / Confirmed Goal
+## Research        # L1 codebase facts only
+## Decisions       # D1...: decision + reason
+## Constraints
+## Known Gaps
+## Requirements
+- R1 {one-line requirement}
+  - R1.1 Given {...} When {...} Then {observable result}
+## Tasks
+### Task 1 {title}
+Fulfills: R1.1
+## Plan Summary
+```
+
 ---
 
 ## Mid-Task Scope Drift — 10x-Discovery Rule
 
 > Quick and Full modes both lock IN/OUT only at write time — neither covers what to do when scope explodes mid-execution.
+>
+> Who this applies to: this skill writes no code, so this rule is guidance for the session that implements from the saved BRIEF.md/spec.md.
 
 Even for scope locked in BRIEF.md/spec.md, if evidence found during implementation (hidden coupling, a required migration, a stopgap carrying far more load than expected) shows the work is a multiple of what was originally understood, **stop immediately and surface it**:
 - What was discovered
@@ -209,7 +234,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| Save BRIEF.md / spec.md | high (git) | L1+L3 (Invariant 5: user approval gate) |
+| Save BRIEF.md / spec.md | high (git) | L1 (conversational approval, Invariant 5: user approval gate) |
 | Overwrite existing spec | medium | L1 (Invariant 9: forbidden — editing an existing spec is outside this skill) |
 
 ## Invariants (never violate)
@@ -225,6 +250,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 9. **No spec overwrite** (Full): editing a spec that existed before this run is outside this skill (hand off to Edit; see Discard If). Appending a layer to the spec.md that this run created is allowed. Violation → prior layers' history is destroyed, so a later reviewer can't tell what changed or why.
 10. **Tasks→Requirements link required** (Full). Violation → a task exists with no requirement behind it — untraceable work that can't be checked against the spec it supposedly fulfills. **Enforcement**: before requesting L4 user approval, run `python3 "${CLAUDE_SKILL_DIR}/scripts/coverage_check.py" --spec <spec.md> [--plan <plan.md>]` and require `COVERAGE: PASS` — uncovered requirements, tasks without `Fulfills:`, undefined R-ids, or duplicate R-ids make it FAIL. Requirement definitions are read only from the Requirements section (R-ids repeated in Tasks or Plan Summary are references, not definitions); a document with no Requirements heading is read whole. If the script cannot run, check the same four conditions by hand and write `gate: manual (script unavailable)`. Vague adjectives and placeholders on requirement lines (fast, intuitive, robust, TBD, ...) only produce warnings; treat them as a signal to rewrite at L3. The script is only for documents in scope format (requirement lines starting with `R1`, `R1.1`; `### Task` headings with `Fulfills:`) — do not run it on documents that use R-numbers for something else, such as scoring-rubric items.
 11. **No silent absorption or quiet shrinking on 10x discovery**: if implementation reveals scope that is a multiple of what was originally understood, surface it immediately — don't absorb it silently and don't quietly shrink the deliverable to fit the original budget. Violation → the user only discovers the delay or the missing scope later, after the fact.
+12. **Independent review or disclosed SKIPPED** (Full): the L2 Decisions go through an independent reviewer, or `Reviewer: SKIPPED` is written in the spec.md Meta. No silent skip. Violation → the author approves their own decisions and a blind spot spreads into L3 and L4.
 
 ## Error Recovery 
 
@@ -247,7 +273,7 @@ Even for scope locked in BRIEF.md/spec.md, if evidence found during implementati
 | "Just quietly do a bit more to make it fit" | Invariant 11. Silent absorption means the user only finds out about the delay or shrinkage later, without warning |
 
 ## Truthful Reporting 
-1. **no mock deception**: never save without approval.
+1. **no mock deception**: never present an unapproved draft or an assumption as locked scope - mark pre-approval state as a draft, and never save without approval.
 2. **no test façade**: missing OUT = `⚠️ Scope OUT not written`.
 3. **no silent brokenness**: unmeasurable Exit Criteria = PARTIAL.
 

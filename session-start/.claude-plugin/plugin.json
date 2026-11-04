@@ -1,6 +1,6 @@
 {
   "name": "session-start",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "description": "Session opener — loads handoff from last session, reviews lessons learned, runs health check, outputs ready signal with priority action.",
   "author": {
     "name": "AlexZio00",

@@ -79,7 +79,9 @@ _F2_RE = re.compile(
 
 # ── f3: Password embedded in connection/DSN string (skip ${VAR}/$(cmd)
 # templates — scoped to the matched credential substring only) ──
-_F3_RE = re.compile(r"""(://[^\s:@]+:[^\s@]{4,}@)""")
+# userinfo cannot hold / ? # (RFC 3986) - without this a URL path/query (e.g. a Google Fonts
+# "family=JetBrains+Mono:wght@400") reads as user:password@host. An empty user (redis://:pw@h) is allowed.
+_F3_RE = re.compile(r"""(://[^\s:@/?#]*:[^\s@]{4,}@)""")
 _F3_TEMPLATE_RE = re.compile(r"\$\{|\$\(")
 
 # ── f4a: Hardcoded credential assignment — quoted value (6+ chars) ──

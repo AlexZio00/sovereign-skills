@@ -1,6 +1,6 @@
 {
   "name": "project-init",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "description": "Interview-based project scaffolding for Claude Code — generates CLAUDE.md, ROADMAP, .gitignore, and .env.example from decisions, not templates.",
   "author": {
     "name": "AlexZio00",

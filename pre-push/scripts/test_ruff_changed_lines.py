@@ -4,6 +4,10 @@ import subprocess
 import sys
 import tempfile
 
+# Each git commit in a temporary repo would run the global hooks (core.hooksPath, e.g. a secrets pre-commit),
+# which made this test several times slower. It checks the wiring, not git hooks - disable them for child processes.
+os.environ.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="core.hooksPath", GIT_CONFIG_VALUE_0=os.devnull)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "ruff_changed_lines.py")
 

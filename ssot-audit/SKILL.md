@@ -23,7 +23,7 @@ triggers:
   - "중복된 거 통합해줘"
 user-invocable: true
 not_for:
-  - "Auditing only CLAUDE.md / rules / MEMORY.md for stale or contradictory claims -> doc-drift"
+  - "Checking only the instruction docs Claude Code loads (CLAUDE.md, MEMORY.md, skills, agents, commands, plugins) for stale or contradictory claims -> doc-drift"
   - "Exhaustive audit of a whole area, not one fact -> full-audit"
 see_also:
   - skill: doc-drift
@@ -37,11 +37,13 @@ see_also:
 ## Purpose
 One fact often lives in several artifacts (docs, code, config, tickets, notes) and the copies drift or contradict each other. This skill finds where the fact lives and how many copies exist, names one source of truth (Phase A, read-only), and after user approval brings the other copies in line with it (Phase B).
 
-`doc-drift` covers only the files Claude Code loads into context (CLAUDE.md, rules, memory, skills, agents). This skill works on any artifact in a repo or notes folder.
+`doc-drift` only checks the instruction docs Claude Code loads into context (CLAUDE.md, MEMORY.md, skills, agents, commands, plugins) for stale claims. This skill works on any artifact in a repo or notes folder.
 
 **Dominant variable**: is the chosen source of truth really the most authoritative location and the one updated most often? A wrong pick makes consolidation distort the fact instead of fixing it.
 
-**Discard if**: the fact already lives in exactly one place (no duplication), or the scope is only CLAUDE.md / rules / memory (use `doc-drift`).
+**Discard if**: the fact already lives in exactly one place (no duplication), or the job is only a stale-claim check of the loaded instruction docs (use `doc-drift`).
+
+**Run only on explicit request**: this skill edits files in Phase B, so it does not start on its own; run it only when the user asks for it.
 
 **Verify before acting**: every artifact found in Phase A is a snapshot from the time of the audit. Before Phase B edits anything, re-check the current state with Glob/Grep. "I saw it during the audit, so it must still be right" is not allowed.
 
@@ -71,7 +73,7 @@ Edit is listed in `tools:` (the tool list is descriptive metadata, nothing enfor
 
 ### Phase B: consolidation (writes, needs user approval)
 1. Show the Phase A report and ask which actions to apply. Even a blanket "do it all" is followed only after you show, item by item, what will be removed.
-2. Apply only the approved dedupe/reference items with Edit. Leave reconcile items untouched until a human decides. For an approved whole-file deletion, print the command and let the user run it.
+2. Before applying, check each item for details that exist only in the non-canonical copy, and move them into the source of truth first (Invariant 4). Then apply only the approved dedupe/reference items with Edit. Leave reconcile items untouched until a human decides. For an approved whole-file deletion, print the command and let the user run it.
 3. Re-verify with Grep: the fact should now exist once in the source of truth plus references.
 
 ## When to retire this skill
@@ -105,7 +107,7 @@ Phase B approval is valid for the current session only. Re-running in a new sess
 | [READ] enumerate every occurrence with Grep/Glob | edit files without user approval |
 | [READ] designate a source-of-truth candidate and propose actions | resolve contradictions (reconcile) on its own |
 | [EDIT] apply only approved dedupe/reference actions | delete a copy before preserving its unique details, or delete a whole file (propose it instead) |
-| [READ] report Phase A and Phase B separately | take over the CLAUDE.md / rules / memory audit (that is doc-drift) |
+| [READ] report Phase A and Phase B separately | the stale-claim check of the loaded instruction docs (that is doc-drift) |
 
 ## Rationalization table
 | Rationalization | Rebuttal |
@@ -113,7 +115,7 @@ Phase B approval is valid for the current session only. Re-running in a new sess
 | "It's obvious which one is right, I'll just merge them" | Violates Invariant 2. "Obvious" is the auditor's opinion, not a verified fact. Reconcile goes to a human. |
 | "While auditing I might as well fix what I found" | Violates Invariant 1. The A/B split exists to stop edits that cannot be undone before approval. |
 | "Saying there are no duplicates feels weak, let me find something" | Violates Invariant 3. Forced findings cause needless edits. |
-| "doc-drift already covers this project" | doc-drift covers only the loaded context files. Repo-wide or notes-wide scope is this skill. |
+| "doc-drift already covers this project" | doc-drift only checks the loaded instruction docs for stale claims. One fact's duplicates across a whole repo or notes folder, and consolidating them, are this skill. |
 
 ## Output
 - Phase A: occurrence table (location, kind, action), source-of-truth proposal, contradiction list, in the conversation.
@@ -122,6 +124,7 @@ Phase B approval is valid for the current session only. Re-running in a new sess
 ## Error recovery
 | Failure type | Recovery |
 |---|---|
+| input_error | No fact to track, or one too broad (for example "consolidate the duplicated content"): do not start; ask the user to name the fact (a value, spec or decision) in one line. |
 | missing_data (Phase A) | Grep/Glob cannot find the scope: report "scope unclear" and ask the user to confirm it. |
 | tool_failure (Phase A) | Retry a failed Grep/Glob once, then report which searches failed and mark the occurrence list as incomplete. Do not start Phase B on an incomplete list. |
 | tool_failure (Phase B) | Retry a failed Edit once, then stop. Report which items were applied and which were not; do not continue with the remaining items. |

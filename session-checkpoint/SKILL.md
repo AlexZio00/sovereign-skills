@@ -4,7 +4,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 triggers:
   - "/session-checkpoint"
   - "checkpoint"
-  - "compact"
+  - "checkpoint before compact"
   - "체크포인트"
   - "핸드오프 저장"
   - "컴팩트 전에"
@@ -55,7 +55,7 @@ Has it been clearly identified in this session **what the next session absolutel
 
 - `/session-checkpoint`
 - "checkpoint"
-- "compact"
+- "checkpoint before compact"
 - (Korean trigger phrases are listed in the frontmatter `triggers`.)
 
 File formats this skill writes (handoff, `tasks/lessons.md`, `STATE.md`, `MEMORY.md`, `context-log.md`, invocation ledger): https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FILE-CONVENTIONS.md
@@ -283,7 +283,7 @@ missed under the original session_id.
 
 **Skip conditions** (do not record):
 - skills + agents + discarded all empty → no session calls, skip record
-- **Activity threshold not met** (only the two activity-volume legs of the Phase 1.5 activity gate: tokens<5000 AND tools<3) → no meaningful activity, skip record. **The 24h leg is deliberately not applied here** — that leg only keeps automatic checkpoint proposals from firing on every trivial session, while this skip condition asks "was there anything to record in this session." Applying the 24h leg here too would suppress a genuine invocation log entry just because the last checkpoint happened to be recent — defeating this log's purpose (crash-loss protection and Discard-If rejection-rate measurement).
+- **Activity threshold not met** (only the two activity-volume legs of the Phase 1.5 activity gate: tokens<5000 OR tools<3) → no meaningful activity, skip record. **The 24h leg is deliberately not applied here** — that leg only keeps automatic checkpoint proposals from firing on every trivial session, while this skip condition asks "was there anything to record in this session." Applying the 24h leg here too would suppress a genuine invocation log entry just because the last checkpoint happened to be recent — defeating this log's purpose (crash-loss protection and Discard-If rejection-rate measurement).
 
 **Directory guarantee**: Before recording, verify `~/.claude/.harness/invocations/` exists. Create with `mkdir -p` if needed.
 
@@ -312,7 +312,7 @@ Scan session conversation to extract reflection items from the four questions be
 **Before recording — 3 gates (run on every candidate item before it reaches lessons.md):**
 1. **Generality filter**: will this apply beyond the circumstances of this one session, or is it a one-off incident tied to today's specific context? If it doesn't generalize, don't promote it to lessons.md — instead append it to context-log.md as a `ttl:30d` episode item. lessons.md is for behavior corrections the next session should carry forward; a non-generalizing incident is just today's history.
 2. **Diagnosis completeness check**: does the item state *why* the mistake happened (root cause), not just *what* happened? A lesson that only names the symptom, with no causal mechanism, gives the next session nothing to act on differently. If the root cause isn't known yet, still record the item but tag the header line `[DIAGNOSIS_MISSING]` so it's visibly incomplete rather than silently thin — revisit once the cause surfaces.
-   - **Existing-rule check**: before recording, grep once for whether an existing rule/skill/lesson should already have prevented this failure. Tag the meta line `rule_gap: A` (a rule already existed and was not followed — cite the file:line; the fix target is *why* it wasn't followed, not a new rule) or `rule_gap: B` (no rule existed — genuine new-rule candidate). A later synthesis pass should propose amending the existing entry for `A`, and a new gate only for `B` — otherwise rule files just accumulate restatements of the same point. If the failure cause is the harness (context truncation, path, encoding, sync), add `cause: harness` to the meta line and omit `model:` — do not record a harness failure as a model mistake. A lesson drawn from a correction must include its applicability condition (task type or situation) in one phrase — a lesson without a condition hardens into an unbounded prohibition.
+   - **Existing-rule check**: before recording, grep once for whether an existing rule/skill/lesson should already have prevented this failure. Tag the meta line `rule_gap: A` (a rule already existed and was not followed — cite the file:line; the fix target is *why* it wasn't followed, not a new rule) or `rule_gap: B` (no rule existed — genuine new-rule candidate). A later synthesis pass should propose amending the existing entry for `A`, and a new gate only for `B` — otherwise rule files just accumulate restatements of the same point. **If `A` and the rule that was broken is already enforced more strongly than plain lesson text** (an entry under `## Graduated Gates` in `tasks/lessons.md`, a checklist item, a hook or a test), do not lower the source lesson's `conf` — the rule was right and its enforcement was too weak. If that enforcement is prompt text only, put one line `[Enforcement upgrade candidate] <rule>: <one step stronger — a script, hook or test, with a file name>` in this checkpoint's output and propose it to the user. If the rule is a judgment call that cannot be mechanized, say why and propose a better wording location plus a failure example instead. Implement only after the user approves. If the failure cause is the harness (context truncation, path, encoding, sync), add `cause: harness` to the meta line and omit `model:` — do not record a harness failure as a model mistake. A lesson drawn from a correction must include its applicability condition (task type or situation) in one phrase — a lesson without a condition hardens into an unbounded prohibition.
 3. **Postmortem 3-condition gate** (a lesson can clear gates 1-2 and still not be worth keeping): record it only if it clears all three of subtle (not a typo-level or surface-level slip — genuinely non-obvious), systemic (a structural cause, not a one-time fluke), and costly-to-rediscover (re-diagnosing it from scratch next time would actually cost something). If any one of the three fails, don't add a new lessons.md entry — mention it in-conversation only, or downgrade it to a `context-log.md` `ttl:30d` entry. Without this filter, "I learned something today" becomes the bar, and lessons.md fills with noise that buries the entries actually worth carrying forward. **Scope**: this gate applies to extraction questions 1-3 above (a correction-shaped lesson drawn from a mistake, inefficiency, or dissatisfaction signal). It does not apply to item 4 (the success lesson) — "a judgment that worked well" is recorded for a separate purpose (balancing failure bias) regardless of whether it's subtle or systemic, and item 4's own "record at least one" requirement stands on its own.
 
 **When items exist** → add to lessons.md (if `tasks/lessons.md` does not exist yet, create it first with the title line `# tasks/lessons.md — AI behavior correction rules`):
@@ -403,6 +403,7 @@ File: `memory/session-handoff-LATEST.md`
 5. **Check dates before carrying items forward**: run `python3 "${CLAUDE_SKILL_DIR}/scripts/handoff_due_check.py" memory/session-handoff-LATEST.md` once. For each `PAST` item, check what happened and then drop it or record the result; never carry the old date forward as if it were still pending. If the script cannot run, compare the dates yourself and say "dates checked by hand".
 6. **Carry age `since:`**: put `(since: YYYY-MM-DD)` on each "What to do now", "Scheduled checks" and "Pending decisions" item the first time it is listed, and keep it unchanged when carrying the item forward. If an existing item has none, use the date it first appeared in git history, or this session's date if you cannot find one. When the script prints `STALE` (14+ days carried), do not carry the item silently; ask the user in one line whether to move it to the global state file or drop it.
 7. **Separate "do now" from "waiting for a date"**: items the script marks `FUTURE` leave "What to do now" and go into "Scheduled checks (by date)". "What to do now" keeps only items the next session can start right away, because session-start takes Priority 1 from its first entry. The compact block's `next:` follows the same rule.
+8. **Do not cut goals to save tokens**: when shortening the handoff, never drop remaining work or pending-decision items, and never fold them into "mostly done". Shorten the wording, not the to-do list. Before compressing, fix the list of what must survive (work in progress, pending decisions, exact numbers, IDs and paths), then shorten everything else.
 
 ### Required sections
 
@@ -537,9 +538,9 @@ Reflect Phase 1.5 extraction into files:
    - **Hook-promotion flag**: when a lesson has `conf≥0.9` AND the violation is machine-detectable (pattern-matchable via regex/AST) AND `obs≥3` (3+ recurrences), add a `> hook_candidate: true` tag on the line after its header, and flag it in the Phase 3 output as "Hook-promotion candidate: {lesson title}". Flag only — actually authoring the enforcement hook requires separate approval.
    - **Monthly cleanup — the one archive rule** (1st of month or staleness detected): archive a lesson when EITHER condition holds — `conf < 0.4 AND (today − seen) > 90 days` **OR** `obs = 1 AND (today − seen) > 90 days` (a lesson untouched for 90+ days without a single confirmed recurrence; conf rarely falls below 0.4 in practice, so the conf-only condition seldom fires). No other criterion archives a lesson. **Cross-reference check mandatory before archiving**: if the candidate lesson is currently cited as completion evidence in a document such as STATE.md, a handoff file, CLAUDE.md, or a roadmap, preserve it until that document is cleaned up first. → move to `tasks/_archive/lessons-pre-YYYY-MM.md`
 4. In MEMORY.md index, remove previous handoff references, standardize to LATEST
-5. **`~/.claude/STATE.md`** (global cross-project) — if this session changed state, must update:
-   - PENDING item trigger satisfied / completed → delete line
-   - Active blocker resolved → delete line
+5. **`~/.claude/STATE.md`** (global cross-project) — if this session changed state, must update. **Ask before deleting a row**: show the title and deletion reason of every row to delete in one list and get one confirmation, then delete. Without a confirmation, delete nothing and list "N STATE deletions pending" under Outstanding decisions in the handoff. Adding rows and updating wording needs no question:
+   - PENDING item trigger satisfied / completed → delete line (after the confirmation above)
+   - Active blocker resolved → delete line (after the confirmation above)
    - New Major milestone → add to `change log` table (date + 1-line summary)
    - No changes → skip, no unnecessary touch
    - Path: `~/.claude/STATE.md`
@@ -586,8 +587,8 @@ Reflect Phase 1.5 extraction into files:
 
 9. **Forgetting Sweep — control-plane purge**
    > Memory failure core is not recall but **forgetting** (stale that should expire continues resurfacing — recommend rotated credentials, persisting solved blockers). Append-only accumulates stale → checkpoint must proactively supersede/purge.
-   - **STATE.md**: ✅completed, 🟢resolved, trigger-satisfied items → **delete** (active list = pending only, completions go to change log only). "awaiting/scheduled/uncommitted" status → Glob/grep verify actual state → if already active/committed, correct and purge.
-   - **MEMORY.md CT**: Items mismatched current fact → overwrite (count/version/flags updated via measurement, not guess).
+   - **STATE.md**: ✅completed, 🟢resolved, trigger-satisfied items → **delete** after the confirmation rule in item 5 (active list = pending only, completions go to change log only). "awaiting/scheduled/uncommitted" status → Glob/grep verify actual state → if already active/committed, correct and purge.
+   - **MEMORY.md CT**: Items mismatched current fact → overwrite (count/version/flags updated via measurement, not guess). MEMORY.md may sit outside version control, so an overwrite or deletion cannot be reverted: show each changed line as "old line → new line", get one confirmation (batch it with the STATE deletions above), then change it. Adding a new line needs no question.
    - **Superseded docs**: Merged or new-version old files → move to graveyard/_archive (mark superseded in body).
    - ⚠️ Before delete/move, external-reference grep — if Read-by-path dependencies exist, defer.
    - Output: `[Forgetting Sweep] purged {N} / corrected {M} / superseded {K}` (if 0, then `no stale`).
@@ -668,7 +669,7 @@ After verification passes, inform user:
 | [EDIT] tasks/lessons.md — update Monthly Synthesis section (Phase 3 item 6, conditional) | Delete Synthesis or modify source lessons |
 | [WRITE] `~/.claude/.harness/invocations/YYYY-MM.jsonl` — real-time Invocation Log (Phase 1.6.5) | Modify or delete existing JSONL items |
 | [WRITE] `~/.claude/.harness/invocations/YYYY-MM.jsonl` — Phase 3.7 fallback append (Phase 1.6.5 failure only) | Append with duplicate session_id (idempotency violation) |
-| [READ+EDIT] Verify MEMORY.md Key File paths via `validate_memory_claims.py check-paths` → fix stale immediately (Phase 3 item 8) | Rewrite entire Key Files section |
+| [READ+EDIT] Verify MEMORY.md Key File paths via `validate_memory_claims.py check-paths` → report stale paths, fix only after user confirmation (Phase 3 item 8) | Rewrite entire Key Files section |
 | [READ+EDIT] Verify new-fact backlinks via grep, flag+add one index line if missing (Discoverability Check, Phase 3 item 10) | Rewrite the whole index file |
 | [WRITE] `~/.claude/.harness/interventions/YYYY-MM.jsonl` — Intervention Log append (Phase 1.8) | Modify or delete existing items |
 | [WRITE] `memory/.session-handoff.sha256` + `~/.claude/.harness/receipts/YYYY-MM.jsonl` — Attestation sidecar + receipt logging (Phase 4.5, optional, write-receipt) | Sidecar/receipt verification·blocking logic (a hook or manual run you set up — guard/verify-receipt) |
@@ -716,7 +717,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 After handoff save, report status with:
 1. **No mock deception**: Before saying "saved", re-verify file size·line count (validate Write result).
 2. **No test façade**: Phase 4 checklist items actually skipped → mark `⚠️ SKIPPED: reason`. Never fake passage.
-3. **No silent brokenness**: Final status label — `WORKING` (all 5 Phases complete) / `PARTIAL` (some missing, list defects) / `BROKEN` (handoff save failed). Never ambiguous state.
+3. **No silent brokenness**: Final status label — `WORKING` (all 5 Phases complete) / `PARTIAL` (some missing, list defects) / `BROKEN` (handoff save failed) / `BLOCKED` (waiting on an external dependency or user approval — list the reasons). Never ambiguous state.
 
 ---
 
@@ -734,7 +735,7 @@ After handoff save, report status with:
 
 | Rationalization | Rebuttal |
 |--------|------|
-| "Keeping completed items as reference is nice" | No. Completed items make handoff a changelog. Git history preserves them. Deletion is correct behavior. |
+| "Keeping completed items as reference is nice" | No. Completed items make handoff a changelog. Git history preserves them. Deletion is correct behavior. Exception: STATE.md row deletion and MEMORY.md overwrite go through the one-time confirmation in Phase 3 (MEMORY.md may be outside version control). |
 | "Phase 4 checklist has one NO but seems fine anyway..." | Invariant 3 violation. Checklist exists exactly for this moment. Do not suggest `/compact` if any NO. |
 | "Saving as session-handoff-v2.md keeps the old one too..." | Invariant 1 violation. Git history preserves old versions. Versioned files create "which is latest?" confusion, context recovery fails. |
 | "Detected repeat in Phase 1.6, let's just start authoring the skill now..." | Invariant 4 violation. Only user judges if work actually repeats. Auto-promote includes one-off exploration, library pollution. Propose only, user approval required. |

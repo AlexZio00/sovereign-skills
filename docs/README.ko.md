@@ -1,10 +1,10 @@
 [English](../README.md) | 🌐 **한국어** | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.15
+# sovereign-skills v6.6.0
 
 Claude Code 프로젝트 전체 라이프사이클을 위한 22개 스킬 — 셋업부터 일일 워크플로우, 코드 리뷰, 세션 관리, 거버넌스까지. 각 스킬은 독립 사용 가능하며, 전체 시퀀스는 모든 단계를 커버합니다.
 
-> **v6.5.15 변경사항:** 스킬 2개 추가 — `ssot-audit`(하나의 사실이 들어 있는 모든 사본을 찾아 정본을 지정)와 `skill-trigger-auditor`(스킬과 명령이 올바르게 라우팅되는지 점검). 버그 수정: `pre-push`는 먼저 커밋하고 나중에 push해도 테스트와 린트를 건너뛰지 않는다. `project-check`는 하이픈이 들어간 API 키(`sk-ant-…`, `sk-proj-…`)도 잡아낸다. `setup`의 hook 예제는 더 이상 `bash` + `jq`가 필요 없어 Windows에서도 동작한다. 나머지 스킬의 개선: `code-autopsy`는 각 발견 사항에 NEW 또는 PRE-EXISTING 표시와 증거 등급을 붙인다. 세션 스킬은 날짜가 지난 핸드오프 항목을 표시한다. `integration-intake`는 리포를 다시 검토하기 전에 자신의 이전 판정을 먼저 조회한다. 22개 스킬 전체에 정독 감사도 했다: 번들 스크립트는 어느 설치 위치에서나 찾을 수 있고(`${CLAUDE_SKILL_DIR}`), Python 3.9+와 macOS에서 실행되며, 선택적 외부 에이전트에는 표시와 대체 수단이 붙었고, 공유 파일 형식은 [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)에 문서화했다. 자세한 내용은 [CHANGELOG.md](../CHANGELOG.md).
+> **v6.6.0 변경사항:** 22개 스킬 중 20개를 업데이트했다. `eval-leakage-audit`의 패턴이 28개에서 31개로 늘었다(사소한 단서 기준선, A-vs-B 비교에서 조건별 채점기 오류, 공개되지 않은 폴백 채점). `skill-trigger-auditor`는 트리거 테스트를 분할(tuning / heldout / review / real)별로 채점한다. 테스트가 딸린 새 보조 스크립트 2개: `doc-drift/scripts/stale_numbers.py`(파일과 더 이상 맞지 않는 문서 속 개수와 버전)와 `pre-push/scripts/share_record.py`(공개 push에 담긴 이메일, 홈 경로, 키 형태 문자열의 클래스별 개수를 값 없이 기록). `integration-intake`는 커넥터나 메모리 제공자를 도입하기 전에 어떻게 빠져나올지 확인한다. 버그 수정: `pre-push`는 `family=…:wght@400` 같은 폰트 URL을 연결 문자열의 비밀번호로 읽지 않는다. `project-check`는 GitHub 세분화된 토큰을 감지하고, 파일 수와 LOC가 서로 다르면 더 큰 규모 등급을 쓴다. `session-start`는 나머지가 생략되어도 상태 점검을 실행한다. 자세한 내용은 [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
@@ -67,7 +67,7 @@ Claude Code 프로젝트 전체 라이프사이클을 위한 22개 스킬 — �
 | [scope](../scope/) | 구현 전 IN/OUT/종료 기준 정의. Quick 모드 (3개 질문) 또는 Full 모드 (레이어드 스펙). Full 모드에 `coverage_check.py`(요구사항↔태스크 대조) 포함 |
 | [freeze](../freeze/) | 수정 가능 영역 선언 — 나머지는 동결. 구현 중 범위 변경 방지 |
 | [goal-lock](../goal-lock/) | 에이전트 규율 엔진 — 목표 잠금, PLAN→DO→VERIFY→FINALIZE→OUTPUT 루프 강제, 16가지 성공 위장 패턴 탐지 |
-| [pre-push](../pre-push/) | 필수 pre-push 파이프라인 — 시크릿 스캔 (14패턴), 빌드/테스트, 린트, 병렬 AI 코드 리뷰. push가 실제로 담고 있는 것(스테이징된 변경 + 아직 올라가지 않은 커밋)을 검사. Critical/High 발견 시 push 차단 |
+| [pre-push](../pre-push/) | 필수 pre-push 파이프라인 — 시크릿 스캔 (14패턴), 빌드/테스트, 린트, 병렬 AI 코드 리뷰. push가 실제로 담고 있는 것(스테이징된 변경 + 아직 올라가지 않은 커밋)을 검사. Critical/High 발견 시 push 차단. 공개 미러로 push할 때는 값 없는 공유 기록(`share_record.py`)도 남김 |
 
 ### 관점 전환
 
@@ -102,18 +102,18 @@ Claude Code 프로젝트 전체 라이프사이클을 위한 22개 스킬 — �
 |------|------|
 | [skill-ops](../skill-ops/) | 스킬/에이전트 운영 허브 — 스냅샷/롤백 + 사용률 + 호출 추적 + 품질 점수, 4모드. `skill_snapshot.py`와 `skill_health_bucket.py` 포함 |
 | [project-overview](../project-overview/) | 등록된 프로젝트들의 세션 핸드오프로부터 결정론 크로스프로젝트 현황 지도를 생성하고, 7일이 지난 스냅샷을 보고 |
-| [skill-trigger-auditor](../skill-trigger-auditor/) | **v6.5.15 신규.** 스킬·에이전트·슬래시 명령의 라우팅 충돌과 오발동을 감사하고, description 변경을 홀드아웃 트리거 테스트로 관문 처리. 선택 사항인 프로브는 실제 Skill 도구 호출을 측정 |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | 스킬·에이전트·슬래시 명령의 라우팅 충돌과 오발동을 감사하고, description 변경을 홀드아웃 트리거 테스트로 관문 처리하며 분할(tuning / heldout / review / real)별로 채점. 선택 사항인 프로브는 실제 Skill 도구 호출을 측정 |
 
 ### 거버넌스
 
 | 스킬 | 기능 |
 |------|------|
 | [full-audit](../full-audit/) | 전 영역(코드베이스/문서/스킬/메모리/설정) 전수감사 — 결정론 스윕 + 내용리뷰 2계층 방법론, 오탐방지 kill-test, 시딩된 카나리, 영속 커버리지맵 |
-| [integration-intake](../integration-intake/) | 외부 패턴(스킬/에이전트/룰/플러그인/MCP) 도입 5항목 스크리닝 게이트 — 기존 자산 대비 중복 검사, 도입 콘텐츠 provenance/인젝션 검사, 라이선스 확인 한 줄, 이전 판정 장부 조회 |
+| [integration-intake](../integration-intake/) | 외부 패턴(스킬/에이전트/룰/플러그인/MCP) 도입 5항목 스크리닝 게이트 — 기존 자산 대비 중복 검사, 도입 콘텐츠 provenance/인젝션 검사, 라이선스 확인 한 줄, 이전 판정 장부 조회, 커넥터·메모리 제공자의 이탈 경로 확인 |
 | [clean-room](../clean-room/) | 위험인접 요청을 안전 스코프로 분리해 완전히 격리된 fresh-context 서브에이전트가 실행 — 적대적 검증 패스 + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | eval/metric/holdout이 실제로 독립된 외부 그라운드트루스를 확보하는지, 아니면 순환 자기확인인지 감사 — 28-패턴 taxonomy, 골든 케이스 2개. 읽기 전용 |
-| [doc-drift](../doc-drift/) | Claude Code가 컨텍스트로 로드하는 메모리/문서(CLAUDE.md/MEMORY.md/skills/agents/commands)를 구식 주장·상호 모순·위험/모호 표현으로 감사 — 우선순위 수정 목록 생성 |
-| [ssot-audit](../ssot-audit/) | **v6.5.15 신규.** 리포나 노트 폴더 전체에서 하나의 사실·값·결정이 들어 있는 모든 사본을 찾아 정본을 지정(읽기 전용)하고, 사용자가 승인한 뒤에만 중복을 통합 |
+| [eval-leakage-audit](../eval-leakage-audit/) | eval/metric/holdout이 실제로 독립된 외부 그라운드트루스를 확보하는지, 아니면 순환 자기확인인지 감사 — 31-패턴 taxonomy, 골든 케이스 2개. 읽기 전용 |
+| [doc-drift](../doc-drift/) | Claude Code가 컨텍스트로 로드하는 메모리/문서(CLAUDE.md/MEMORY.md/skills/agents/commands)를 구식 주장·상호 모순·위험/모호 표현으로 감사 — 우선순위 수정 목록 생성. `stale_numbers.py`는 더 이상 맞지 않는 개수와 버전을 표시 |
+| [ssot-audit](../ssot-audit/) | 리포나 노트 폴더 전체에서 하나의 사실·값·결정이 들어 있는 모든 사본을 찾아 정본을 지정(읽기 전용)하고, 사용자가 승인한 뒤에만 중복을 통합 |
 
 ---
 
@@ -175,12 +175,21 @@ cp -r goal-lock ~/.claude/skills/
 
 ### 방법 B: 마켓플레이스 (sovereign-plugins)
 
-이 리포는 Claude Code 마켓플레이스입니다. 한 번 등록하면 스킬을 탐색/설치할 수 있습니다:
+이 리포는 `sovereign-plugins`라는 이름의 Claude Code 플러그인 마켓플레이스입니다. 한 번 추가한 뒤 원하는 스킬을 설치하세요. Claude Code 세션 안에서:
+
+```
+/plugin marketplace add AlexZio00/sovereign-skills
+/plugin install goal-lock@sovereign-plugins
+```
+
+셸에서는 같은 두 단계를 다음과 같이 실행합니다:
 
 ```bash
-# Claude Code에서 sovereign-plugins 마켓플레이스 추가
-# 설정 → 플러그인 → 마켓플레이스 추가 → https://github.com/AlexZio00/sovereign-skills.git
+claude plugin marketplace add AlexZio00/sovereign-skills
+claude plugin install goal-lock@sovereign-plugins
 ```
+
+데스크톱 앱에서는 위 명령 중 하나로 마켓플레이스를 추가한 뒤, 플러그인 브라우저(프롬프트 입력창 옆 **+** → **Add plugins**)에서 스킬을 고릅니다. 서드파티 마켓플레이스는 기본적으로 자동 업데이트되지 않습니다. [공식 플러그인 설치 가이드](https://code.claude.com/docs/en/plugins/install.md)를 참고하세요.
 
 각 스킬에 개별 `.claude-plugin/plugin.json` 메타데이터도 포함되어 있습니다.
 

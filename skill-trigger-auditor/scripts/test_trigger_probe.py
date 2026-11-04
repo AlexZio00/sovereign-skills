@@ -205,3 +205,56 @@ def test_dry_run_prints_estimated_time(tmp_path):
     data = json.loads(out.stdout)
     assert data["total_api_calls"] == 6 and data["estimated_max_seconds"] == 3 * 60   # ceil(6 / 2) waves x 60 s
     assert data["estimated_max_minutes"] == 3.0
+
+
+# --- split eval sets (tuning / heldout / review / real) ---
+
+def _r(split, should, triggers, runs=2):
+    return {"split": split, "should_trigger": should, "triggers": triggers, "runs": runs}
+
+
+def test_split_metrics_per_split_and_overall_pass():
+    results = ([_r("tuning", True, 2), _r("tuning", False, 0), _r("tuning", True, 2)]
+               + [_r("heldout", True, 2), _r("heldout", False, 0), _r("heldout", False, 0)])
+    m = tp.split_metrics(results)
+    assert m["splits"]["tuning"]["precision"] == 1.0 and m["splits"]["heldout"]["recall"] == 1.0
+    assert m["splits"]["tuning"]["verdict"] == "PASS" and m["verdict"] == "PASS"
+
+
+def test_one_failing_split_fails_overall():
+    results = ([_r("tuning", True, 2), _r("tuning", False, 0), _r("tuning", True, 2)]
+               + [_r("real", True, 0), _r("real", False, 2), _r("real", True, 1)])
+    m = tp.split_metrics(results)
+    assert m["splits"]["real"]["verdict"] == "FAIL" and m["verdict"] == "FAIL"
+
+
+def test_small_split_is_too_small_not_pass():
+    results = [_r("tuning", True, 2), _r("tuning", False, 0), _r("tuning", True, 2),
+               _r("review", True, 2), _r("review", False, 0)]
+    m = tp.split_metrics(results)
+    assert m["splits"]["review"]["verdict"] == "too_small"
+    assert m["verdict"] == "INCOMPLETE"
+
+
+def test_missing_split_defaults_to_tuning_and_zero_denominator_is_none():
+    m = tp.split_metrics([{"should_trigger": False, "triggers": 0, "runs": 2}] * 3)
+    s = m["splits"]["tuning"]
+    assert s["cases"] == 3 and s["precision"] is None and s["recall"] is None and s["verdict"] == "UNMEASURED"
+
+
+def test_all_errored_cases_do_not_count_toward_min_cases():
+    # 3 cases, 2 with every run errored -> only 1 measured -> too_small
+    results = [_r("heldout", True, 2), _r("heldout", True, 0, runs=0), _r("heldout", False, 0, runs=0)]
+    s = tp.split_metrics(results)["splits"]["heldout"]
+    assert s["cases"] == 3 and s["measured_cases"] == 1 and s["verdict"] == "too_small"
+
+
+def test_unknown_split_rejected():
+    assert "split" in tp.validate_eval_set([{"query": "a", "should_trigger": True, "split": "train"}])
+    assert tp.validate_eval_set([{"query": "a", "should_trigger": True, "split": "heldout"}]) is None
+
+
+def test_eval_set_sha256_is_stable_and_order_sensitive():
+    a = [{"query": "x", "should_trigger": True}, {"query": "y", "should_trigger": False}]
+    assert tp.eval_set_sha256(a) == tp.eval_set_sha256(json.loads(json.dumps(a)))
+    assert tp.eval_set_sha256(a) != tp.eval_set_sha256(list(reversed(a)))

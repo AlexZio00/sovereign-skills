@@ -6,6 +6,34 @@ git/README history (the v6.0 rewrite dropped the changelog section from
 
 ---
 
+## v6.6.0 — 2026-11-04
+
+A delta port from the internal fork covering 20 of the 22 skills (`goal-lock` and `skill-ops` were already current). Each changed skill's `.claude-plugin/plugin.json` version is bumped. Two new helper scripts ship with tests.
+
+### Added
+- **eval-leakage-audit** (1.1.0): three new patterns, 28 → 31 — #29 trivial-cue baseline (does a classifier that sees only source, length or structure match the headline accuracy?), #30 contrast validity (an A-vs-B comparison needs per-condition false-positive and false-negative rates, not one overall F1), #31 undisclosed fallback scoring (which rule scores answers the parser cannot extract, and does rescoring under a second rule move the result more than the gap being compared).
+- **skill-trigger-auditor** (1.1.0): trigger eval sets are scored per split (tuning / heldout / review / real), so a description tuned on its own examples cannot hide a holdout regression; `trigger_probe.py` reports the split table.
+- **doc-drift** (1.2.0): `scripts/stale_numbers.py` finds counts and versions in docs that no longer match the files they describe; Step 0.0 measures the Discard If gates instead of guessing.
+- **pre-push** (6.2.0): `scripts/share_record.py`, wired into the public-mirror scrub as step (d) — counts e-mail addresses, home-directory paths, key-shaped strings, phone numbers and private IPs per class across the whole files a push carries, and keeps a share record with counts only, never values.
+- **integration-intake** (1.2.0): connectors and memory providers get an exit-path check before adoption — turn off, delete the local cache, delete the remote data, delete the account — and the report has a line for each.
+
+### Fixed
+- **pre-push**: the connection-string rule (Python and Perl scanners) read URL paths and queries such as a Google Fonts `family=…:wght@400` as `user:password@host`; userinfo now excludes `/ ? #` (RFC 3986), and an empty user (`redis://:pw@host`) is still caught. Key-rotation steps now end with "confirm the old key is refused".
+- **pre-push**: `share_record.py` strips the whole userinfo (also when the password holds `/` or `@`) plus the query and fragment from the remote URL before logging it, and runs on Python 3.9 (`timezone.utc`). A repo-level `ruff.toml` pins `target-version = "py39"` so lint autofixes keep the bundled scripts 3.9-compatible.
+- **project-check**: if the file count and LOC point to different size classes, the larger class wins; the `sk-` and vendor-prefixed key patterns run case-sensitive; GitHub fine-grained PATs (`github_pat_…`) are detected.
+- **session-start**: Phase 0.5 health checks run even when the rest of the skill is discarded; the `settings.local.json` allow-list check counts all entries (they carry no timestamps).
+- **next-action**: state collection uses read-only commands only; with fewer than 3 candidates it lists what it found and says which sources it read instead of inventing more.
+- **code-autopsy** (7.3.1): grep checks for JS/TS empty `catch {}` and Rust swallowed errors; the diff scope is pinned before the other gates run.
+
+### Changed
+- **session-checkpoint** (6.2.0): before recording a lesson, check whether an existing rule should already have prevented the failure; if a rule that was already promoted to a gate is broken again, propose one step stronger enforcement (a script, hook or test) instead of lowering the lesson's confidence.
+- **setup**: verification stops and reports to the user when the same item still fails after 2 fixes; a Custom preset starts from General and asks for the domain's never-violate rules.
+- **project-init**: asks "Generate this?" for each file separately (no batch approval); CLAUDE.md includes the Secrets Policy section only when `.env.example` is generated.
+- **scope**: Full mode spec skeleton gains Mirror (the request restated before it becomes the Confirmed Goal), Meta (date, author, status, reviewer verdict) and Known Gaps.
+- **clean-room**: VERIFY is not complete without the carve-accuracy re-check and its fresh-context re-sweep against the ledger.
+- **ssot-audit**: runs only on explicit request (Phase B edits files); clearer split from doc-drift.
+- **freeze, stepback, full-audit, collab-audit, project-overview**: trigger and discard wording aligned with the related skills; collab-audit states the minimum sample (2 sessions or 100 messages) and its BROKEN/PARTIAL save labels.
+
 ## v6.5.15 — 2026-10-21
 
 Two new skills (20 → 22) and a delta port from the internal fork covering all 20 existing skills. Each changed skill's `.claude-plugin/plugin.json` version is bumped (minor for features, patch for fixes only), so plugin managers can see the update.

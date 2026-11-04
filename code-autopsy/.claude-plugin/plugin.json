@@ -1,7 +1,7 @@
 {
   "name": "code-autopsy",
   "description": "12Q quantified code review — 4-axis scoring (Security/Stability/Robustness/Operability), severity anchors, deployment verdict, factuality gate. Works as standalone prompt in any LLM",
-  "version": "7.3.0",
+  "version": "7.3.1",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

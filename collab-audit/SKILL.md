@@ -45,7 +45,7 @@ Whether the analysis infers reasons behind observed patterns, not just lists fac
 
 ## Discard If
 
-- Fewer than 2 observed sessions AND fewer than 100 messages — insufficient sample to extract patterns
+- Fewer than 2 observed sessions AND fewer than 100 messages — insufficient sample to extract patterns (except the single-session high-density exception: if it meets the Step 0 / Invariant 4 criteria, proceed with a warning)
 - Simple code review request → this skill does not review code; do a normal code review instead
 - Only quantitative session metrics needed → run the Step 0 scripts and report their JSON; no 14-section report is needed
 
@@ -82,7 +82,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/session_hygiene_scan.py" --meta-dir <scratc
 The extractor reads `~/.claude/projects` by default (`--projects-dir` overrides) and stores counts plus the session's `cwd` and `entrypoint`, never prompt text; its docstring is the canonical field definition. It skips subagent transcripts before applying `--max` and prints how many it skipped on stderr. If a script is missing or cannot start, say so, count by hand, and write "manual count — script not run" in the report.
 
 If all unmet:
-> "Insufficient data — minimum 2 sessions or 100 messages required. Currently [N] messages, [M] artifacts observed."
+> "Insufficient data — minimum 2 sessions or 100 messages required. Currently [K] sessions, [N] messages, [M] artifacts observed."
 
 Output and **stop immediately**. Reject even "prediction-based" requests.
 
@@ -370,7 +370,7 @@ On failure detection: **Stop → Classify → Apply Recovery → Report & Resume
 On audit report save and output:
 1. **no mock deception**: sections inferred without sufficient observation evidence mark `⚠️ insufficient evidence`. Do not disguise as "insight".
 2. **no test façade**: if both minimums (2 sessions / 100 msgs) are unmet, stop immediately (Invariant 4) — only if the single-session high-density exception is met, mark `⚠ single-session limits` and proceed in limited form. No arbitrary padding.
-3. **no silent brokenness**: if save fails, mark `BROKEN` status. If partial save, mark `PARTIAL` + list omitted sections.
+3. **no silent brokenness**: if save fails, mark `BROKEN` status. If partial save, mark `PARTIAL` + list omitted sections. If the input sessions themselves cannot be read, mark `BLOCKED` with the reason.
 
 ---
 
@@ -385,6 +385,7 @@ On audit report save and output:
 **Compare mode (`/collab-audit compare`):**
 - Auto-select latest 2 files from `~/.claude/collab-audits/`
   - Dates optional: `/collab-audit compare 2026-01-01 2026-04-09`
+  - 0 files → "No audit results to compare. Run `/collab-audit` first and save the result."
   - Only 1 file → "No prior audit for comparison. Save current audit then compare next time."
   - Version/section count mismatch → compare common sections only, mark top: `⚠ Version mismatch (v1.0 14 sections ↔ older version N sections) — common sections only`
 - Compare output format:

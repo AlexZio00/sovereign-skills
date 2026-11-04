@@ -17,6 +17,7 @@ depends_on:
   - "scripts/scan_secrets.py"
   - "scripts/scan_secrets.pl"
   - "scripts/ruff_changed_lines.py"
+  - "scripts/share_record.py"
 optional_agents:
   - "code-reviewer"
   - "security-reviewer"
@@ -232,11 +233,11 @@ The preferred scanner (`scripts/scan_secrets.py`) covers **14 patterns** across 
 | Finding | Remediation |
 |---------|-------------|
 | Merge conflict markers | Resolve conflicts: `git status` to find files, fix markers, re-stage. |
-| AWS Access Key | Replace with `process.env.AWS_ACCESS_KEY_ID`. **If real key: rotate immediately** at AWS IAM console. |
+| AWS Access Key | Replace with `process.env.AWS_ACCESS_KEY_ID`. **If real key: rotate** in this order: create the new key → deploy it → confirm it works → revoke the old key → confirm the old key is refused → only then rewrite history. |
 | Private key | Move to `~/.ssh/` or a secrets manager. Add path to `.gitignore`. |
 | Connection string password | Use `process.env.DATABASE_URL`. Never embed credentials in URLs. |
 | Platform token (GitHub/Slack/Stripe) | Revoke in provider dashboard. Re-create with minimal scopes. |
-| LLM API key | Replace with `process.env.ANTHROPIC_API_KEY` (or provider equivalent). Rotate if exposed. |
+| LLM API key | Replace with `process.env.ANTHROPIC_API_KEY` (or provider equivalent). If exposed, rotate in the same order as the AWS key above; the incident is closed only when the old key is refused. |
 | Azure credential | Replace with Managed Identity or environment variable. |
 | Dockerfile ENV secret | Use `--secret` mount or ARG with external injection. Never hardcode in ENV. |
 | Generic hardcoded credential | Move to `.env.local` → `process.env.YOUR_KEY`. Verify `.gitignore` covers `.env*`. |
@@ -343,6 +344,19 @@ if echo "$ORIGIN_URL" | grep -qiE "YOUR_PUBLIC_MIRROR_REPO_NAME_HERE"; then
   # (c) a surface the diff won't catch — internal identifiers baked into the branch name itself
   echo "$CURRENT_BRANCH" | grep -qiE "YOUR_INTERNAL_TERM_1|YOUR_INTERNAL_TERM_2" \
     && echo "⚠️ PUBLIC_MIRROR_SCRUB: possible internal identifier in branch name — this surface isn't visible in the diff"
+  # (d) per-class counts over the whole files the push carries, plus a value-free share record.
+  # (a) looks at added lines only; this pass reads the full files, so an e-mail address or home-directory
+  # path that was already in an old line is counted too. The record (<git-dir>/pre-push-share-log/) keeps
+  # the remote, date, file count, a content digest and the counts - never a matched value.
+  SHARE_LIST="$(git rev-parse --git-dir)/pre-push-share-files.txt"
+  printf '%s
+' "$PUSH_FILES" > "$SHARE_LIST"
+  SHARE_OUT=$("${PYBIN:-python3}" "${CLAUDE_SKILL_DIR}/scripts/share_record.py" --remote "$ORIGIN_URL" --files-from "$SHARE_LIST" 2>&1)
+  echo "$SHARE_OUT"
+  # If the scan did not run at all (e.g. PYBIN empty after a split run), say so instead of staying silent.
+  echo "$SHARE_OUT" | grep -q '^SHARE_SCAN:' || echo "⚠️ PUBLIC_MIRROR_SCRUB: file scan did not run -- result unknown"
+  # Judge by class names only, so the files=/skipped= counts never raise the warning.
+  echo "$SHARE_OUT" | grep -E "^SHARE_SCAN:" | grep -qE "(email|user_home_path|api_key_like|phone|private_ip)=[1-9]"     && echo "⚠️ PUBLIC_MIRROR_SCRUB: outgoing files contain e-mail, home-path, key-like, phone or private-IP strings (counts only) -- open the files and check"
 fi
 fi
 ```
@@ -797,7 +811,7 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 | `tool_failure` | Bash secrets scan / pytest execution fails | Note "check unable to run" → halt push. Never treat unexecuted check as passed |
 | `input_error` | Push target branch/remote unclear | Re-confirm `git status`, clarify intent. Never push on assumption |
 | `missing_data` | Scanner script / pytest missing | No scanner (`scan_secrets.py` / `scan_secrets.pl`): stop the push and tell the user (Key Assumption 1 — a push without a secrets scan is blocked). pytest missing: skip that check + note `⚠️`, and confirm with the user before pushing without it |
-| `logic_inconsistency` | pytest passed but lint failed | Push only after all checks pass. Do not treat partial pass as sufficient |
+| `logic_inconsistency` | Reviewers disagree (one says SAFE, another Critical), or a summary says "pass" while the raw output shows a failure | Do not push until the raw evidence resolves the conflict. Do not treat a partial pass as sufficient (a simple gate failure such as pytest passing but lint failing also needs all checks to pass before push) |
 
 ---
 

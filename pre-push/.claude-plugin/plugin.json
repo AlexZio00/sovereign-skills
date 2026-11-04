@@ -1,7 +1,7 @@
 {
   "name": "pre-push",
-  "version": "6.1.0",
-  "description": "Mandatory pre-push pipeline — secrets scan (14 patterns), build/test gate, lint, parallel AI code review. Blocks push on Critical/High findings.",
+  "version": "6.2.0",
+  "description": "Mandatory pre-push pipeline — secrets scan (14 patterns), build/test gate, lint, parallel AI code review, and a count-only public-mirror file scan. Blocks push on Critical/High findings.",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

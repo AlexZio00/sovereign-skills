@@ -1,10 +1,10 @@
 🌐 **English** | [한국어](docs/README.ko.md) | [日本語](docs/README.ja.md) | [中文](docs/README.zh.md) | [Español](docs/README.es.md)
 
-# sovereign-skills v6.5.15
+# sovereign-skills v6.6.0
 
 22 skills for the full Claude Code project lifecycle — from setup to daily workflow to code review to session management to governance. Each skill is useful standalone; the full sequence covers everything.
 
-> **What changed in v6.5.15:** Two new skills — `ssot-audit` (find every copy of one fact and name the source of truth) and `skill-trigger-auditor` (check that skills and commands route correctly). Bug fixes: `pre-push` no longer skips tests and lint when you commit first and push later; `project-check` now catches hyphenated API keys (`sk-ant-…`, `sk-proj-…`); the `setup` hook examples no longer need `bash` + `jq`, so they work on Windows. Upgrades across the other skills: `code-autopsy` marks each finding NEW or PRE-EXISTING and states its evidence tier; the session skills flag handoff items whose date has passed; `integration-intake` looks up its own earlier verdicts before re-reviewing a repo. All 22 skills also went through a full read-through audit: bundled scripts are now found from any install location (`${CLAUDE_SKILL_DIR}`), run on Python 3.9+ and macOS, optional external agents are labeled with fallbacks, and shared file formats are documented in [docs/FILE-CONVENTIONS.md](docs/FILE-CONVENTIONS.md). See [CHANGELOG.md](CHANGELOG.md).
+> **What changed in v6.6.0:** 20 of the 22 skills updated. `eval-leakage-audit` grows from 28 to 31 patterns (trivial-cue baseline, per-condition grader error in A-vs-B comparisons, undisclosed fallback scoring). `skill-trigger-auditor` scores trigger tests per split (tuning / heldout / review / real). Two new helper scripts with tests: `doc-drift/scripts/stale_numbers.py` (counts and versions in docs that no longer match the files) and `pre-push/scripts/share_record.py` (per-class counts of e-mails, home paths and key-shaped strings in what a public push carries, recorded without values). `integration-intake` checks how to leave a connector or memory provider before you adopt it. Fixes: `pre-push` no longer reads font URLs such as `family=…:wght@400` as a password in a connection string; `project-check` detects GitHub fine-grained tokens and uses the larger size class when file count and LOC disagree; `session-start` runs its health check even when the rest is skipped. See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -67,7 +67,7 @@ then daily:
 | [scope](scope/) | Define what's IN, what's OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec). Full mode ships `coverage_check.py` (requirement ↔ task check) |
 | [freeze](freeze/) | Declare the editable zone — everything outside is frozen. Prevents scope creep during implementation |
 | [goal-lock](goal-lock/) | Agent discipline engine — locks the goal, enforces PLAN→DO→VERIFY→FINALIZE→OUTPUT loop, detects 16 success masquerading patterns |
-| [pre-push](pre-push/) | Mandatory pre-push pipeline — secrets scan (14 patterns), build/test, lint, parallel AI code review. Checks what the push actually carries (staged + outgoing commits). Blocks push on Critical/High findings |
+| [pre-push](pre-push/) | Mandatory pre-push pipeline — secrets scan (14 patterns), build/test, lint, parallel AI code review. Checks what the push actually carries (staged + outgoing commits). Blocks push on Critical/High findings. Pushes to a public mirror also get a value-free share record (`share_record.py`) |
 
 ### Perspective
 
@@ -102,18 +102,18 @@ then daily:
 |-------|-------------|
 | [skill-ops](skill-ops/) | Skill/agent ops hub — snapshot/rollback + usage health + invocation tracking + quality score, 4 modes. Ships `skill_snapshot.py` and `skill_health_bucket.py` |
 | [project-overview](project-overview/) | Generates a deterministic cross-project status map from registered projects' session handoffs, and reports snapshots older than 7 days |
-| [skill-trigger-auditor](skill-trigger-auditor/) | **New in v6.5.15.** Audits skill, agent and slash-command routing for collisions and misfires, and gates description changes behind holdout trigger tests. Optional probe measures real Skill tool calls |
+| [skill-trigger-auditor](skill-trigger-auditor/) | Audits skill, agent and slash-command routing for collisions and misfires, and gates description changes behind holdout trigger tests scored per split (tuning / heldout / review / real). Optional probe measures real Skill tool calls |
 
 ### Governance
 
 | Skill | What it does |
 |-------|-------------|
 | [full-audit](full-audit/) | Exhaustive audit of an entire area (codebase/docs/skills/memory/config) — deterministic sweep + content review two-layer method, anti-false-positive kill-test, seeded canaries, persistent coverage map |
-| [integration-intake](integration-intake/) | 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets, a provenance/injection check for imported executable content, a license line, and a ledger lookup of earlier verdicts |
+| [integration-intake](integration-intake/) | 5-item screening gate for adopting external patterns (skills/agents/rules/plugins/MCP) — redundancy check against your existing assets, a provenance/injection check for imported executable content, a license line, a ledger lookup of earlier verdicts, and an exit-path check for connectors and memory providers |
 | [clean-room](clean-room/) | Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent — adversarial verify pass + descope ledger |
-| [eval-leakage-audit](eval-leakage-audit/) | Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 28-pattern taxonomy, two golden cases. Read-only |
-| [doc-drift](doc-drift/) | Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, mutual contradictions, and risky/ambiguous wording — produces a prioritized fix list |
-| [ssot-audit](ssot-audit/) | **New in v6.5.15.** Finds every copy of one fact, value or decision across a repo or notes folder, names the source of truth (read-only), and consolidates the duplicates only after you approve |
+| [eval-leakage-audit](eval-leakage-audit/) | Audits whether an eval/metric/holdout actually secures independent external ground truth vs circular self-confirmation — 31-pattern taxonomy, two golden cases. Read-only |
+| [doc-drift](doc-drift/) | Audits the memory/docs Claude Code loads into context (CLAUDE.md/MEMORY.md/skills/agents/commands) for outdated claims, mutual contradictions, and risky/ambiguous wording — produces a prioritized fix list. `stale_numbers.py` flags counts and versions that no longer match |
+| [ssot-audit](ssot-audit/) | Finds every copy of one fact, value or decision across a repo or notes folder, names the source of truth (read-only), and consolidates the duplicates only after you approve |
 
 ---
 
@@ -175,12 +175,21 @@ cp -r goal-lock ~/.claude/skills/
 
 ### Option B: Marketplace (sovereign-plugins)
 
-This repo is a Claude Code marketplace. Register it once and browse/install skills:
+This repo is a Claude Code plugin marketplace named `sovereign-plugins`. Add it once, then install the skills you want. Inside a Claude Code session:
+
+```
+/plugin marketplace add AlexZio00/sovereign-skills
+/plugin install goal-lock@sovereign-plugins
+```
+
+From a shell, the same two steps are:
 
 ```bash
-# Add sovereign-plugins marketplace in Claude Code
-# Settings → Plugins → Add Marketplace → https://github.com/AlexZio00/sovereign-skills.git
+claude plugin marketplace add AlexZio00/sovereign-skills
+claude plugin install goal-lock@sovereign-plugins
 ```
+
+In the desktop app, add the marketplace with one of the commands above, then pick skills from the plugin browser (**+** next to the prompt box → **Add plugins**). Third-party marketplaces do not auto-update by default. See the [official plugin install guide](https://code.claude.com/docs/en/plugins/install.md).
 
 Each skill also includes standalone `.claude-plugin/plugin.json` metadata.
 

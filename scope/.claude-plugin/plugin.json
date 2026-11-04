@@ -1,6 +1,6 @@
 {
   "name": "scope",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "description": "Define what is IN, what is OUT, and exit criteria before implementation. Quick mode (3 questions) or Full mode (layered spec).",
   "author": {
     "name": "AlexZio00",

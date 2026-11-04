@@ -25,10 +25,12 @@ concurrency_profile:
 not_for:
   - "Single-file or single-question checks (use a code review instead)"
   - "Harness maturity scoring with a fixed checklist (that's a different, narrower tool)"
-  - "A single docs-vs-code drift check (too narrow a scope for this)"
+  - "A single docs-vs-code drift check (too narrow a scope for this; use doc-drift)"
 see_also:
   - skill: project-check
     relation: "project-check=fixed-checklist health score, full-audit=open-ended exhaustive sweep with a denominator"
+  - skill: doc-drift
+    relation: "full-audit=exhaustive sweep of an area, doc-drift=a single docs-vs-code drift check"
 ---
 
 # Full Audit — Exhaustive Area Review
@@ -43,8 +45,8 @@ see_also:
 ## Discard If
 - Single file / single question needs checking → use a regular code review instead
 - The goal is a harness-maturity score against a fixed checklist → use a fixed-checklist scoring tool instead
-- The goal is a single docs-vs-code drift check → too narrow a scope for this
-- An identical-scope full audit finished within the last 7 days and nothing has changed → just diff against the existing coverage map instead
+- The goal is a single docs-vs-code drift check → too narrow a scope for this (use doc-drift)
+- An identical-scope full audit finished within the last 7 days and nothing has changed → reduced mode, not a discard: keep using this skill, but only diff against the existing coverage map
 
 ---
 
@@ -123,7 +125,7 @@ Personally re-verify every reviewer report before classifying. Common false-posi
 
 ## Phase 5: Record the Coverage Map
 Create or update the coverage-map file (default `<repo root>/.audit/coverage-map.md`, see Phase 0; same-day re-run = append a pass section):
-- Table: `Area | Method label | Findings/actions` — three method labels required: **[deterministic]** / **[LLM judgment]** / **[close read]**
+- Table: `Area | Method label | Findings/actions` — four method labels required: **[deterministic]** / **[LLM judgment]** / **[close read]** / **[dry-run]** (the rule dry-run layer: a fixture was actually run through the rule)
 - **State remaining gaps explicitly** (what wasn't reviewed, bounded checks, intentional exclusions) — a map with zero remaining gaps deserves suspicion
 - **Assumption Ledger** (conditional addition): if a Phase 3 CONFIRMED verdict depends on an unverified assumption, add a separate table to the map — `Assumption/Parameter | Status | Evidence needed | Materiality (would it flip the verdict?) | Owner`. Five status values: **externally-anchored** (verified by a third party) / **author-calibrated-prior** (an adjusted assumption) / **assertion-only** (unsupported claim) / **open-proposal** (a TODO) / **open-question**. If one or more rows are assertion-only, open-proposal, or open-question AND materiality is High (flipping it changes the verdict), downgrade the final label to `PARTIAL` and name the owner who must resolve it (user / follow-up investigation / tooling). If the CONFIRMED conclusion does not depend on any unverified assumption, the Assumption Ledger may be omitted — if omitted, state "Assumption ledger: N/A (reason)" as one line.
 - **Recall line** (only if this run used canaries): append the output of `python3 "${CLAUDE_SKILL_DIR}/scripts/canary_score.py" --summary --skill full-audit` (`recall: k/n (seeded)`, `RECALL_UNMEASURED` while n<5) to the map verbatim. The recall ledger defaults to `~/.claude/full-audit/recall_ledger.jsonl` (outside the install folder, so updates keep it); override it with `--recall-ledger <path>` or the `FULL_AUDIT_RECALL_LEDGER` environment variable.
@@ -145,18 +147,18 @@ Create or update the coverage-map file (default `<repo root>/.audit/coverage-map
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| Fix-bucket edit (existing file) | high (git) | L1+L3 (the mode-gate itself is the L3 confirmation — switching to `APPLY_APPROVED` is the approval) |
-| Delete/move a file (addition bucket) | medium | L1+L3 (explicit per-item user approval required) + mode-gate (`APPLY_APPROVED` only) |
+| Fix-bucket edit (existing file) | high (git) | L1 (the mode-gate is the user's conversational approval — switching to `APPLY_APPROVED` is the approval; it is not a confirmation prompt, so it does not count as L3) |
+| Delete/move a file (addition bucket) | medium | L1 (explicit per-item conversational approval required) + mode-gate (`APPLY_APPROVED` only) |
 | Editing a protected config/rules path | medium | L2 (deny — the model cannot edit it directly, if a deny rule exists) + L3 (the user runs the apply script themselves) + mode-gate: reachable **only** in `APPLY_APPROVED`, and only for the specific item the user named, by drafting an edit plus an apply script. There is no path for the model to lift the deny. |
 
-**Layer key**: L1 = written instructions the model is asked to follow (this file); L2 = a physical block outside the model's control (a permission deny rule or a hook); L3 = confirmation by the user (a prompt or the user running the command). The mode-gate counts as L3 only when the user's request names the mode explicitly.
+**Layer key**: L1 = written instructions the model is asked to follow (this file); L2 = a physical block outside the model's control (a permission deny rule or a hook); L3 = confirmation by the user (a prompt or the user running the command). A yes given in the conversation is L1 (conversational approval), not L3; the mode-gate takes effect only when the user's request names the mode explicitly.
 
 **Protected paths** are the rules, agent-instruction and settings files of the audited project (for example `CLAUDE.md`, a rules folder, settings files). Many setups also keep a **deny-list**: an optional user setting (for example permission deny rules in Claude Code settings) that blocks edits to those paths. If you have no deny-list, this skill still treats those paths as protected by rule: edits only in `APPLY_APPROVED`, only for the named item, and by apply script.
 
 **Guard-degradation observability**: if a Phase 1 checker can't run, don't silently skip it — record `⚠️ check unavailable: [reason]` on the coverage map.
 
 ## Invariants (never violate)
-1. **Three-layer exhaustiveness**: never report "exhaustive" from structural checks alone. Any area where content review or rule dry-run was skipped gets labeled "[deterministic] only — content/dry-run not executed" on the map. Violation → overstated coverage; the user trusts an area that was never actually reviewed or exercised.
+1. **Three-layer exhaustiveness**: never report "exhaustive" from structural checks alone. Any area where a layer was skipped gets a label that names the skipped layer on the map: content review skipped = "[deterministic]+[dry-run] only — content not executed"; dry-run skipped = "[deterministic]+[LLM judgment/close read] only — dry-run not executed"; both skipped = "[deterministic] only — content/dry-run not executed". Violation → overstated coverage; the user trusts an area that was never actually reviewed or exercised.
 2. **Deterministic wins**: when an LLM's count/existence claim conflicts with a script's result, the script wins. Violation → hallucinated numbers get written into the source of truth.
 3. **Fixes and additions stay separate**: plain factual corrections (the fix bucket) are applied only in `APPLY_APPROVED` and only for approved items; additions (new features, structural changes, deletions) are applied only per item after explicit approval. In `AUDIT_ONLY` and `PROPOSE` nothing is applied. Violation → scope creep, and the user's decision rights get bypassed.
 4. **Coverage map is mandatory**: never declare completion without recording it. A map with zero remaining gaps needs re-review. Violation → nobody in a future session can tell how far the last audit actually went.

@@ -1,7 +1,7 @@
 {
   "name": "next-action",
   "description": "Reads handoff/git/lessons/STATE and proposes top-3 next actions by impact. Proposes only, never executes.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": {
     "name": "AlexZio00",
     "url": "https://github.com/AlexZio00"

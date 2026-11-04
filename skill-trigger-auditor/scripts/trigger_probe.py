@@ -29,6 +29,7 @@ Safety design:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -130,8 +131,52 @@ def resolve_eval_set(arg: str | None, skill_name: str) -> str:
     return os.path.join(EVAL_DIR, f"{arg}.json")
 
 
+# Eval-set splits: `tuning` = prompts used while writing the description, `heldout` = written and committed
+# before the edit and not looked at while editing, `review` = a reviewer's counterexamples, `real` = actual
+# misroutes seen in sessions. An item without a split counts as tuning.
+SPLITS = ("tuning", "heldout", "review", "real")
+SPLIT_MIN_CASES = 3
+SPLIT_PASS = 0.9
+
+
+def eval_set_sha256(queries: list) -> str:
+    """Hash of the eval set as loaded (item order kept), so a later run can show the heldout set did not change."""
+    blob = json.dumps(queries, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def split_metrics(results: list, threshold: float = SPLIT_PASS) -> dict:
+    """Precision/recall per split. Overall PASS only when every present split passes.
+
+    A split with fewer than SPLIT_MIN_CASES measured cases is `too_small`; a split whose precision or recall has
+    a zero denominator is `UNMEASURED` (not a silent 1.0). Either one makes the overall verdict INCOMPLETE.
+    """
+    groups: dict[str, list] = {}
+    for r in results:
+        groups.setdefault(r.get("split") or "tuning", []).append(r)
+    splits = {}
+    for name, rows in groups.items():
+        tp_ = sum(r["triggers"] for r in rows if r["should_trigger"])
+        fn_ = sum(r["runs"] for r in rows if r["should_trigger"]) - tp_
+        fp_ = sum(r["triggers"] for r in rows if not r["should_trigger"])
+        precision = tp_ / (tp_ + fp_) if (tp_ + fp_) else None
+        recall = tp_ / (tp_ + fn_) if (tp_ + fn_) else None
+        measured = sum(1 for r in rows if r["runs"] > 0)  # a case whose runs all errored measures nothing
+        if measured < SPLIT_MIN_CASES:
+            verdict = "too_small"
+        elif precision is None or recall is None:
+            verdict = "UNMEASURED"
+        else:
+            verdict = "PASS" if precision >= threshold and recall >= threshold else "FAIL"
+        splits[name] = {"cases": len(rows), "measured_cases": measured, "precision": precision, "recall": recall,
+                        "verdict": verdict}
+    verdicts = {s["verdict"] for s in splits.values()}
+    overall = "FAIL" if "FAIL" in verdicts else ("PASS" if verdicts == {"PASS"} else "INCOMPLETE")
+    return {"threshold": threshold, "min_cases": SPLIT_MIN_CASES, "splits": splits, "verdict": overall}
+
+
 def validate_eval_set(queries) -> str | None:
-    """None if queries is a non-empty list of {query: str, should_trigger: bool}, else the problem."""
+    """None if queries is a non-empty list of {query: str, should_trigger: bool[, split]}, else the problem."""
     if not isinstance(queries, list) or not queries:
         return "eval set must be a non-empty JSON list"
     seen: dict[str, int] = {}
@@ -139,6 +184,8 @@ def validate_eval_set(queries) -> str | None:
         if not (isinstance(q, dict) and isinstance(q.get("query"), str) and q["query"].strip()
                 and isinstance(q.get("should_trigger"), bool)):
             return f"item {i} needs a non-empty string `query` and a boolean `should_trigger`"
+        if "split" in q and q["split"] not in SPLITS:
+            return f"item {i} has unknown split {q['split']!r} (use one of {', '.join(SPLITS)})"
         key = q["query"].strip()
         if key in seen:
             return f"item {i} repeats the query of item {seen[key]} (each query must be unique, results are keyed by query)"
@@ -352,6 +399,7 @@ def run_probe(
                 did_pass = None
             results.append({
                 "query": query,
+                "split": item.get("split") or "tuning",
                 "should_trigger": should_trigger,
                 "trigger_rate": trigger_rate,
                 "triggers": sum(triggers),
@@ -387,6 +435,8 @@ def run_probe(
         "errored_runs": errored_runs,  # runs whose subprocess failed: excluded from rates, never counted as "not triggered"
         "precision": precision,
         "recall": recall,
+        "split_metrics": split_metrics(results),  # per-split verdict; overall precision/recall above are unchanged
+        "eval_set_sha256": eval_set_sha256(queries),
         "total_api_calls": total_calls,
     }
 

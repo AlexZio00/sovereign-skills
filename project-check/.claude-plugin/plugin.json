@@ -1,6 +1,6 @@
 {
   "name": "project-check",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "description": "Scan existing project across 4 dimensions: Infrastructure, Security, Quality, Harness. Returns scored gaps ordered by severity.",
   "author": {
     "name": "AlexZio00",

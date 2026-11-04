@@ -39,6 +39,8 @@ Read-only: never edit, create or delete files in the reviewed repository. Fixes 
 | Error logged, user not notified | HIGH | logger.error → return None |
 | Broad catch swallowing exceptions | HIGH | except Exception + continue |
 | Hidden fallback | MEDIUM | `or default` pattern |
+| JS/TS empty catch | CRITICAL | `grep -nE "catch\s*(\(.*\))?\s*\{\s*\}"` |
+| Rust swallowed error | HIGH | `grep -nE "unwrap_or_default\(\|let _ ="` |
 
 [INPUT FAILURE MODE]
 - Partial code: "Analysis scope: N files. Rest unexamined."
@@ -58,6 +60,8 @@ Read-only: never edit, create or delete files in the reviewed repository. Fixes 
 - [ ] Dominant Variable stated
 
 [STEP 0] Preparation
+> Execution order: do item 5 (pin the diff scope) first, then items 1-4 and 6. The numbers stay as they are because other places refer to them.
+
 1. Map project structure (dirs + config)
 2. Run audit (Python: pip-audit / Node: npm audit / Rust: cargo audit)
 3. **Cross-file impact**: changed files → import/call Grep → blast radius. **Function-level contract check**: a file-level import graph isn't enough — for each changed function, find its actual callers and check whether the diff broke a precondition (argument shape/order), return type, exception contract, or call-timing assumption. No caller found → skip.
@@ -220,6 +224,9 @@ Proof: PROVED (rung N) | UNPROVEN — cheapest next check: [one command or compa
 ── P0 (immediate) ── [diff]
 ── P1 (24h) ── [diff]
 ── P2 (1wk) ── [plan]
+
+── UNCERTAIN / low severity (reviewed, not escalated) ──
+[one line each for findings that are confirmed in the code but fall below the threshold - or "none"]
 
 ── Falsification ──
 IF [condition]: [impact]

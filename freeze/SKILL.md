@@ -51,7 +51,7 @@ In this task, **is the editable scope explicitly declared?** — If unclear, sco
 ## Discard If
 
 - Exploration / research only (no modifications expected)
-- Already a clear single-file edit (1 file, ≤10 lines)
+- Already a clear single-file edit (1 file, ≤10 lines, no new function or class, not a file your project marks as sensitive)
 - Brainstorming phase (scope not yet finalized before design approval)
 
 ---
@@ -193,7 +193,7 @@ When a frozen file needs modification mid-work:
 
 **Limits:**
 - 3+ thaws → `⚠️ Freeze is being repeatedly lifted — consider re-running /scope to redefine boundaries`
-- Full thaw ("unfreeze everything") → freeze skill terminates (Discard)
+- Full thaw ("unfreeze everything") → the freeze declaration ends (lifted); say so in one line
 
 ---
 
@@ -204,7 +204,7 @@ When a frozen file needs modification mid-work:
 | "It's frozen but I just need to change one line" | Violates Invariant 1. Stop and report to user. |
 | "Scope is unclear, let me narrow it for now" | Violates Invariant 2. When unclear, freeze broader. |
 | "Declaring and implementing immediately is faster" | Violates Invariant 3. Exit after declaration. |
-| "It's one file, why declare a freeze?" | Discard If: ≤10 lines in 1 file excluded. Otherwise declare. |
+| "It's one file, why declare a freeze?" | Discard If: ≤10 lines in 1 file with no new function or class (and not a sensitive file) is excluded. Otherwise declare. |
 | "No actual modifications needed, so it's fine" | Scope creep often begins when we think nothing needs to change. |
 
 ---
@@ -230,6 +230,7 @@ User: "/freeze src/components/UserProfile.tsx"
 Rules:
 - No Edit/Write outside UserProfile.tsx
 - If modification needed elsewhere → stop and report
+- Thaw: "unfreeze [file]" or "expand scope"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 

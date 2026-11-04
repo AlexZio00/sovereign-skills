@@ -1,5 +1,5 @@
 ---
-skill_type: validation
+skill_type: analysis
 tools: Read, Grep, Glob, Bash
 disallowed-tools: Edit, Write, NotebookEdit
 name: skill-trigger-auditor
@@ -43,7 +43,7 @@ Layer: validation / routing audit.
 ## Discard if
 - The skill's description and triggers are not changing: use a general skill-quality audit instead.
 - The change is internal logic only, with no trigger change: use a normal code review.
-- This session already completed a trigger audit for that skill.
+- This session already completed a trigger audit for that skill, and its description and triggers have not changed since.
 
 ## Key assumptions
 1. **A routing table or skill index is available, if you keep one** (a file that maps intents to skills and names collision winners). If it is missing, collision detection loses precision: say so in the report and audit from the skills' own descriptions.
@@ -74,7 +74,11 @@ Does the `description` state the task type, its boundaries and its collision ris
 ### 2. Role-class fit
 Does the skill type or role fit its failure cost, substitution cost and misfire risk?
 - infrastructure (governance, meta): high misfire cost, so explicit-only
-- validation: explicit, or triggered by a governance step
+- validation: explicit, or triggered by a governance step (a legacy value; new read-only audit skills use `analysis`)
+- analysis (read-only diagnosis or audit): low misfire cost; auto-when-matched only when the skill has no write tools
+- generation (creates files or content): has side effects, so explicit-only is recommended
+- lifecycle (opens or closes sessions, writes memory): mostly writes, so explicit-only is recommended
+- quality: treat like analysis (auto-when-matched if it only reports; explicit-only if it also edits)
 - workflow / utility: auto-when-matched is acceptable
 
 ### 3. Implicit invocation policy
@@ -158,6 +162,13 @@ HOLDOUT_TEST:
     precision: true positive / (true positive + false positive)
     recall: true positive / (true positive + false negative)
   pass_threshold: precision >= 0.9 AND recall >= 0.9
+  splits: tag every prompt with a `split` —
+    tuning (seen while editing the description) / heldout (written and committed BEFORE the edit, not looked at while editing) /
+    review (a reviewer's counterexamples) / real (actual misroutes seen in sessions).
+    An untagged prompt counts as tuning. In empirical mode the result's `split_metrics` gives precision and recall per split,
+    and PASS needs EVERY present split to pass. A split with fewer than 3 measured cases is `too_small`, and one with a
+    zero denominator is `UNMEASURED`; either makes the overall verdict INCOMPLETE (not a pass).
+    Compare the result's `eval_set_sha256` before and after the description edit to show the heldout prompts did not change.
   route_confusion: [cases where two similar skills both fire on the same prompt]
   empirical_floor: consistent | DIVERGED({case + numbers}) | DECLINED_BY_USER | SKIPPED(cli-missing | script-missing | errored: {reason}) | N/A
     (shown only when Invariant 5 applies, otherwise N/A)
@@ -195,7 +206,7 @@ Probe facts to state in the report when you run it:
   - Run `--dry-run` first to show the expected number of calls and the estimated worst-case time (`estimated_max_seconds`, calls x per-call timeout / workers, rounded up to whole waves; most calls end sooner), then dispatch only after explicit user confirmation. The run is read-only but spends real API cost. Each query in the eval set must be unique; duplicates stop the script with exit 2.
   - A trigger counts only when the Skill call's `skill` value equals the target name exactly (substring matching was dropped: `pdf-tools` and `anthropic-skills:pdf` had counted as hits for `pdf`).
   - The result JSON has per query `invoked_skills` (every skill called in that query and the number of runs that called it, to see leaks to non-target or competing skills), `served_models` and `model_unrecorded_runs`, and at the top level `requested_model` and `served_models`. For comparison runs pass a full model ID to `--model`, not an alias such as `haiku`, and quote `served_models` in the report. If it is empty (`model_unrecorded_runs` > 0) write "served model not recorded" and do not guess the model.
-  - **Eval set location**: `.trigger-evals/<skill-name>.json` in the working directory (override with the `TRIGGER_EVAL_DIR` environment variable). Format: `[{"query": "...", "should_trigger": true|false}, ...]`. Without `--eval-set` the script uses this path; a bare name resolves to `<name>.json` in the same folder. A malformed file stops the script with exit 2. This skill cannot write files, so print REGRESSION_CASES as a JSON block in this format and let the main session save it after user approval. A saved set is reused on the next audit, but add at least one newly synthesized positive case to keep the held-out principle.
+  - **Eval set location**: `.trigger-evals/<skill-name>.json` in the working directory (override with the `TRIGGER_EVAL_DIR` environment variable). Format: `[{"query": "...", "should_trigger": true|false, "split": "tuning|heldout|review|real"}, ...]` (`split` is optional, default `tuning`; an unknown value stops the script with exit 2). Without `--eval-set` the script uses this path; a bare name resolves to `<name>.json` in the same folder. A malformed file stops the script with exit 2. This skill cannot write files, so print REGRESSION_CASES as a JSON block in this format and let the main session save it after user approval. A saved set is reused on the next audit, but add at least one newly synthesized positive case to keep the held-out principle.
   - If the `claude` CLI is missing, the script hard-stops instead of falling back to model judgment.
   - Differences from the skill-creator original: it plants a temporary `.claude/commands/{uuid}.md` file to test an unregistered candidate; this skill audits only already-registered skills, so that workaround is not used.
 

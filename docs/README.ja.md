@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | 🌐 **日本語** | [中文](README.zh.md) | [Español](README.es.md)
 
-# sovereign-skills v6.5.15
+# sovereign-skills v6.6.0
 
 Claude Codeプロジェクトのライフサイクル全体をカバーする22個のスキル — セットアップから日常ワークフロー、コードレビュー、セッション管理、ガバナンスまで。各スキルは単体で使用可能で、全シーケンスで全工程をカバーします。
 
-> **v6.5.15の変更点:** スキルを2つ追加 — `ssot-audit`（1つの事実を含むすべてのコピーを探し、正本を特定する）と `skill-trigger-auditor`（スキルとコマンドが正しくルーティングされるかを点検する）。バグ修正: `pre-push` は、先にコミットして後からpushしてもテストとリントを飛ばさなくなった。`project-check` はハイフン入りのAPIキー（`sk-ant-…`、`sk-proj-…`）も検出するようになった。`setup` のhook例は `bash` + `jq` が不要になり、Windowsでも動く。その他のスキルの改善: `code-autopsy` は各指摘にNEWまたはPRE-EXISTINGの印とエビデンス階層を付ける。セッション系スキルは日付を過ぎたハンドオフ項目に印を付ける。`integration-intake` はリポジトリを再レビューする前に自分の過去の判定を照会する。22スキルすべてについて通読監査も行った。同梱スクリプトはどのインストール先からも見つかり（`${CLAUDE_SKILL_DIR}`）、Python 3.9+ と macOS で動き、任意の外部エージェントには表示とフォールバックが付き、共有ファイル形式は [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md) に文書化した。詳細は [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.6.0の変更点:** 22スキルのうち20スキルを更新した。`eval-leakage-audit` のパターンが28から31に増えた（自明な手がかりのベースライン、A-vs-B比較における条件ごとの採点器エラー、非開示のフォールバック採点）。`skill-trigger-auditor` はトリガーテストをsplit（tuning / heldout / review / real）ごとに採点する。テスト付きの新しい補助スクリプトを2つ追加: `doc-drift/scripts/stale_numbers.py`（ファイルと合わなくなったドキュメント内の件数とバージョン）と `pre-push/scripts/share_record.py`（公開pushが運ぶメールアドレス、ホームパス、キー形式の文字列のクラス別件数を、値を残さずに記録）。`integration-intake` は、コネクタやメモリプロバイダを導入する前に、そこから抜ける方法を確認する。修正: `pre-push` は `family=…:wght@400` のようなフォントURLを接続文字列のパスワードと誤読しなくなった。`project-check` はGitHubのfine-grainedトークンを検出し、ファイル数とLOCが食い違うときは大きい方のサイズ区分を使う。`session-start` は他が省略されてもヘルスチェックを実行する。詳細は [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -67,7 +67,7 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする22�
 | [scope](../scope/) | 実装前にIN/OUT/終了基準を定義。Quickモード（3つの質問）またはFullモード（レイヤードスペック）。Fullモードに `coverage_check.py`（要件↔タスク照合）を同梱 |
 | [freeze](../freeze/) | 編集可能領域を宣言 — それ以外は凍結。実装中のスコープクリープを防止 |
 | [goal-lock](../goal-lock/) | エージェント規律エンジン — 目標をロックし、PLAN→DO→VERIFY→FINALIZE→OUTPUTループを強制、16種類の成功偽装パターンを検出 |
-| [pre-push](../pre-push/) | 必須pre-pushパイプライン — シークレットスキャン（14パターン）、ビルド/テスト、リント、並列AIコードレビュー。pushが実際に運ぶもの（ステージ済みの変更 + まだ送られていないコミット）を検査。Critical/High発見時にpushをブロック |
+| [pre-push](../pre-push/) | 必須pre-pushパイプライン — シークレットスキャン（14パターン）、ビルド/テスト、リント、並列AIコードレビュー。pushが実際に運ぶもの（ステージ済みの変更 + まだ送られていないコミット）を検査。Critical/High発見時にpushをブロック。公開ミラーへのpushでは、値を含まない共有記録（`share_record.py`）も残す |
 
 ### 視点転換
 
@@ -102,18 +102,18 @@ Claude Codeプロジェクトのライフサイクル全体をカバーする22�
 |--------|------|
 | [skill-ops](../skill-ops/) | スキル/エージェント運用ハブ — スナップショット/ロールバック + 使用状況 + 呼び出し追跡 + 品質スコアの4モード。`skill_snapshot.py` と `skill_health_bucket.py` を同梱 |
 | [project-overview](../project-overview/) | 登録済みプロジェクトのセッションハンドオフから決定論的クロスプロジェクト状況マップを生成し、7日より古いスナップショットを報告 |
-| [skill-trigger-auditor](../skill-trigger-auditor/) | **v6.5.15で新規追加。** スキル・エージェント・スラッシュコマンドのルーティングの衝突と誤発火を監査し、descriptionの変更をホールドアウトのトリガーテストで関門にする。任意のプローブで実際のSkillツール呼び出しを計測 |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | スキル・エージェント・スラッシュコマンドのルーティングの衝突と誤発火を監査し、descriptionの変更をホールドアウトのトリガーテストで関門にし、split（tuning / heldout / review / real）ごとに採点する。任意のプローブで実際のSkillツール呼び出しを計測 |
 
 ### ガバナンス
 
 | スキル | 機能 |
 |--------|------|
 | [full-audit](../full-audit/) | 領域全体（コードベース/文書/スキル/メモリ/設定）の網羅的監査 — 決定論的スイープ+内容レビューの2層方式、偽陽性防止kill-test、シード済みカナリア、永続カバレッジマップ |
-| [integration-intake](../integration-intake/) | 外部パターン（スキル/エージェント/ルール/プラグイン/MCP）導入の5項目スクリーニングゲート — 既存資産との重複チェック、導入コンテンツのprovenance/インジェクションチェック、ライセンス確認1行、過去の判定の台帳照会 |
+| [integration-intake](../integration-intake/) | 外部パターン（スキル/エージェント/ルール/プラグイン/MCP）導入の5項目スクリーニングゲート — 既存資産との重複チェック、導入コンテンツのprovenance/インジェクションチェック、ライセンス確認1行、過去の判定の台帳照会、コネクタ・メモリプロバイダの撤退経路チェック |
 | [clean-room](../clean-room/) | 安全隣接リクエストを安全スコープに切り出し、完全に隔離されたfresh-contextサブエージェントが実行 — 敵対的検証パス + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | eval/metric/holdoutが実際に独立した外部グラウンドトゥルースを確保しているか、循環的な自己確認かを監査 — 28パターンのtaxonomy、ゴールデンケース2件。読み取り専用 |
-| [doc-drift](../doc-drift/) | Claude Codeがコンテキストに読み込むメモリ/ドキュメント(CLAUDE.md/MEMORY.md/skills/agents/commands)を古い主張・相互矛盾・危険/曖昧な表現で監査 — 優先度付き修正リストを生成 |
-| [ssot-audit](../ssot-audit/) | **v6.5.15で新規追加。** リポジトリやノートフォルダ全体から、1つの事実・値・決定を含むすべてのコピーを探して正本を特定（読み取り専用）し、承認後にのみ重複を統合 |
+| [eval-leakage-audit](../eval-leakage-audit/) | eval/metric/holdoutが実際に独立した外部グラウンドトゥルースを確保しているか、循環的な自己確認かを監査 — 31パターンのtaxonomy、ゴールデンケース2件。読み取り専用 |
+| [doc-drift](../doc-drift/) | Claude Codeがコンテキストに読み込むメモリ/ドキュメント(CLAUDE.md/MEMORY.md/skills/agents/commands)を古い主張・相互矛盾・危険/曖昧な表現で監査 — 優先度付き修正リストを生成。`stale_numbers.py` は合わなくなった件数とバージョンを指摘 |
+| [ssot-audit](../ssot-audit/) | リポジトリやノートフォルダ全体から、1つの事実・値・決定を含むすべてのコピーを探して正本を特定（読み取り専用）し、承認後にのみ重複を統合 |
 
 ---
 
@@ -175,12 +175,21 @@ cp -r goal-lock ~/.claude/skills/
 
 ### 方法B：マーケットプレイス（sovereign-plugins）
 
-このリポジトリはClaude Codeマーケットプレイスです。一度登録すればスキルを閲覧・インストールできます：
+このリポジトリは `sovereign-plugins` という名前のClaude Codeプラグインマーケットプレイスです。一度追加してから、必要なスキルをインストールします。Claude Codeのセッション内で：
+
+```
+/plugin marketplace add AlexZio00/sovereign-skills
+/plugin install goal-lock@sovereign-plugins
+```
+
+シェルからは、同じ2ステップを次のように実行します：
 
 ```bash
-# Claude Codeでsovereign-pluginsマーケットプレイスを追加
-# 設定 → プラグイン → マーケットプレイス追加 → https://github.com/AlexZio00/sovereign-skills.git
+claude plugin marketplace add AlexZio00/sovereign-skills
+claude plugin install goal-lock@sovereign-plugins
 ```
+
+デスクトップアプリでは、上のいずれかのコマンドでマーケットプレイスを追加し、プラグインブラウザ（プロンプト欄の横の **+** → **Add plugins**）からスキルを選びます。サードパーティのマーケットプレイスは、デフォルトでは自動更新されません。[公式プラグインインストールガイド](https://code.claude.com/docs/en/plugins/install.md)を参照してください。
 
 各スキルに個別の`.claude-plugin/plugin.json`メタデータも含まれています。
 

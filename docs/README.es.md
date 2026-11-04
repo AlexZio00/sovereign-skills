@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | 🌐 **Español**
 
-# sovereign-skills v6.5.15
+# sovereign-skills v6.6.0
 
 22 habilidades para el ciclo de vida completo de proyectos con Claude Code — desde la configuración hasta el flujo de trabajo diario, revisión de código, gestión de sesiones y gobernanza. Cada habilidad funciona de forma independiente; la secuencia completa cubre todas las etapas.
 
-> **Cambios en v6.5.15:** Dos habilidades nuevas — `ssot-audit` (encuentra todas las copias de un mismo dato y señala la fuente de verdad) y `skill-trigger-auditor` (comprueba que las habilidades y los comandos se enruten correctamente). Correcciones de errores: `pre-push` ya no omite las pruebas ni el lint cuando se hace commit primero y push después; `project-check` ahora detecta claves de API con guiones (`sk-ant-…`, `sk-proj-…`); los ejemplos de hooks de `setup` ya no necesitan `bash` + `jq`, así que funcionan en Windows. Mejoras en otras habilidades: `code-autopsy` marca cada hallazgo como NEW o PRE-EXISTING e indica su nivel de evidencia; las habilidades de sesión señalan los elementos del handoff cuya fecha ya pasó; `integration-intake` consulta sus propios veredictos anteriores antes de revisar de nuevo un repositorio. Las 22 habilidades también pasaron por una auditoría de lectura completa: los scripts incluidos se encuentran desde cualquier ubicación de instalación (`${CLAUDE_SKILL_DIR}`), funcionan con Python 3.9+ y en macOS, los agentes externos opcionales están etiquetados con alternativas, y los formatos de archivo compartidos están documentados en [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md). Ver [CHANGELOG.md](../CHANGELOG.md).
+> **Cambios en v6.6.0:** Se actualizaron 20 de las 22 habilidades. `eval-leakage-audit` pasa de 28 a 31 patrones (línea base de pista trivial, error del evaluador por condición en comparaciones A-vs-B, puntuación de respaldo no declarada). `skill-trigger-auditor` puntúa las pruebas de activación por partición (tuning / heldout / review / real). Dos nuevos scripts auxiliares con pruebas: `doc-drift/scripts/stale_numbers.py` (cantidades y versiones en la documentación que ya no coinciden con los archivos) y `pre-push/scripts/share_record.py` (recuentos por clase de correos electrónicos, rutas de inicio y cadenas con forma de clave en lo que lleva un push público, registrados sin los valores). `integration-intake` comprueba cómo salir de un conector o proveedor de memoria antes de adoptarlo. Correcciones: `pre-push` ya no lee URL de fuentes como `family=…:wght@400` como una contraseña en una cadena de conexión; `project-check` detecta los tokens granulares de GitHub y usa la clase de tamaño mayor cuando el número de archivos y las LOC no coinciden; `session-start` ejecuta su comprobación de estado incluso cuando se omite el resto. Ver [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
@@ -67,7 +67,7 @@ Diariamente:
 | [scope](../scope/) | Definir IN/OUT/criterios de salida antes de implementar. Modo Quick (3 preguntas) o modo Full (especificación por capas). El modo Full incluye `coverage_check.py` (requisito ↔ tarea) |
 | [freeze](../freeze/) | Declarar la zona editable — todo lo demás queda congelado. Previene la expansión del alcance durante la implementación |
 | [goal-lock](../goal-lock/) | Motor de disciplina de agentes — bloquea el objetivo, fuerza el ciclo PLAN→DO→VERIFY→FINALIZE→OUTPUT, detecta 16 patrones de enmascaramiento de éxito |
-| [pre-push](../pre-push/) | Pipeline pre-push obligatorio — escaneo de secretos (14 patrones), build/test, lint, revisión de código AI en paralelo. Comprueba lo que el push realmente lleva (cambios en staging + commits pendientes de enviar). Bloquea push ante hallazgos Critical/High |
+| [pre-push](../pre-push/) | Pipeline pre-push obligatorio — escaneo de secretos (14 patrones), build/test, lint, revisión de código AI en paralelo. Comprueba lo que el push realmente lleva (cambios en staging + commits pendientes de enviar). Bloquea push ante hallazgos Critical/High. Los push a un espejo público también generan un registro de lo compartido sin valores (`share_record.py`) |
 
 ### Cambio de perspectiva
 
@@ -102,18 +102,18 @@ Diariamente:
 |-----------|---------|
 | [skill-ops](../skill-ops/) | Hub de operaciones de habilidades/agentes — snapshot/rollback + salud de uso + seguimiento de invocaciones + puntuación de calidad, 4 modos. Incluye `skill_snapshot.py` y `skill_health_bucket.py` |
 | [project-overview](../project-overview/) | Genera un mapa determinista del estado entre proyectos a partir de los handoffs de sesión de los proyectos registrados, e informa de los snapshots con más de 7 días |
-| [skill-trigger-auditor](../skill-trigger-auditor/) | **Nuevo en v6.5.15.** Audita el enrutamiento de habilidades, agentes y comandos slash en busca de colisiones y activaciones erróneas, y condiciona los cambios de descripción a pruebas de activación con un conjunto de reserva (holdout). Una sonda opcional mide llamadas reales a la herramienta Skill |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | Audita el enrutamiento de habilidades, agentes y comandos slash en busca de colisiones y activaciones erróneas, y condiciona los cambios de descripción a pruebas de activación con un conjunto de reserva (holdout) puntuadas por partición (tuning / heldout / review / real). Una sonda opcional mide llamadas reales a la herramienta Skill |
 
 ### Gobernanza
 
 | Habilidad | Función |
 |-----------|---------|
 | [full-audit](../full-audit/) | Auditoría exhaustiva de un área completa (código/documentación/skills/memoria/configuración) — método de dos capas: barrido determinista + revisión de contenido, kill-test anti-falsos-positivos, canarios sembrados, mapa de cobertura persistente |
-| [integration-intake](../integration-intake/) | Puerta de selección de 5 puntos para adoptar patrones externos (skills/agentes/reglas/plugins/MCP) — verificación de redundancia contra tus activos existentes, verificación de procedencia/inyección para contenido ejecutable importado, una línea de licencia y consulta en un registro de veredictos anteriores |
+| [integration-intake](../integration-intake/) | Puerta de selección de 5 puntos para adoptar patrones externos (skills/agentes/reglas/plugins/MCP) — verificación de redundancia contra tus activos existentes, verificación de procedencia/inyección para contenido ejecutable importado, una línea de licencia y consulta en un registro de veredictos anteriores y comprobación de la vía de salida para conectores y proveedores de memoria |
 | [clean-room](../clean-room/) | Recorta solicitudes con elementos de seguridad hacia un alcance seguro, ejecutado por un subagente de contexto completamente aislado — paso de verificación adversarial + registro de exclusión (descope ledger) |
-| [eval-leakage-audit](../eval-leakage-audit/) | Audita si un eval/métrica/holdout realmente asegura una verdad de referencia externa independiente o es una autoconfirmación circular — taxonomía de 28 patrones, dos casos de referencia (golden). Solo lectura |
-| [doc-drift](../doc-drift/) | Audita la memoria/documentación que Claude Code carga en el contexto (CLAUDE.md/MEMORY.md/skills/agents/commands) buscando afirmaciones desactualizadas, contradicciones mutuas y redacción riesgosa/ambigua — produce una lista de correcciones priorizada |
-| [ssot-audit](../ssot-audit/) | **Nuevo en v6.5.15.** Encuentra todas las copias de un dato, valor o decisión en un repositorio o carpeta de notas, señala la fuente de verdad (solo lectura) y consolida los duplicados únicamente después de que usted lo apruebe |
+| [eval-leakage-audit](../eval-leakage-audit/) | Audita si un eval/métrica/holdout realmente asegura una verdad de referencia externa independiente o es una autoconfirmación circular — taxonomía de 31 patrones, dos casos de referencia (golden). Solo lectura |
+| [doc-drift](../doc-drift/) | Audita la memoria/documentación que Claude Code carga en el contexto (CLAUDE.md/MEMORY.md/skills/agents/commands) buscando afirmaciones desactualizadas, contradicciones mutuas y redacción riesgosa/ambigua — produce una lista de correcciones priorizada. `stale_numbers.py` señala cantidades y versiones que ya no coinciden |
+| [ssot-audit](../ssot-audit/) | Encuentra todas las copias de un dato, valor o decisión en un repositorio o carpeta de notas, señala la fuente de verdad (solo lectura) y consolida los duplicados únicamente después de que usted lo apruebe |
 
 ---
 
@@ -175,12 +175,21 @@ cp -r goal-lock ~/.claude/skills/
 
 ### Opción B: Marketplace (sovereign-plugins)
 
-Este repositorio es un marketplace de Claude Code. Regístrelo una vez para explorar e instalar habilidades:
+Este repositorio es un marketplace de plugins de Claude Code llamado `sovereign-plugins`. Agréguelo una vez y luego instale las habilidades que quiera. Dentro de una sesión de Claude Code:
+
+```
+/plugin marketplace add AlexZio00/sovereign-skills
+/plugin install goal-lock@sovereign-plugins
+```
+
+Desde una shell, los mismos dos pasos son:
 
 ```bash
-# Agregar marketplace sovereign-plugins en Claude Code
-# Configuración → Plugins → Agregar Marketplace → https://github.com/AlexZio00/sovereign-skills.git
+claude plugin marketplace add AlexZio00/sovereign-skills
+claude plugin install goal-lock@sovereign-plugins
 ```
+
+En la aplicación de escritorio, agregue el marketplace con uno de los comandos anteriores y luego elija habilidades en el explorador de plugins (**+** junto al cuadro de texto → **Add plugins**). Los marketplaces de terceros no se actualizan automáticamente por defecto. Consulte la [guía oficial de instalación de plugins](https://code.claude.com/docs/en/plugins/install.md).
 
 Cada habilidad también incluye metadatos `.claude-plugin/plugin.json` independientes.
 

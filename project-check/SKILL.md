@@ -73,7 +73,7 @@ Exclude dirs: node_modules/, .venv/, venv/, __pycache__/, vendor/, dist/, build/
 ```
 (Without this exclusion, dependency/build directories get swept into the file/LOC count and skew the Step 0 scale classification.)
 
-Classify:
+Classify (if the file count and the LOC point to different classes, take the **larger** class — for example 5 files with 3,000 LOC is mini):
 - **script**: < 10 source files or < 500 LOC → minimal structure expected, skip ROADMAP/ADR warnings
 - **mini**: 10–50 files or 500–5,000 LOC → CLAUDE.md + tests expected
 - **full**: > 50 files or > 5,000 LOC → full structure expected, ROADMAP + docs/decisions/ recommended
@@ -96,17 +96,23 @@ For CLAUDE.md: count Hard Rules entries (lines starting with `-` under `## Hard 
 
 ### Step 2: Security Scan
 
-Grep these patterns across all source files. Run the `sk-` patterns case-sensitive and every other pattern case-insensitive. Exclude: `*.example`, `.env.example`, files in `tests/`, `__tests__/`, `spec/`, and dependency/build directories (`node_modules/`, `.venv/`, `venv/`, `__pycache__/`, `vendor/`, `dist/`, `build/`, `.git/`, `.next/`, `target/` — same list as Step 0):
+Grep these patterns across all source files. Run the `sk-` patterns and the vendor-prefixed patterns case-sensitive and every other pattern case-insensitive. Exclude: `*.example`, `.env.example`, files in `tests/`, `__tests__/`, `spec/`, and dependency/build directories (`node_modules/`, `.venv/`, `venv/`, `__pycache__/`, `vendor/`, `dist/`, `build/`, `.git/`, `.next/`, `target/` — same list as Step 0):
 
 ```
-API_KEY\s*=\s*["'][^$({]      → hardcoded API key
+API_KEY\s*=\s*["'`][^$({]     → hardcoded API key
 (^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}      → OpenAI/Anthropic key (sk-..., sk-ant-..., sk-proj-... — includes hyphens and underscores; a pattern without them misses keys that contain a hyphen)
 (^|[^A-Za-z0-9])sk-ant-[A-Za-z0-9\-]{20,}  → Anthropic key (sk-ant-api03-...)
 ghp_[A-Za-z0-9]{36}           → GitHub PAT
-password\s*=\s*["'][^$({]     → hardcoded password
-secret\s*=\s*["'][^$({]       → hardcoded secret
-token\s*=\s*["'][^$({]        → hardcoded token
+github_pat_[A-Za-z0-9_]{22,}  → GitHub fine-grained PAT
+AKIA[0-9A-Z]{16}              → AWS access key id
+xox[baprs]-[A-Za-z0-9-]{10,}  → Slack token
+AIza[0-9A-Za-z_-]{35}         → Google API key
+password\s*=\s*["'`][^$({]    → hardcoded password
+secret\s*=\s*["'`][^$({]      → hardcoded secret
+token\s*=\s*["'`][^$({]       → hardcoded token
 ```
+
+The quote character class includes the backtick so that JS/TS template literals such as `` `sk-...` `` match too. The vendor-prefixed patterns (`ghp_`, `github_pat_`, `AKIA`, `xox`, `AIza`) have unique prefixes, so run them case-sensitive.
 
 The `sk-` patterns need a non-alphanumeric character (or line start) before `sk-` and must not be case-insensitive. Without that, ordinary identifiers such as `task-queue-worker-configuration` (the `sk-queue-...` inside `task-queue-...`), `risk-assessment-...` or `disk-usage-...` match and produce false 🔴 findings; they must not match.
 
@@ -190,7 +196,7 @@ File formats: https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FIL
 
 ### Step 5: Build Report
 
-Sort all findings by severity within each section: 🔴 → ✗ → ⚠ → ✓
+Sort all findings by severity within each section: 🔴 → ✗ → ⚠ → ℹ → ✓
 
 Score calculation:
 ```
@@ -358,6 +364,7 @@ Sections always in this order:
 - **Scale-aware** — a 50-line script failing "no ROADMAP" is noise, not signal
 - **Read-only by design** — a health check that modifies files is a liability
 - **Ends with a path forward** — the report is only useful if it points to the next action
+- **File existence as proxy** — test file count is a structural signal; running tests is out of scope
 
 ---
 
@@ -367,4 +374,3 @@ When reporting completion, this skill:
 1. **no mock deception**: Confirm results from actual execution. Never report completion based on assumption.
 2. **no test façade**: Don't hide failures with skip/xfail. If skipped, mark as `⚠️ SKIPPED: reason`.
 3. **no silent brokenness**: Always label final state as `WORKING` / `PARTIAL` / `BROKEN`. For PARTIAL/BROKEN, list specific failures.
-- **File existence as proxy** — test file count is a structural signal; running tests is out of scope

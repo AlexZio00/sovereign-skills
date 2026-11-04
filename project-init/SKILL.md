@@ -6,6 +6,7 @@ triggers:
   - "새 프로젝트"
   - "프로젝트 생성"
   - "project setup"
+  - "new project"
 name: project-init
 description: "Interview-based project setup — generates CLAUDE.md, ROADMAP, .gitignore, .env.example from scratch. Use when: user says '/project-init', 'new project', 'project creation', 'project setup', 'create project'. NOT for AI agent/harness configuration (use setup for that). Conversational, one question at a time."
 user-invocable: true
@@ -240,8 +241,8 @@ Confirm with user before Phase 3.
 > **Templates are separated into `references/templates.md`.** Read that file when generating any of the files below.
 > `Read ${CLAUDE_SKILL_DIR}/references/templates.md` (`${CLAUDE_SKILL_DIR}` is this skill's folder; Claude Code fills it in. In other agents, replace it with the path where you installed the skill.)
 
-Files to generate:
-- **3-1. CLAUDE.md** — always generated
+Files to generate (before writing each file, ask "Generate this?" for that file alone — no batch approval):
+- **3-1. CLAUDE.md** — always generated (include the template's Secrets Policy section only when 3-4 `.env.example` is generated; otherwise replace it with the single line "no hardcoded secrets")
 - **3-2. docs/DEVELOPMENT_ROADMAP.md** — if timeline > 1 week (Q8)
 - **3-3. .gitignore** — language-specific (based on Q2)
 - **3-4. .env.example** — if API keys/secrets involved (Q3/Q6)
@@ -278,6 +279,8 @@ Approve → files confirmed
 |--------|-----------|
 | Language switch (Q2) | .gitignore, .env.example, folder structure, Quick Ref in CLAUDE.md |
 | DB layer change (Q3) | .env.example (DB section), Hard Rules suggestion |
+| Interface change (Q4) | folder structure, Quick Ref in CLAUDE.md |
+| Deployment change (Q5) | folder structure, Quick Ref in CLAUDE.md |
 | LLM toggle (Q6) | .env.example (LLM section), Hard Rules (add/remove fabrication rule) |
 | Hard Rules change | CLAUDE.md only; also update ADR-001 in docs/decisions/README.md if that file exists (Q8 > 1 month OR Q7 was flagged significant — same eligibility as 3-6) |
 | Timeline/scope change | ROADMAP only; re-evaluate docs/decisions/ eligibility |
@@ -289,13 +292,14 @@ Approve → files confirmed
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| `CLAUDE.md` generation (Replace if exists) | medium | L1+L3 |
-| `.env.example` generation | high | L3 |
-| `.gitignore` generation/overwrite | medium | L1+L3 |
-| `docs/decisions/README.md` initialization | medium | L1+L3 |
+| `CLAUDE.md` generation (Replace if exists) | medium | L1 (chat approval) |
+| `.env.example` generation | high | L1 (chat approval) |
+| `.gitignore` generation/overwrite | medium | L1 (chat approval) |
+| `docs/decisions/README.md` initialization | medium | L1 (chat approval) |
 
 - **L1 (Invariants)**: When existing files are detected, enforce Phase 0 Overwrite Protection (CLAUDE.md: Update / Rewrite / Cancel; other files: Merge / Replace with backup / Skip).
-- **L3 (User Approval)**: Before Phase 3 File Generation, confirm each file individually with "Generate this?" — no batch approval.
+- **L1 (chat approval)**: Before Phase 3 File Generation, confirm each file individually with "Generate this?" — no batch approval. A question answered in chat is a prompt-level check, not a confirmation dialog. If a secrets guard or permission rule blocks a write, do not retry: print the content as a code block for the user to save.
+- **L1-only items**: the ban on git commands (except what Invariant 3 and the Scope Boundary allow) is enforced by this text only. The `tools` field in the frontmatter is descriptive metadata, so nothing physically blocks Bash.
 - **Forbidden**: Auto-generate `.env` (actual secrets file). Template only: `.env.example`. Refuse even if user requests "auto-generate .env".
 
 ## Error Recovery 
@@ -315,7 +319,7 @@ When failure detected: **Stop → Classify → Apply Recovery → Report & Resum
 After generating files:
 1. **no mock deception**: Run actual Write, then verify with Bash `ls`. Confirm file existence before reporting "created".
 2. **no test façade**: If generation fails, don't bundle as "done". Report each file as success/failure individually.
-3. **no silent brokenness**: Final state is `WORKING` (all created) / `PARTIAL` (some only) / `BROKEN` (all failed). For PARTIAL, list missing files.
+3. **no silent brokenness**: Final state is `WORKING` (all created) / `PARTIAL` (some only) / `BROKEN` (all failed) / `BLOCKED` (waiting for user approval, or a write was blocked by a guard). For PARTIAL and BLOCKED, list the missing files and the reason.
 
 ---
 
@@ -379,7 +383,7 @@ AI agent/rules/hooks config → use `/setup` skill instead.
 ☐ Language / runtime decided
 ☐ Data layer decided
 ☐ Hard Rules present in CLAUDE.md (direct or project rules reference)
-☐ Secrets policy included
+☐ Secrets policy included (or the one-line "no hardcoded secrets" substitute when no `.env.example` is generated)
 ☐ .gitignore generated
 ☐ .env.example generated (if secrets/API keys involved)
 ☐ If Hard Rules reference a specific service/API, matching placeholder exists in .env.example

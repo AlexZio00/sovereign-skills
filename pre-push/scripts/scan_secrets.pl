@@ -29,7 +29,7 @@ while (<STDIN>) {
   $f2=1 if /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/;
 
   # f3: Password embedded in connection/DSN string (skip ${VAR} and $(cmd) templates)
-  $f3=1 if m{://[^\s:@]+:[^\s@]{4,}@} && !/\$\{|\$\(/;
+  $f3=1 if m{://[^\s:@/?#]*:[^\s@]{4,}@} && !/\$\{|\$\(/;
 
   # f4a: Hardcoded credential assignment — quoted value (6+ chars between quotes)
   $f4a=1 if /(password|passwd|secret|api_key|apikey|access_token|auth_token|jwt_secret)\s*[=:]\s*[\x27"][^\x27"]{6,}[\x27"]/i;

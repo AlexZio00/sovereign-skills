@@ -45,7 +45,7 @@ Does the registered project list (`projects-registry.md`) point to paths that ac
 
 ## Discard If
 - Zero registered projects (`projects-registry.md` missing or empty list) → instruct the user to add a project to the registry first, then stop
-- Already run recently with no state change across projects (handoff file mtimes unchanged) → suggest skipping the re-run (not forced — run if the user wants)
+- Already run recently with no state change across projects (the modification time of the generated `OVERVIEW.md` is later than that of every registered project's handoff file — compare them directly with `stat` or `ls -l`) → suggest skipping the re-run (not forced — run if the user wants)
 
 File formats (registry, handoff snapshot block, OVERVIEW.md): https://github.com/AlexZio00/sovereign-skills/blob/master/docs/FILE-CONVENTIONS.md
 
@@ -65,7 +65,7 @@ File formats (registry, handoff snapshot block, OVERVIEW.md): https://github.com
 
 ## Output
 
-- **Chat report**: relay the script's own stdout/stderr line verbatim (`WORKING: N project(s) -> <path>` or `BLOCKED: ...`) — don't paraphrase it or invent a project count of your own.
+- **Chat report**: relay the script's own stdout/stderr line verbatim (`WORKING: N project(s) -> <path>`, `PARTIAL: ...` or `BLOCKED: ...`) — don't paraphrase it or invent a project count of your own.
 - **Disk write**: the script writes exactly one file, and only the `AUTO:START`~`AUTO:END` region inside it — `~/.claude/OVERVIEW.md`. Nothing else on disk is touched, and text outside the markers in that file is never rewritten.
 - **Final status label**: state one of `WORKING` / `PARTIAL` / `BLOCKED` (definitions in Truthful Reporting below) at the end of every run — never leave it implicit.
 

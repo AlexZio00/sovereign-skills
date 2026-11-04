@@ -32,6 +32,7 @@ depends_on:
     - memory/MEMORY.md
     - "scripts/slop_detector.py"
     - "scripts/claude_md_lint.py"
+    - "scripts/stale_numbers.py"
 concurrency_profile:
   read_only: false
   concurrency_safe: false
@@ -103,9 +104,17 @@ This skill runs on the following assumptions:
 
 ## Workflow
 
+### Step 0.0 — Check the Discard If gates (deterministic, before Step 0)
+
+Measure the two default gates in Discard If instead of guessing. 24h gate: if
+`.drift-reports/latest.md` exists, compare its modification time with now.
+Size gate: count files with `git ls-files | wc -l` (outside a git repo,
+`find . -type f | wc -l`). If either gate trips, check the override conditions
+in Discard If; with no override, tell the user the skip reason and stop.
+
 ### Step 0 — Deterministic pre-filter
 
-Before the LLM read, run two deterministic scripts over the same
+Before the LLM read, run three deterministic scripts over the same
 starting-point files Step 1 targets (CLAUDE.md, MEMORY.md,
 skills/agents/commands) — a scripted pass that doesn't need Step 1's full
 `@import` expansion to run first. Sorting "what can be counted mechanically"
@@ -119,9 +128,13 @@ script once per file (`<path>`, project-relative or absolute):
 
 ```bash
 PYBIN=$(command -v python3 || command -v python)
-"$PYBIN" "${CLAUDE_SKILL_DIR}/scripts/slop_detector.py" <path> --json
-"$PYBIN" "${CLAUDE_SKILL_DIR}/scripts/claude_md_lint.py" <path> --json   # CLAUDE.md-style files only
+"$PYBIN" "${CLAUDE_SKILL_DIR}/scripts/slop_detector.py" "<path>" --json
+"$PYBIN" "${CLAUDE_SKILL_DIR}/scripts/claude_md_lint.py" "<path>" --json   # CLAUDE.md-style files only
+"$PYBIN" "${CLAUDE_SKILL_DIR}/scripts/stale_numbers.py" "<path>" [...]     # CLAUDE.md / MEMORY.md-style files
 ```
+
+All three exit 0 when clean, 1 when they found something, and 2 when a file is
+unreadable. Exit 1 is a result, not a failure.
 
 1. **`slop_detector.py`** — Ambiguous-wording / AI-tell density scan: a fixed
    additive-weight pattern list (hedging phrases, hype vocabulary, empty
@@ -135,13 +148,24 @@ PYBIN=$(command -v python3 || command -v python)
    situation") and length over a 150-line budget, returning
    `verdict: WEAK/OK/STRONG`. A WEAK verdict is itself a Risky/Ambiguous
    signal — a paragraph with no actionable instruction a model could act on.
+3. **`stale_numbers.py`** — Hard-coded counts that go stale silently: a line
+   that states a count of something that changes (tests, rows, skills,
+   agents, files, lines, ...) with neither a measurement date nor a counting
+   command in backticks. Idea from rlaope/oh-my-hermes ("write the command
+   that counts, not the count"), re-implemented. Suggest the fix as "replace
+   the number with the command that counts it; if that is not possible, stamp
+   the measurement date" — for example `40 skills` becomes
+   `` `ls skills | wc -l` (40 on 2026-10-24) ``.
 
 If Python is missing or a script fails to start, skip Step 0 and proceed
 straight to Step 1 — it's an optional accelerant, not a hard dependency (see
 Error Recovery). Write `Step 0: not run (<reason>)` in the report header, so
-the skip is visible.
+the skip is visible. If one script fails (cannot start, or exit 2 on an
+unreadable file), write `Step 0 skipped: <script> exit <N>` in the report and
+keep running the other scripts and the audit — one failed pre-filter never
+blocks the whole audit.
 
-Both scripts produce **supporting evidence only** for the Risky/Ambiguous row
+All three scripts produce **supporting evidence only** for the Risky/Ambiguous row
 in Step 2 — a HIGH/WEAK verdict raises suspicion, it doesn't decide
 inclusion. The confidence ≥80% gate stays the actual gate (see Invariants);
 Step 0 output without a corroborating LLM read is not a finding on its own.
@@ -315,7 +339,10 @@ On failure: **Stop → Classify → Apply Recovery → Report & Resume**.
 
 1. **Evidence required**: every finding cites both sides — `file:line` for the
    claim and `file:line` for the counter-evidence. No finding without
-   evidence. A candidate that can't produce a resolvable anchor is labeled
+   evidence. Exception: a Session Leakage finding has no separate
+   counter-evidence location, so it cites one `file:line` (the claim) and
+   names, as its second anchor, the reference that cannot be resolved outside
+   that session. A candidate that can't produce a resolvable anchor is labeled
    `asserted_without_anchor` and cut before the report is written — the label
    makes the cut auditable instead of a silent drop. Violation → impossible to
    trace what the tool actually based its judgment on, so a human can't decide
@@ -411,7 +438,9 @@ is not installed or not logged in, or the project has no remote, stop after the
 commits: tell the user the branch name and that nothing was pushed.
 
 **Always excluded**: Conflict (needs a human to say which side is right),
-Risky/Ambiguous (needs intent confirmation).
+Risky/Ambiguous (needs intent confirmation), and protected instruction or
+settings files (CLAUDE.md, rules files, `settings*.json`) — propose those
+edits in the report only and let the user apply them.
 
 ---
 

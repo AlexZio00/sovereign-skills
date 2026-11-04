@@ -8,7 +8,7 @@ The verdict is LLM-made, so a match is a calibration signal, not a deterministic
 
 Must fire (with evidence): #3 Shared hallucination, #4 Tautology, #5 Verifier = designer, #9 Dual-fail-flag, #20 Lenient-judge-mode non-disclosure, #21 Hardest-category denominator exclusion.
 
-Must not fire: every other pattern. A pattern outside the list above may appear only in the Suspected (UNCERTAIN) tier with its missing evidence named. #12 (Ungraded grader) is the usual borderline case: the rubric was invented after looking at outputs, so a Suspected entry for #12 is acceptable, a "fired" entry is not. Patterns #22-#28 are not exercised by this case.
+Must not fire: every other pattern. A pattern outside the list above may appear only in the Suspected (UNCERTAIN) tier with its missing evidence named. #12 (Ungraded grader) is the usual borderline case: the rubric was invented after looking at outputs, so a Suspected entry for #12 is acceptable, a "fired" entry is not. Patterns #22-#31 are not exercised by this case.
 
 ## golden-case-02.md
 

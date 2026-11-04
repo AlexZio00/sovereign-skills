@@ -1,0 +1,4 @@
+# Bundled helper scripts must run on Python 3.9+ (README "Requirements").
+# Without this, a ruff run under a newer default target rewrites 3.9-safe code
+# into 3.11-only forms (for example timezone.utc -> datetime.UTC).
+target-version = "py39"

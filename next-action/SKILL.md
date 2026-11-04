@@ -39,9 +39,9 @@ Different from session-start (handoff load) — session-start restores the prior
 
 ## Workflow
 
-### Step 1: Collect State (parallel, 30s cap)
+### Step 1: Collect State (parallel)
 
-Read the following 6 sources. Skip missing files.
+Read the following 6 sources. Skip missing files. **Use read-only Bash commands only** — `git status --short`, `git log --oneline -5`, `stat`, `ls`, the portable one-liner and the bundled script named below. The `disallowed-tools` field blocks only Edit/Write/NotebookEdit and cannot restrict Bash, so do not use redirection, `git commit`, `rm` or any other write command (Invariant 1).
 
 1. `memory/session-handoff-LATEST.md` — "What to do now" section
 2. `git status --short` — uncommitted changed files. For the age, run this portable one-liner (it prints the days since the oldest changed or untracked file was modified, skips deleted files, and prints `none` if there are no changes), then add "uncommitted N days" to the rationale:
@@ -67,7 +67,7 @@ Extract action candidates from collected data. Check each candidate's own underl
 
 ### Step 3: Sort by Impact
 
-Narrow candidates to 3. Sort criteria:
+Narrow candidates to 3. If fewer than 3 candidates exist, list only what you found and add one line, "no more found (sources read: …)" — never invent candidates to fill the list. Sort criteria:
 
 1. **Urgency** — resolve blocker > verify uncommitted > handoff item
 2. **Dependency** — prerequisites for other work take priority

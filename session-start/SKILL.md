@@ -8,7 +8,7 @@ triggers:
   - "어디부터"
   - "start session"
 name: session-start
-description: "Load handoff on session start, review lessons, output readiness signal. Triggers: '/session-start', 'start session'. Skip if: first session (no handoff), user requests 'start fresh', or standalone question unrelated to project context."
+description: "Load handoff on session start, review lessons, output readiness signal. Triggers: '/session-start', 'start session'. Skip if: user requests 'start fresh' or a standalone question unrelated to project context. A missing handoff (first session) skips only the handoff step."
 user-invocable: true
 depends_on:
   skills: []
@@ -33,7 +33,6 @@ concurrency_profile:
     concurrency_safe: false
   destructive: none
 not_for:
-  - "First session (no handoff exists) -> start directly"
   - "One-off question -> answer directly"
   - "User says 'start fresh' -> skip"
 see_also:
@@ -61,7 +60,7 @@ Does the handoff document **what to do next**, or **what was done**? If it lists
 - User requests "start fresh" / "ignore context" → skip
 - Project-unrelated standalone question → skip
 
-> **Phase 0.5 runs even on discard**: configuration errors must be detected in first session and standalone questions too.
+> **Phase 0.5 runs even on discard**: configuration errors must be detected in first session and standalone questions too. (Mechanism: run only the Phase 0.5 checks on their own; do not load the rest of the skill.)
 
 ---
 
@@ -87,8 +86,8 @@ File formats read here (handoff, `tasks/lessons.md`, `STATE.md`, `MEMORY.md`, `c
 - If the file or the field is missing: skip silently
 
 **Check 2 — Accumulated Allow Entries** (read `~/.claude/settings.local.json`):
-- Count `permissions.allow` array items
-- If count > 5 → `⚠️ settings.local.json allow: N entries`
+- Count the **total** number of `permissions.allow` array items (the entries are plain strings with no timestamp, so a "recent entries" filter is not possible — this checks the accumulated total)
+- If count ≥ 5 → `⚠️ settings.local.json allow: N entries — consider cleaning up`
 - If file missing: skip silently
 
 **Note — session-scoped authorization does not carry over**: one-time approvals for risky actions, temporarily-enabled high-risk feature flags, and other session-scoped permissions granted in a previous session are not restored automatically in a new session. If the handoff notes something as "approved" or "enabled," treat that as historical context only — ask the user to re-confirm before relying on it this session.
@@ -124,6 +123,7 @@ the full prose extraction below as before.
 
 Extract:
 - **Priority 1** — most urgent task for this session
+- **Priority 2** — the next item after that (omit if there is none)
 - **Outstanding decisions** — questions awaiting user input
 - **Remaining issues** — unresolved bugs or blockers
 - **Context notes** — failed approaches from previous session (prevent repetition), critical causal links
@@ -280,7 +280,7 @@ Read `memory/MEMORY.md` but filter by tag.
 ### 4.2 Spot Check (existing)
 
 1. **Stale references** — run one `ls` over every file path that the handoff's to-do items mention (all of them, not a sample: a to-do whose target is gone is meaningless). Flag immediately if missing.
-2. **Promotion candidates** — scan `memory/context-log.md` for entries with `[ref:N]` where N≥3 → escalate now to MEMORY.md. This write uses the `promotion_write` profile, not `default` — it is not concurrency-safe (see Safety Layers for the CAS-guard requirement).
+2. **Promotion candidates** — scan `memory/context-log.md` for entries with `[ref:N]` where N≥3 → show the user the lines you would add to MEMORY.md and add them only after the user confirms (MEMORY.md may not be under version control, so a wrongly promoted fact cannot be traced back). Without a confirmation, add nothing and report only "N promotion candidates". The write uses the `promotion_write` profile, not `default` — it is not concurrency-safe (see Safety Layers for the CAS-guard requirement).
 
 Limits: the reference check is one `ls` call over all listed paths; promotion handles at most 2 candidates per session. Stop if elapsed time exceeds 60 seconds.
 
@@ -297,6 +297,8 @@ Skip if MEMORY.md missing.
 **Priority 2:** [second item (if any)]
 
 **Recent changes:** [state-snapshot `diff` field, 1-line summary — omit this line if no state-snapshot block]
+
+**Context notes:** [failed approaches and current interests from Phase 1, one line — omit if none; interests only tune tone]
 
 **Outstanding decisions:** [list, or "none"]
 **Active blockers:** [list, or "none"]
@@ -336,7 +338,7 @@ Layers: L1 = a written rule in this file; L3 = the user confirms first.
 
 | Risky Action | Reversibility | Applied Layers |
 |-------------|:-------------:|----------------|
-| MEMORY.md promotion write (ref≥3 items) | high (git) | L1 (Invariant 1: only exception) |
+| MEMORY.md promotion write (ref≥3 items, only after user confirmation) | medium (the file may be outside git) | L1 + chat confirmation (Invariant 1: only exception) |
 
 - **L1 (Invariants)**: read-only by default. Promotion write is sole exception.
 - **Read-only discipline is a written rule (L1)**: the frontmatter `tools:` list is descriptive metadata. Write/Edit are used only for the MEMORY.md promotion exception (Invariant 1); no other file is modified. Bash is limited by this rule to read-only grep/ls one-liners and the bundled `handoff_due_check.py` and `harness_observability.py`; the two `harness_observability.py` commands used here (`model-tag-count`, `rejection-rate`) only read the logs. `secret_redact.py` is a helper module for `harness_observability.py` and is not run by this skill.
@@ -347,13 +349,13 @@ Layers: L1 = a written rule in this file; L3 = the user confirms first.
 
 | Failure Type | Detection Condition | Recovery Path |
 |---------|---------|--------|
-| `missing_data` | handoff/lessons/MEMORY files absent | Skip that Phase silently (Invariant 2). Do not block session start |
-| `tool_failure` | Read tool fails | Skip that file + report `⚠️ Load failed: [file]` |
+| `missing_data` | handoff/lessons/MEMORY files absent (including a Read that fails because the file does not exist) | Skip that Phase silently (Invariant 2). Do not block session start |
+| `tool_failure` | The file exists but reading it fails (permissions, lock, encoding) | Skip that file + report `⚠️ Load failed: [file]` |
 | `input_error` | settings.json parse fails | Skip health-check Phase only; proceed normally with other Phases |
 
 ## Invariants (never violate)
 
-1. **Read-only by default**: session-start loads context but does not modify files. Only exception allowed: promote high-ref-count items to MEMORY.md (stale awareness write). No other writes.
+1. **Read-only by default**: session-start loads context but does not modify files. Only exception allowed: promote high-ref-count items to MEMORY.md (stale awareness write), and only after the user confirms the lines. No other writes.
 
 2. **Missing files = skip silently**: if any of handoff, lessons, MEMORY.md, settings.json, settings.local.json are absent, skip that Phase without error. File absence does not block session start.
 
@@ -364,7 +366,7 @@ Layers: L1 = a written rule in this file; L3 = the user confirms first.
 ## Output
 
 - **Chat window**: readiness signal (priorities + outstanding decisions + lesson flags)
-- **Files written**: none — or MEMORY.md (promotion write only, if triggered)
+- **Files written**: none — or MEMORY.md (promotion write only, if triggered and confirmed by the user)
 
 ---
 

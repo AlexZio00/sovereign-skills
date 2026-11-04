@@ -1,6 +1,6 @@
 ---
 skill_type: utility
-tools: Read
+tools: Read  # scans the conversation context; Read is used only when a supporting file must be checked
 name: stepback
 description: "One-shot perspective reset. Scans current work context, generates 1 abstract reframing question + 3 quick checks (scope drift, side effects, better approach) in under 10 lines. No dialogue, no code, no agents."
 depends_on:
@@ -24,6 +24,9 @@ user-invocable: true
 not_for:
   - "Next action recommendation -> next-action skill"
   - "Session start -> session-start"
+  - "Retrospective on work already completed -> your retrospective or checkpoint tooling"
+  - "Code review request -> a code-review tool or reviewer agent"
+  - "Formal impact analysis of a concrete change -> a scope-definition tool"
 see_also:
   - skill: next-action
     relation: "stepback=direction check, next-action=action recommendation"
@@ -63,7 +66,7 @@ Whether the work direction is solving the right problem at the right level — i
 
 - Work is already completed (use retrospective tools instead)
 - Code review requested (use code review tools instead)
-- Specific change impact analysis needed (use scope definition tools instead)
+- Formal impact analysis of a specific change needed (use scope definition tools instead). Stepback itself only gives the one-sentence blast-radius check in Side Effects.
 
 ---
 

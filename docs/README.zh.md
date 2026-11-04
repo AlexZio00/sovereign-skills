@@ -1,10 +1,10 @@
 [English](../README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | 🌐 **中文** | [Español](README.es.md)
 
-# sovereign-skills v6.5.15
+# sovereign-skills v6.6.0
 
 覆盖 Claude Code 项目完整生命周期的 22 个技能 — 从初始设置到日常工作流、代码审查、会话管理、治理。每个技能可独立使用，完整序列覆盖所有环节。
 
-> **v6.5.15 变更：** 新增两个技能 — `ssot-audit`（找出同一事实的所有副本并确定唯一权威来源）和 `skill-trigger-auditor`（检查技能和命令是否被正确路由）。缺陷修复：先提交、之后再推送时，`pre-push` 不再跳过测试和 lint；`project-check` 现在能识别带连字符的 API 密钥（`sk-ant-…`、`sk-proj-…`）；`setup` 的 hook 示例不再依赖 `bash` + `jq`，在 Windows 上也能运行。其他技能的升级：`code-autopsy` 为每条发现标注 NEW 或 PRE-EXISTING 并给出证据等级；会话类技能会标出日期已过的交接项；`integration-intake` 在重新审查某个仓库之前，先查询自己此前的判定。全部 22 个技能还经过了一次通读审计：内置脚本在任何安装位置都能被找到（`${CLAUDE_SKILL_DIR}`），可在 Python 3.9+ 和 macOS 上运行，可选的外部智能体都有标注和后备方案，共享文件格式已写入 [docs/FILE-CONVENTIONS.md](FILE-CONVENTIONS.md)。详见 [CHANGELOG.md](../CHANGELOG.md)。
+> **v6.6.0 变更：** 22 个技能中有 20 个已更新。`eval-leakage-audit` 的模式从 28 种增加到 31 种（平凡线索基线、A-vs-B 对比中逐条件的评分器误差、未披露的后备评分）。`skill-trigger-auditor` 按划分（tuning / heldout / review / real）对触发测试评分。新增两个带测试的辅助脚本：`doc-drift/scripts/stale_numbers.py`（文档中与文件不再一致的数量和版本）和 `pre-push/scripts/share_record.py`（按类别统计公开 push 所携带内容中的电子邮件、主目录路径和密钥形态字符串的数量，且不记录具体值）。`integration-intake` 会在你采用某个连接器或记忆提供方之前，检查如何退出。缺陷修复：`pre-push` 不再把 `family=…:wght@400` 这类字体 URL 误读为连接字符串中的密码；`project-check` 能检测 GitHub 细粒度令牌，并且在文件数与 LOC 不一致时采用更大的规模等级；`session-start` 即使跳过其余部分也会运行健康检查。详见 [CHANGELOG.md](../CHANGELOG.md)。
 
 ---
 
@@ -67,7 +67,7 @@
 | [scope](../scope/) | 实现前定义 IN/OUT/退出标准。Quick 模式（3 个问题）或 Full 模式（分层规格）。Full 模式附带 `coverage_check.py`（需求↔任务核对） |
 | [freeze](../freeze/) | 声明可编辑区域 — 其余冻结。防止实现过程中的范围蔓延 |
 | [goal-lock](../goal-lock/) | 智能体纪律引擎 — 锁定目标，强制 PLAN→DO→VERIFY→FINALIZE→OUTPUT 循环，检测 16 种成功伪装模式 |
-| [pre-push](../pre-push/) | 强制 pre-push 管道 — 密钥扫描（14 种模式）、构建/测试、lint、并行 AI 代码审查。检查这次 push 实际携带的内容（已暂存的改动 + 尚未推送的提交）。发现 Critical/High 时阻止 push |
+| [pre-push](../pre-push/) | 强制 pre-push 管道 — 密钥扫描（14 种模式）、构建/测试、lint、并行 AI 代码审查。检查这次 push 实际携带的内容（已暂存的改动 + 尚未推送的提交）。发现 Critical/High 时阻止 push。推送到公开镜像时，还会生成不含具体值的共享记录（`share_record.py`） |
 
 ### 视角转换
 
@@ -102,18 +102,18 @@
 |------|------|
 | [skill-ops](../skill-ops/) | 技能/智能体运维中枢 — 快照/回滚 + 使用状况 + 调用追踪 + 质量评分，4 种模式。附带 `skill_snapshot.py` 和 `skill_health_bucket.py` |
 | [project-overview](../project-overview/) | 从已注册项目的会话交接文件生成确定性跨项目状态地图，并报告超过 7 天的快照 |
-| [skill-trigger-auditor](../skill-trigger-auditor/) | **v6.5.15 新增。** 审计技能、智能体和斜杠命令的路由是否存在冲突和误触发，并用留出集（holdout）触发测试为 description 的修改把关。可选的探针会度量真实的 Skill 工具调用 |
+| [skill-trigger-auditor](../skill-trigger-auditor/) | 审计技能、智能体和斜杠命令的路由是否存在冲突和误触发，并用留出集（holdout）触发测试为 description 的修改把关，并按划分（tuning / heldout / review / real）评分。可选的探针会度量真实的 Skill 工具调用 |
 
 ### 治理
 
 | 技能 | 功能 |
 |------|------|
 | [full-audit](../full-audit/) | 对整个区域（代码库/文档/技能/记忆/配置）的详尽审计 — 确定性扫描+内容审查双层方法、防误报kill-test、植入式金丝雀、持久化覆盖图 |
-| [integration-intake](../integration-intake/) | 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查、引入内容的provenance/注入检查、一行许可证说明，以及对此前判定的台账查询 |
+| [integration-intake](../integration-intake/) | 外部模式（技能/智能体/规则/插件/MCP）采纳的5项筛选闸门 — 与现有资产的重复检查、引入内容的provenance/注入检查、一行许可证说明，对此前判定的台账查询，以及对连接器和记忆提供方的退出路径检查 |
 | [clean-room](../clean-room/) | 将安全敏感请求切分为安全范围，由完全隔离的fresh-context子智能体执行 — 对抗性验证通过 + descope ledger |
-| [eval-leakage-audit](../eval-leakage-audit/) | 审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认 — 28 种模式的分类法，两个黄金用例。只读 |
-| [doc-drift](../doc-drift/) | 审计Claude Code加载到上下文中的记忆/文档(CLAUDE.md/MEMORY.md/skills/agents/commands)，发现过时声明、相互矛盾和风险/模糊措辞 — 生成优先级修复清单 |
-| [ssot-audit](../ssot-audit/) | **v6.5.15 新增。** 在仓库或笔记文件夹中找出同一事实、数值或决策的所有副本，确定唯一权威来源（只读），并且只在你批准之后才合并重复内容 |
+| [eval-leakage-audit](../eval-leakage-audit/) | 审计eval/metric/holdout是否真正确保了独立的外部真值，还是循环自我确认 — 31 种模式的分类法，两个黄金用例。只读 |
+| [doc-drift](../doc-drift/) | 审计Claude Code加载到上下文中的记忆/文档(CLAUDE.md/MEMORY.md/skills/agents/commands)，发现过时声明、相互矛盾和风险/模糊措辞 — 生成优先级修复清单。`stale_numbers.py` 会标出不再一致的数量和版本 |
+| [ssot-audit](../ssot-audit/) | 在仓库或笔记文件夹中找出同一事实、数值或决策的所有副本，确定唯一权威来源（只读），并且只在你批准之后才合并重复内容 |
 
 ---
 
@@ -175,12 +175,21 @@ cp -r goal-lock ~/.claude/skills/
 
 ### 方法 B：市场（sovereign-plugins）
 
-本仓库是 Claude Code 市场。注册一次即可浏览和安装技能：
+本仓库是名为 `sovereign-plugins` 的 Claude Code 插件市场。添加一次，然后安装你需要的技能。在 Claude Code 会话中：
+
+```
+/plugin marketplace add AlexZio00/sovereign-skills
+/plugin install goal-lock@sovereign-plugins
+```
+
+在 shell 中，同样的两步是：
 
 ```bash
-# 在 Claude Code 中添加 sovereign-plugins 市场
-# 设置 → 插件 → 添加市场 → https://github.com/AlexZio00/sovereign-skills.git
+claude plugin marketplace add AlexZio00/sovereign-skills
+claude plugin install goal-lock@sovereign-plugins
 ```
+
+在桌面应用中，用上面任一命令添加市场，然后在插件浏览器中选择技能（提示框旁的 **+** → **Add plugins**）。第三方市场默认不会自动更新。参见[官方插件安装指南](https://code.claude.com/docs/en/plugins/install.md)。
 
 每个技能也包含独立的 `.claude-plugin/plugin.json` 元数据。
 

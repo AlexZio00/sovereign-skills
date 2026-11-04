@@ -51,6 +51,12 @@ CASES = {
         '+  DSN = "mysql://admin:Passw0rd123!@db.internal:3306/app"  # fallback default ${DB_DSN_OVERRIDE}', 1),
     "f3_negative_legit_template_stays_clean": (
         '+  DSN = "mysql://${DB_USER}:${DB_PASS}@db.internal:3306/app"', 0),
+    "f3_negative_font_url_query_is_not_userinfo": (
+        "+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700');", 0),
+    "f3_password_with_slash_still_caught": (
+        '+  MONGO = "mongodb+srv://user:p4ss/word9@cluster0.example.net"', 1),  # scan-secrets: allow (synthetic f3 fixture)
+    "f3_empty_user_password_caught": (
+        '+  REDIS = "redis://:S3cretPassw0rd@cache.internal:6379"', 1),  # scan-secrets: allow (synthetic f3 fixture)
 
     # --- f4a: quoted credential assignment ---
     "f4a_control_password_still_caught": (

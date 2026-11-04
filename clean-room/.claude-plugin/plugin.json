@@ -1,6 +1,6 @@
 {
   "name": "clean-room",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Carves safety-adjacent requests into a safe scope, executed by a genuinely isolated fresh-context subagent, with an adversarial verify pass and a descope ledger.",
   "author": {
     "name": "AlexZio00",
